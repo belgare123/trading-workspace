@@ -295,39 +295,4 @@ class Opportunity:
         }
 
 
-# ───────────────────────────────────────────────────────────────────
-#  Legacy backward compatibility
-#  (old signal/engine.py used core.decision.models.Decision)
-# ───────────────────────────────────────────────────────────────────
-
-
-@dataclass
-class Decision:
-    """Legacy Decision class (backward compat).
-
-    Устаревший класс, использовался в core/signal/engine.py
-    для адаптивных порогов и динамических SL/TP.
-    """
-
-    symbol: str
-    direction: SignalDirection
-    confidence: float = 0.0
-    score: float = 0.0
-    reason: str = ""
-    sl: float | None = None
-    tp: float | None = None
-    is_actionable: bool = False
-    evidence: list[Evidence] = field(default_factory=list)
-    strategies: list[str] = field(default_factory=list)
-
-    def to_dict(self) -> dict:
-        return {
-            "symbol": self.symbol,
-            "direction": self.direction.value,
-            "confidence": self.confidence,
-            "score": self.score,
-            "reason": self.reason,
-            "sl": self.sl,
-            "tp": self.tp,
-            "is_actionable": self.is_actionable,
-        }
+# ── (Legacy Decision class removed — replaced by ConsensusResult) ──

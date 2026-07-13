@@ -1,20 +1,18 @@
-"""
-Tests for Decision Engine (Phase 7) — core/decision/engine.py + models.py.
+"""Tests for Decision Engine (Phase 7) — core/decision/engine.py + models.py.
 
 Covers:
   - DecisionEngine.process() pipeline
   - DecisionResult
-  - Legacy Decision backward compatibility
 """
 
 from __future__ import annotations
 
 from core.decision.engine import DecisionEngine, DecisionResult
-from core.decision.models import Decision, NormalizedSignal, Opportunity, SignalDirection
+from core.decision.models import NormalizedSignal, Opportunity, SignalDirection
 
 
-class TestDecisionEngineProcess:
-    """Tests for the new Phase 7 DecisionEngine.process()."""
+class TestDecisionEngine:
+    """Tests for the DecisionEngine pipeline."""
 
     def setup_method(self):
         self.engine = DecisionEngine()
@@ -78,45 +76,3 @@ class TestDecisionEngineProcess:
         self.engine.report_outcome("Momentum", won=True)
         w = self.engine.weight_engine.get_weight("Momentum")
         assert w > 1.0
-
-
-class TestLegacyDecision:
-    """Tests for the backward-compatible Decision class."""
-
-    def test_create(self):
-        d = Decision(
-            symbol="BTC/USDT",
-            direction=SignalDirection.LONG,
-            confidence=0.75,
-            is_actionable=True,
-        )
-        assert d.symbol == "BTC/USDT"
-        assert d.direction == SignalDirection.LONG
-        assert d.is_actionable is True
-
-    def test_defaults(self):
-        d = Decision(symbol="X", direction=SignalDirection.LONG)
-        assert d.confidence == 0.0
-        assert d.reason == ""
-        assert d.sl is None
-        assert d.tp is None
-        assert d.is_actionable is False
-        assert d.evidence == []
-        assert d.strategies == []
-
-    def test_to_dict(self):
-        d = Decision(
-            symbol="BTC/USDT",
-            direction=SignalDirection.LONG,
-            confidence=0.75,
-            is_actionable=True,
-            reason="Strong signal",
-            sl=64000.0,
-            tp=65000.0,
-        )
-        data = d.to_dict()
-        assert data["symbol"] == "BTC/USDT"
-        assert data["confidence"] == 0.75
-        assert data["is_actionable"] is True
-        assert data["sl"] == 64000.0
-        assert data["tp"] == 65000.0

@@ -11,7 +11,6 @@ from typing import Any, Callable
 
 from core import SignalResult
 from core.consensus.models import ConsensusResult, SignalDirection, SignalVote
-from core.decision.models import Decision
 from core.risk.models import RiskVerdict, RiskContext, RiskResult
 from core.ome import OME, OrderSide, OrderType
 
@@ -73,19 +72,25 @@ class SignalEngine:
 
         direction_str = direction.value
 
+        from core.decision.models import ConsensusResult as DecisionCompat
+
         # 1. DecisionEngine (adaptive thresholds + SL/TP)
-        decision: Decision | None = None
-        if self.decision_engine:
+        # NOTE: V2 DecisionEngine no longer has evaluate().
+        # This code path is part of legacy V1 signal pipeline awaiting
+        # migration to core/execution/signal_orchestrator.py
+        decision: DecisionCompat | None = None
+        if self.decision_engine and hasattr(self.decision_engine, "evaluate"):
             decision = await self.decision_engine.evaluate(symbol, consensus)
-            if not decision.is_actionable:
+            if not getattr(decision, "is_actionable", False):
+                reason = getattr(decision, "reason", "blocked")
                 if self.metrics:
                     self.metrics.inc("signal_decision_blocked",
-                                     labels={"symbol": symbol, "reason": decision.reason})
-                logger.debug("[signal] %s blocked by decision: %s", symbol, decision.reason)
+                                     labels={"symbol": symbol, "reason": reason})
+                logger.debug("[signal] %s blocked by decision: %s", symbol, reason)
                 return None
             # Используем SL/TP из DecisionEngine (если есть) для OME
-            decision_sl = decision.sl
-            decision_tp = decision.tp
+            decision_sl = getattr(decision, "sl", None)
+            decision_tp = getattr(decision, "tp", None)
         else:
             decision_sl = None
             decision_tp = None
