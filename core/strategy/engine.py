@@ -296,26 +296,21 @@ class StrategyEngine:
         # ── Sandbox ──
         self._sandbox_ctx = SandboxContext(self._config.sandbox)
 
-        # ── Phase 6: Discovery Engine + Plugin Registry ──
-        if self._config.discovery_engine is not None:
-            self._discovery = self._config.discovery_engine
-        else:
-            self._discovery = DiscoveryEngine()
-            self._discovery.add_source(
-                DiscoverySource(
-                    type=SourceType.LOCAL,
-                    path=self._config.strategies_dir,
-                    label="strategies",
-                    priority=10,
-                )
-            )
+        # ── Registry Service (Phase 6: Discovery + PluginRegistry) ──
+        self._registry_service = self._build_registry()
+        self._discovery = self._registry_service.discovery_engine
+        self._registry = self._registry_service.plugin_registry
 
-        if self._config.plugin_registry is not None:
-            self._registry = self._config.plugin_registry
-        else:
-            self._registry = PluginRegistry(
-                registry_path=self._config.registry_path
-            )
+    def _build_registry(self) -> RegistryService:
+        """Создать StrategyRegistry из конфига."""
+        from core.strategy.registry import StrategyRegistry as RegistryService
+
+        return RegistryService(
+            discovery=self._config.discovery_engine,
+            plugin_registry=self._config.plugin_registry,
+            strategies_dir=self._config.strategies_dir,
+            registry_path=self._config.registry_path,
+        )
 
     # ── Properties ──
 
@@ -335,7 +330,7 @@ class StrategyEngine:
     def get(self, name: str) -> BaseStrategy | None:
         return self._strategies.get(name)
 
-    # ── Pipeline: Discovery (old) ─────────────────────────────────
+    # ── Discovery (old) ──
 
     async def discover(self) -> list[PluginInfo]:
         """Обнаружить все стратегии в filesystem.
@@ -346,143 +341,66 @@ class StrategyEngine:
         self._plugins = await self._loader.discover()
         return self._plugins
 
-    # ── Phase 6: Discovery Engine + Plugin Registry ─────────────────
+    # ── Registry delegation ──
 
     @property
-    def discovery_engine(self) -> DiscoveryEngine:
+    def discovery_engine(self) -> Any:
         """Discovery Engine (Phase 6)."""
-        return self._discovery
+        return self._registry_service.discovery_engine
 
     @property
-    def plugin_registry(self) -> PluginRegistry:
+    def plugin_registry(self) -> Any:
         """Plugin Registry (Phase 6)."""
-        return self._registry
+        return self._registry_service.plugin_registry
 
-    async def discover_plugins(self) -> list[PluginRecord]:
-        """Обнаружить плагины через Discovery Engine и зарегистрировать.
+    async def discover_plugins(self) -> list[Any]:
+        """Обнаружить плагины через Discovery Engine и зарегистрировать."""
+        return await self._registry_service.discover_plugins()
 
-        Returns:
-            Список зарегистрированных PluginRecord.
-        """
-        discovered = await self._discovery.discover()
-        records = []
-        for plugin in discovered:
-            record = self._registry.register(plugin)
-            records.append(record)
-        return records
+    def enable_plugin(self, name: str) -> Any:
+        return self._registry_service.enable_plugin(name)
 
-    def enable_plugin(self, name: str) -> PluginRecord:
-        """Включить плагин (enable).
+    def disable_plugin(self, name: str, reason: str | None = None) -> Any:
+        return self._registry_service.disable_plugin(name, reason=reason)
 
-        Args:
-            name: Имя плагина.
+    def list_plugins(self) -> list[Any]:
+        return self._registry_service.list_plugins()
 
-        Returns:
-            PluginRecord.
-        """
-        return self._registry.set_enabled(name, True)
+    def list_enabled(self) -> list[Any]:
+        return self._registry_service.list_enabled()
 
-    def disable_plugin(self, name: str, reason: str | None = None) -> PluginRecord:
-        """Отключить плагин (disable).
+    def list_disabled(self) -> list[Any]:
+        return self._registry_service.list_disabled()
 
-        Args:
-            name: Имя плагина.
-            reason: Причина отключения.
-
-        Returns:
-            PluginRecord.
-        """
-        return self._registry.set_enabled(name, False, reason=reason)
-
-    def list_plugins(self) -> list[PluginRecord]:
-        """Список всех зарегистрированных плагинов."""
-        return self._registry.list()
-
-    def list_enabled(self) -> list[PluginRecord]:
-        """Список включённых плагинов."""
-        return self._registry.get_enabled_plugins()
-
-    def list_disabled(self) -> list[PluginRecord]:
-        """Список отключённых плагинов."""
-        return self._registry.get_disabled_plugins()
-
-    def get_plugin(self, name: str) -> PluginRecord | None:
-        """Получить запись плагина."""
-        return self._registry.get(name)
+    def get_plugin(self, name: str) -> Any:
+        return self._registry_service.get_plugin(name)
 
     def save_registry(self) -> None:
-        """Сохранить registry.json."""
-        self._registry.save()
-
-    # ── Dependency Resolution ──
+        self._registry_service.save_registry()
 
     @property
-    def dependency_resolver(self) -> DependencyResolver:
-        """DependencyResolver для стратегий."""
-        return self._registry.dependency_resolver
+    def dependency_resolver(self) -> Any:
+        return self._registry_service.dependency_resolver
 
     def resolve_dependencies(
         self,
         check_versions: bool = True,
         strict: bool = False,
-    ) -> ResolveReport:
-        """Разрешить зависимости для всех зарегистрированных плагинов.
-
-        Args:
-            check_versions: Проверять версионные ограничения.
-            strict:         Опциональные missing deps как ошибка.
-
-        Returns:
-            ResolveReport.
-        """
-        return self._registry.resolve_dependencies(
-            check_versions=check_versions,
-            strict=strict,
+    ) -> Any:
+        return self._registry_service.resolve_dependencies(
+            check_versions=check_versions, strict=strict
         )
 
-    def resolve_plugin(
-        self,
-        name: str,
-        check_versions: bool = True,
-        strict: bool = False,
-    ) -> ResolveReport:
-        """Разрешить зависимости для одного плагина.
-
-        Args:
-            name:           Имя плагина.
-            check_versions: Проверять версионные ограничения.
-            strict:         Опциональные missing deps как ошибка.
-
-        Returns:
-            ResolveReport.
-        """
-        return self._registry.resolve_plugin(
-            name,
-            check_versions=check_versions,
-            strict=strict,
+    def resolve_plugin(self, name: str, check_versions: bool = True, strict: bool = False) -> Any:
+        return self._registry_service.resolve_plugin(
+            name, check_versions=check_versions, strict=strict
         )
 
     def startup_order(self) -> list[str]:
-        """Топологический порядок запуска плагинов.
-
-        Returns:
-            Список имён плагинов в порядке запуска.
-
-        Raises:
-            PluginRegistryError: Если есть циклические зависимости.
-        """
-        return self._registry.startup_order()
+        return self._registry_service.startup_order()
 
     def check_dependencies(self, name: str) -> tuple[bool, list[str]]:
-        """Проверить, удовлетворены ли зависимости плагина.
-
-        Args:
-            name: Имя плагина.
-
-        Returns:
-            (ok, reasons).
-        """
-        return self._registry.check_dependencies(name)
+        return self._registry_service.check_dependencies(name)
 
     # ── Pipeline: Load ─────────────────────────────────────────────
 
