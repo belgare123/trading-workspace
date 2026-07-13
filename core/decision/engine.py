@@ -35,6 +35,7 @@ from core.decision.events import (
     opportunity_created_event,
     opportunity_rejected_event,
 )
+from core.profiler import profile
 from core.decision.models import (
     ConsensusResult,
     NormalizedSignal,
@@ -121,6 +122,7 @@ class DecisionEngine:
 
     # ── Main processing pipeline ──
 
+    @profile("decision_engine.process")
     def process(
         self,
         raw_signals: dict[str, dict[str, Any]],

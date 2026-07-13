@@ -1,140 +1,119 @@
 # ⚡ Trading Workspace Platform
 
-**Modular algorithmic trading platform** — real-time market data pipeline, pluggable strategies, decision engine, portfolio management, ML learning engine, and a full workspace UI.
+**Modular algorithmic trading platform** — real-time market data pipeline, pluggable strategies, decision engine, portfolio management, ML learning engine, marketplace ecosystem, and full workspace UI.
 
-> **v0.14.0** — Phase 14: Workspace Platform.
+> **v0.15.0** — Phase 15: Marketplace Platform.
 
 [![Python](https://img.shields.io/badge/python-3.11-blue)](https://python.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green)](LICENSE)
+[![Tests](https://img.shields.io/badge/tests-861%20passed-brightgreen)](tests/)
+
+---
+
+## Quick Start
+
+```bash
+# Install
+pip install -e .
+
+# Verify
+python -c "from screener_sdk import BaseStrategy; print('SDK OK')"
+
+# Browse marketplace
+tw search momentum
+tw info ict-concepts
+tw install momentum-pro
+
+# Run backtest
+python run_backtest.py --strategy momentum-pro --symbol BTCUSDT --days 30
+
+# Launch dashboard
+python workspace/main.py
+# → http://localhost:9120
+```
+
+---
+
+## Documentation
+
+| Guide | Description |
+|-------|-------------|
+| [Architecture Guide](docs/architecture-guide.md) | Full platform architecture, module map, data flow |
+| [Developer Guide](docs/developer-guide.md) | Writing your first strategy |
+| [Plugin Guide](docs/plugin-guide.md) | Publishing packages to the marketplace |
+| [API Reference](docs/api-reference.md) | SDK reference + CLI reference + programmatic API |
+| [Sequence Diagrams](docs/sequence-diagrams.md) | Signal lifecycle, replay, quality, learning flows |
+| [Extension Guide](docs/extension-guide.md) | Adding new engines, apps, features, CLI commands |
 
 ---
 
 ## Architecture
 
 ```
-                    ┌─────────────────────────┐
-                    │     Telegram Bot        │
-                    │  (notifications, cmds)  │
-                    └───────────┬─────────────┘
-                                │
-┌───────────────────────────────┴──────────────────────────────────┐
-│                        WORKSPACE (Phase 14)                      │
-│  ┌──────────┬──────────┬──────────┬──────────┬─────────────────┐ │
-│  │ Scanner  │ Opport.  │ Strategy │ Replay   │  Inspector      │ │
-│  │ (signals)│ (trades) │ (mgmt)   │ (studio) │  (features)     │ │
-│  ├──────────┼──────────┼──────────┼──────────┼─────────────────┤ │
-│  │ Learning │ Plugins  │ Monitor  │  API Exp │  Settings       │ │
-│  │ (ML hub) │ (store)  │ (system) │ (explore)│  (config)       │ │
-│  └──────────┴──────────┴──────────┴──────────┴─────────────────┘ │
-└──────────────────────────────────────────────────────────────────┘
-                                │
-                    ┌───────────┴───────────┐
-                    │    CORE ENGINE        │
-│  ┌──────────────────┬──────────────────┬──────────────────┐ │
-│  │  Decision Engine │  Portfolio       │  Learning        │ │
-│  │  (Phase 0–3)     │  (Phase 12)      │  (Phase 13)      │ │
-│  ├──────────────────┼──────────────────┼──────────────────┤ │
-│  │  Quality Engine  │  Analytics       │  Lifecycle       │ │
-│  │  (Phase 10)      │  (Phase 11)      │  (Phase 8)       │ │
-│  └──────────────────┴──────────────────┴──────────────────┘ │
-│                    │         │              │
-│                    ▼         ▼              ▼
-│              ┌─────────────────────────────────┐
-│              │  Market Data Bus + Plugin Runtime│
-│              │  (Service Registry, DI, Events)  │
-│              └─────────────────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│                     Workspace UI                          │
+│  FastAPI + Jinja2 — 10 apps (Store, Monitor, Scanner…)   │
+└────────────────────┬─────────────────────────────────────┘
+                     │
+┌────────────────────▼─────────────────────────────────────┐
+│                      Core Engine                          │
+│                                                           │
+│  Exchanges → Features → Strategies → Decision → Lifecycle│
+│  Quality → Analytics → Portfolio → Learning → Replay     │
+│                                                           │
+│  DI Container (core/di/)  ·  EventBus (core/decision/)    │
+└────────────────────┬─────────────────────────────────────┘
+                     │
+┌────────────────────▼─────────────────────────────────────┐
+│                      Marketplace                          │
+│  Registry · Package Manager · CLI · Trust · Passports     │
+│  Benchmarks · Compatibility · Channels · Community        │
+└──────────────────────────────────────────────────────────┘
 ```
 
-## Features
+## Phases
 
-| Feature | Status |
-|---------|--------|
-| Market Data Bus (WebSocket REST) | ✅ |
-| Pluggable Strategy Pipeline | ✅ |
-| Plugin Platform (10 components) | ✅ |
-| Decision Engine (Signals → Opportunities) | ✅ |
-| Opportunity Lifecycle (10 states) | ✅ |
-| Market Replay Framework | ✅ |
-| Quality Engine (passport, ★★★★★, confidence) | ✅ |
-| Analytics Engine (10 market regimes) | ✅ |
-| Portfolio Engine (dynamic weighting) | ✅ |
-| Learning Engine (ML: classifier, predictor, anomaly) | ✅ |
-| **Workspace Platform** (10 apps, WebSocket, API) | ✅ |
-
-## Quick Start
-
-```bash
-# Install
-uv pip install -e .
-
-# Run workspace
-uvicorn workspace.main:app --host 127.0.0.1 --port 9120
-
-# Open browser
-# → http://localhost:9120
-```
-
-## Workspace Apps
-
-| # | App | Route | Description |
-|---|-----|-------|-------------|
-| 1 | 🔍 Scanner | `/scanner` | Live signal stream |
-| 2 | 🎯 Opportunities | `/opportunities` | Active/pending/stopped trades |
-| 3 | 🧠 Strategies | `/strategies` | Health, metrics, lifecycle |
-| 4 | ▶️ Replay Studio | `/replay` | Deterministic backtest IDE |
-| 5 | 🔬 Inspector | `/inspector` | Feature analysis per symbol |
-| 6 | 🤖 Learning Center | `/learning` | ML models, retrain, accuracy |
-| 7 | 🧩 Plugin Store | `/plugins` | Browse and install plugins |
-| 8 | 📊 System Monitor | `/monitor` | Runtime: services, CPU, RAM |
-| 9 | 📡 API Explorer | `/api` | Live endpoint reference |
-| 10 | ⚙️ Settings | `/settings` | Platform configuration |
-
-## API
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/v1/system/status` | Runtime status |
-| GET | `/api/v1/inspector/{symbol}` | Feature inspector |
-| GET | `/apps` | List workspace apps |
-| WS | `/ws/scanner` | Live signals |
-| WS | `/ws/opportunities` | Live opportunities |
-| WS | `/ws/strategies` | Strategy status |
-
-## Roadmap
-
-| # | Phase | Status |
-|---|-------|--------|
-| 0–9 | Infrastructure → Replay | ✅ |
-| 10 | Quality Engine | ✅ |
-| 11 | Analytics Engine | ✅ |
-| 12 | Portfolio Engine | ✅ |
-| 13 | Learning Engine | ✅ |
-| **14** | **Workspace Platform** | **✅** |
-| 15 | Marketplace | ⏳ |
-| 16 | Multi-Exchange Runtime | ⏳ |
-| 17 | Simulation Lab | ⏳ |
-
-## Tech Stack
-
-- **Language:** Python 3.11+
-- **Async Runtime:** asyncio
-- **Web:** FastAPI + Jinja2 + WebSocket
-- **Data:** WebSocket feeds (Bybit/Binance)
-- **ML:** scikit-learn (via Learning Engine)
-- **Runtime:** Docker (optional), uvicorn
+| Phase | Component | Status |
+|-------|-----------|--------|
+| 0–3 | Data Ingestion, Features, Strategies | ✅ |
+| 4–6 | Decision Engine, Plugin System | ✅ |
+| 7 | Opportunity Lifecycle | ✅ |
+| 8 | Market Replay | ✅ |
+| 9 | Quality Engine (12 metrics) | ✅ |
+| 10 | Analytics (10 regimes) | ✅ |
+| 11 | Portfolio (dynamic weighting) | ✅ |
+| 12 | Learning (ML/AI) | ✅ |
+| 13–14 | Workspace Platform (FastAPI + 10 apps) | ✅ |
+| **15** | **Marketplace Platform (12 components)** | **✅** |
+| 15.1 | Stabilization (audit, perf, docs, examples) | 🔄 |
 
 ## Project Structure
 
 ```
-G:\bot\trading-workspace/
-├── core/           — Engine layer (decision, lifecycle, replay, quality, analytics, portfolio, learning)
-├── workspace/      — Web UI (Phase 14)
-│   ├── main.py     — FastAPI entry
-│   ├── core/       — App registry, models
-│   ├── static/     — CSS, JS
-│   └── templates/  — Jinja2 layout
-├── plugins/        — Plugin platform
-├── tests/          — 799+ tests
-├── data/           — Market data cache
-└── docs/           — Architecture, ADRs
+trading-workspace/
+├── core/               # Core engine (strategy, decision, lifecycle, replay, learning, …)
+├── marketplace/        # Marketplace (registry, package manager, trust, CLI)
+├── workspace/          # Web dashboard (FastAPI + Jinja2)
+├── screener_sdk/       # Public SDK for strategy authors
+├── exchanges/          # Exchange adapters (Bybit, Binance, OKX)
+├── strategies/         # Local strategy packages
+├── docs/               # Documentation
+├── tests/              # Test suite (861+ tests)
+├── run_backtest.py     # Backtesting CLI
+├── run_hyperopt.py     # Hyperparameter optimization
+└── tw                  # Marketplace CLI
 ```
+
+## Tests
+
+```bash
+# Run full test suite
+pytest tests/ -v
+
+# Run specific module
+pytest tests/test_marketplace.py -v
+```
+
+## License
+
+MIT

@@ -28,6 +28,7 @@ from typing import Any, Callable, Optional
 
 from core.app.phases import Phase
 from core.api import CORE_API_VERSION
+from core.profiler import profile
 from core.strategy.sandbox import SandboxConfig, SandboxContext
 from core.strategy.base import BaseStrategy, StrategyMetrics
 from core.strategy.context import (
@@ -898,6 +899,7 @@ class StrategyEngine:
 
     # ── Pipeline: Analyze ────────────────────────────────────────
 
+    @profile("strategy_engine.analyze_all")
     async def analyze_all(self) -> dict[str, SignalBundle]:
         """Выполнить analyze() на всех запущенных стратегиях.
 

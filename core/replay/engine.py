@@ -28,12 +28,12 @@ from core.replay.bus import (
     REPLAY_PAUSED,
     REPLAY_PROGRESS,
     REPLAY_RESUMED,
-    REPLAY_SEEK,
     REPLAY_SNAPSHOT,
     REPLAY_STARTED,
     REPLAY_STOPPED,
     ReplayBus,
 )
+from core.profiler import profile
 from core.replay.controller import ReplayController
 from core.replay.debugger import ReplayDebugger
 from core.replay.deterministic import DeterministicExecutor
@@ -184,6 +184,7 @@ class ReplayEngine:
 
     # ── Исполнение ───────────────────────────────────────────────
 
+    @profile("replay_engine.tick")
     def tick(self) -> list[ReplayEvent]:
         """Выполнить один тик replay.
 

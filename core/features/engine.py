@@ -16,6 +16,7 @@ from typing import Any
 from core import Event, MarketDataBus, get_bus
 from core.features.base import BaseFeatureCalculator
 from core.features.store import FeatureStore, get_feature_store
+from core.profiler import profile
 
 logger = logging.getLogger(__name__)
 
@@ -104,6 +105,7 @@ class FeatureEngine:
 
     # ── Event routing ──
 
+    @profile("feature_engine.on_event")
     async def _on_event(self, event: Event):
         if not self._running:
             return
