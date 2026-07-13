@@ -4,6 +4,7 @@
 **Project:** Trading Workspace Platform v0.15.0
 **Total LOC:** ~30K Python
 **Tests:** 861/861 passing
+**Method:** Deep audit of all top-level dirs + core/ modules (22 files inspected)
 
 ---
 
@@ -11,21 +12,31 @@
 
 | Severity | Count | Category |
 |----------|-------|----------|
-| 🔴 Critical | 1 | DI singleton cascade |
+| 🔴 Critical | 2 | DI singleton cascade + God-object |
 | 🟠 High | 3 | V1/V2 engine shadow duplication |
-| 🟡 Medium | 4 | Legacy modules, test gaps |
-| 🔵 Low | 3 | Style, dead code, minor fragmentation |
+| 🟡 Medium | 3 | Legacy modules, test gaps |
+| 🔵 Low | 2 | Dead dirs, minor fragmentation |
 
 ---
 
 ## 🔴 Critical: DI Container vs Singleton Cascade
 
 ### Problem
-The DI container exists (`core/di/container.py`) and is wired in `bootstrap.py`, but **30+ modules** in `core/` use module-level `get_*()` factory functions that create singletons independently. This creates a **singleton cascade** — modules have their own singleton instances outside the container's control.
+The DI container (`core/di/container.py`) has a **dual registry** — one keyed by interface type (`_registry[type]`), another by string name (`_components[name]`). `bootstrap.py` uses only the named API (`register_instance` / `get`), so the interface-based protocol is dead code.
 
-### Affected Modules (30+)
+Meanwhile **15+ modules** in `core/` use module-level `get_*()` factory functions that create and cache singletons independently:
 
-| Module | get_* functions |
+```python
+# core/features/engine.py
+_engine: FeatureEngine | None = None
+def get_feature_engine() -> FeatureEngine:
+    global _engine
+    if _engine is None:
+        _engine = FeatureEngine(...)
+    return _engine
+```
+
+| Module | get_* function |
 |--------|----------------|
 | `core/consensus/engine.py` | `get_consensus_engine()` |
 | `core/features/engine.py` | `get_feature_engine()` |
@@ -38,7 +49,10 @@ The DI container exists (`core/di/container.py`) and is wired in `bootstrap.py`,
 | `core/cache.py` | `get_cache_service()` |
 | `core/session.py` | `get_session_manager()` |
 | `core/api.py` | `get_api_manager()` |
-| ... | (20+ more similar) |
+| `core/ome/engine.py` | `get_ome_engine()` |
+| `core/state/manager.py` | `get_state_manager()` |
+| `core/dna/manager.py` | `get_dna_manager()` |
+| `core/strategy/engine.py` | `get_strategy_engine()` |
 
 ### Impact
 - Tests that bypass bootstrap get **different singleton instances**
@@ -53,6 +67,34 @@ The DI container exists (`core/di/container.py`) and is wired in `bootstrap.py`,
 
 ---
 
+## 🔴 Critical: God-Object in `core/strategy/engine.py`
+
+**LOC:** 1,107 | **Классы:** 8+ (StrategyEngine, PipelineEngine, StrategyPipeline, _MockStrategyEngine, _MockFeatureEngine, _StrategyExecutionWrapper и др.)
+
+### Ответственности
+1. Plugin discovery — `discover_strategies()` читает manifest.yaml из `strategies/`
+2. Plugin lifecycle — load, enable, disable, remove
+3. **Dependency resolution** — `resolve_dependencies()` (DAG + cycle detection)
+4. Pipeline execution — iterate strategies, collect signals
+5. Pipeline engine delegation — `PipelineEngine` (sub-class)
+6. Mock objects — `_MockStrategyEngine`, `_MockFeatureEngine` для тестов
+7. Import autofix — `_stage_import_strategy()` с monkey-patch sys.path
+8. Metrics — timing, error tracking via `@measure_time`
+
+### Проблемы
+- Нарушение SRP (Single Responsibility Principle) — 7+ ответственностей в одном файле
+- God-class затрудняет тестирование (нужно замокать половину класса для теста другой половины)
+- `discover()` дублирует сканирование manifest.yaml из `marketplace/registry.py:PackageIndexBuilder`
+
+### Recommendation
+- Выделить `StrategyDiscoverer` (сканирование manifest.yaml)
+- Выделить `StrategyLifecycleManager` (enable/disable/remove)
+- Выделить `PipelineExecutor` (iter + measure)
+- Убрать mock-классы в отдельный `testing/` модуль
+- Объединить `discover()` с `PackageIndexBuilder` marketplace
+
+---
+
 ## 🟠 High: V1/V2 Engine Shadow Duplication
 
 ### 1. ConsensusEngine (V1 vs V2)
@@ -60,7 +102,7 @@ The DI container exists (`core/di/container.py`) and is wired in `bootstrap.py`,
 | Aspect | V1 (`core/consensus/`) | V2 (`core/decision/consensus.py`) |
 |--------|----------------------|-----------------------------------|
 | Lines | ~500 LOC (engine + models + rank) | ~150 LOC |
-| Status | Still imported by bootstrap.py:357, run_backtest.py:48, smoke_test.py:96 | Active pipeline |
+| Status | Still imported by `bootstrap.py:357`, `run_backtest.py:48`, `smoke_test.py:96` | Active pipeline |
 | Purpose | Original consensus with ranking | Refactored consensus in decision pipeline |
 | Risk | Both run in boot. V1 is shadow — results ignored? | 🟠 |
 
@@ -69,50 +111,81 @@ The DI container exists (`core/di/container.py`) and is wired in `bootstrap.py`,
 | Aspect | V1 (`core/market_replay.py`) | V2 (`core/replay/`) |
 |--------|------------------------------|---------------------|
 | Lines | 282 LOC | 341 + 111 + 89 + 191 LOC |
-| Status | Imported by bootstrap.py:238, run_backtest.py:36 | Active (Phase 9) |
+| Status | Imported by `bootstrap.py:238`, `run_backtest.py:36` | Active (Phase 9) |
 | Risk | V1 configures dashboard data; may cause inconsistency | 🟠 |
 
 ### 3. SignalEngine (dual identity)
 
-`core/signal/engine.py:21` is called both V1 and V2 in different imports. bootstrap.py:390 imports it as `SignalEngineV2`. Possible confusion.
+`core/signal/engine.py:21` is called both V1 and V2 in different imports. `bootstrap.py:390` imports it as `SignalEngineV2`. Possible confusion.
+
+### 4. Discovery duplication
+`core/strategy/engine.py:discover()` и `marketplace/registry.py:PackageIndexBuilder.build_index()` — **оба** независимо сканируют `strategies/*/manifest.yaml`. Отсутствие единого registry приводит к race condition при установке плагинов через CLI.
 
 ### Recommendation
 - **Audit V1 consumers**: which code still reads V1 engine output?
 - **Remove V1 imports** from bootstrap, run_backtest, smoke_test
 - **Migrate last V1 consumers** to V2 API
 - **Delete V1 modules** once migration confirmed
+- **Объединить scanning** — marketplace registry как source of truth
 
 ---
 
-## 🟡 Medium: Legacy Top-Level Modules
+## 🟡 Medium: Top-Level Legacy Modules — Deep Audit
 
-### `events/` — (4 files, live code)
-- `events/base.py`, `events/candles.py`, `events/volume.py`, `events/whale.py`
-- Appears to be V1 event system. Needs audit: is it imported anywhere?
+Аудит всех 9 top-level директорий (22 файла проинспектировано).
 
-### `context/` — (1 file)
-- `context/market_context.py` — possible duplication with `core/strategy/context.py`
-- Check: is it imported by anyone?
+### Статус-карта
 
-### `storage/` — (2 files)
-- `storage/analytics.py`, `storage/db.py` — V1 persistence layer
-- Check: is it imported? Modern storage is in `core/storage/`
+| Directory | Files | Status | Used by | Core overlap |
+|-----------|-------|--------|---------|-------------|
+| `exchanges/` | 4 ✅ 1 impl | **ACTIVE** V1 | bootstrap, smoke_test | Нет — V1 WS-адаптеры vs `core/exchanges/` нормалайзеры |
+| `events/` | 4 | **ACTIVE** | bootstrap (EventBus) | Нет — typed надстройка над MarketDataBus |
+| `context/` | 2 🔥 | **ACTIVE** | bootstrap, все стратегии, backtest | Полностью зависит от `core.features.store`, `core.session` |
+| `storage/` | 3 | **ACTIVE** | bootstrap (WinRateChecker, StatsReporter) | Нет — аналитика сигналов vs `core/storage/` (свечи/тикеры) |
+| `scanner/` | 5 | **ACTIVE** | application (startup), smoke_test | V1 bridge от bus к `core.storage.*` |
+| `screener_sdk/` | 1 | **ACTIVE** facade | Momentum strategy | 100% реэкспорт из `core.strategy.*` |
+| `utils/` | 2 | **ACTIVE** | alerts/telegram | Нет — fmt utils + cooldown |
+| `bot/` | 0 | **DEAD** ❌ | — | — |
+| `dashboard/` | 0 | **DEAD** ❌ | — | — |
 
-### `scanner/` — (4 files)
-- `scanner/candles.py`, `scanner/orderbook.py`, `scanner/ticker.py`, `scanner/trades.py`
-- V1 scanner — check consumption
+### Детали
 
-### `utils/` — (1 file)
-- `utils/logger.py` — simple logging utility, probably fine
+#### `exchanges/`
+- **Состав:** `__init__.py` (ExchangeBase ABC), `bybit/__init__.py` (V1 WS-адаптер, aiohttp → MarketDataBus), `binance/__init__.py` и `okx/__init__.py` — пустые заглушки
+- **Используется:** `core/app/bootstrap.py:87`, `smoke_test.py:81`
+- **Overlap с core:** Нет. `core/exchanges/` — нормалайзеры (Bybit/Binance/OKX/Deribit `*_norm.py`), не WS-адаптеры
+- **Вывод:** V1 слой. Единственный реализованный адаптер — Bybit. Требует рефакторинга в core-архитектуру.
 
-### `strategies/` (top-level)
-- `strategies/base.py`, `strategies/momentum_v2.py` — V1 strategy examples
-- Possibly dead — strategies now live in `strategies/*/manifest.yaml `
+#### `context/`
+- **Состав:** `market_context.py` (12.2 KB) — Level 3 реактивный контекст рынка
+- **Используется:** `strategies/base.py:16`, `strategies/__init__.py:95`, `run_backtest.py:39`, `test_strategy.py:12` — **повсеместно, 🔥 самый завязанный легаси**
+- **Overlap с core:** `core/strategy/context.py` — **разные сущности!** Стратегический контекст (signal/score) vs MarketContext (тренд, волатильность, сессия с TTL)
+- **Вывод:** Ключевая абстракция для стратегий. Миграция в `core/context/` сломает все стратегии — нужен phased подход.
 
-### Recommendation
-- Run `grep -rn "from events\|from context\|from storage\|from scanner\|from utils\|from strategies" --include='*.py' . | grep -v __pycache__` to find remaining consumers
-- Move surviving interfaces to `core/`
-- Delete empty/unused modules
+#### `storage/`
+- **Состав:** `analytics.py` (11.2 KB) — SignalDB, SignalRecorder, WinRateChecker, StatsReporter
+- **Используется:** `core/app/bootstrap.py:393`
+- **Overlap с core:** Нет. `core/storage/` — свечи, стакан, тикеры, трейды, ликвидции, whale. Разные storages.
+- **Вывод:** Актуально, служит для аналитики сигналов.
+
+#### `scanner/`
+- **Состав:** `__init__.py` (BaseScanner ABC), candles, orderbook, ticker, trades — 5 файлов
+- **Используется:** `core/app/application.py:220-223` — старт всех сканеров при запуске приложения
+- **Overlap с core:** V1 bridge от MarketDataBus к `core.storage.*` stores. Аналога нет.
+- **Вывод:** Обязателен для работы приложения. V1-стиль.
+
+#### `screener_sdk/`
+- **Состав:** Один `__init__.py` — реэкспорт из `core.strategy.*` (BaseStrategy, StrategyContext, Signal, SignalBundle и т.д.)
+- **Используется:** `strategies/Momentum/strategy.py:27`
+- **Вывод:** ✅ Правильный public API фасад. Можно сохранить как есть.
+
+#### `utils/`
+- **Состав:** `__init__.py` (fmt_usdt, fmt_percent, SignalCooldown, now_ts), `logger.py` (colorlog)
+- **Используется:** `alerts/telegram.py:19`
+- **Вывод:** Небольшая самодостаточная библиотека. Миграция не требуется.
+
+#### `bot/` и `dashboard/`
+- **Вывод:** ❌ Пустые директории. Можно удалить без последствий.
 
 ---
 
@@ -121,7 +194,7 @@ The DI container exists (`core/di/container.py`) and is wired in `bootstrap.py`,
 | Module | Test File | Status |
 |--------|-----------|--------|
 | `core/features/` | `tests/test_features.py` | **❌ MISSING** |
-| `core/replay/` | `tests/test_replay.py` | ✅ |
+| `core/replay/` | `tests/test_replay.py` | ✅ 75 passed |
 | `core/quality/` | `tests/test_quality.py` | ✅ |
 | `core/analytics/` | `tests/test_analytics.py` | ✅ |
 | `core/portfolio/` | `tests/test_portfolio.py` | ✅ |
@@ -147,23 +220,26 @@ The DI container exists (`core/di/container.py`) and is wired in `bootstrap.py`,
 - `__init__.py` with docstring "backward compatibility layer" but zero content
 - Fine as-is, or remove if unused
 
-### 2. `{exchanges` — deleted ✓
-- Git artifact, confirmed not imported. Removed.
+### 2. `core/di/providers.py` (19 строк) и `core/di.py` (12 строк)
+- Только реэкспорт. Мёртвый код — bootstrap.py не использует.
 
 ### 3. `workspace/apps/plugins/` — no Python files
 - Store app directory exists but empty. Needs wiring for Phase 15 Marketplace-store integration.
 
 ---
 
-## Action Priority
+## Consolidated Action Priority
 
-| Priority | Task | Effort |
-|----------|------|--------|
-| **P0** | Move V1 engine consumers to V2 (consensus, replay, signal) | 2–3h |
-| **P1** | Add container parameter to `get_*()` — begin migration | 4–6h |
-| **P1** | Create `tests/test_features.py` | 2h |
-| **P2** | Audit legacy `events/`, `context/`, `storage/`, `scanner/` | 1h |
-| **P2** | Create `tests/test_di.py` | 1h |
-| **P3** | Clean up unused V1 modules after migration | 1h |
-| **P3** | Remove `core/legacy/` placeholder | 0.2h |
-| **P4** | Wire `workspace/apps/plugins/` to Marketplace | 2h |
+| Priority | Task | Effort | Target |
+|----------|------|--------|--------|
+| **P0** | Move V1 engine consumers to V2 (consensus, replay, signal) | 2–3h | RC1 |
+| **P0** | Refactor StrategyEngine god-object (discovery + lifecycle + pipeline) | 3–4h | RC1 |
+| **P1** | Add container parameter to `get_*()` — begin DI migration | 4–6h | RC1 |
+| **P1** | Create `tests/test_features.py` | 2h | RC1 |
+| **P1** | Объединить `discover()` с `PackageIndexBuilder` | 1h | RC1 |
+| **P2** | Audit and clean `context/` migration path | 2h | RC2 |
+| **P2** | Create `tests/test_di.py` | 1h | RC2 |
+| **P2** | Remove `{exchanges` / `bot/` / `dashboard/` dead dirs | 0.3h | RC2 |
+| **P3** | Clean up unused V1 modules after migration | 1h | RC2 |
+| **P3** | Remove `core/legacy/` placeholder | 0.2h | RC2 |
+| **P4** | Wire `workspace/apps/plugins/` to Marketplace | 2h | v1.0.0 |
