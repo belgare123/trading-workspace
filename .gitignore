@@ -46,3 +46,8 @@ optuna_studies.db
 # Web UI
 webui/frontend/node_modules/
 webui/frontend/dist/
+marketplace_index.json
+plugins/
+*.pyc
+__pycache__/
+.pytest_cache/

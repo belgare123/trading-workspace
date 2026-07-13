@@ -18,7 +18,11 @@ dependencies = [
     "pandas>=2.0",
     "numpy>=1.24",
     "scikit-learn>=1.3",
+    "pyyaml>=6.0",
 ]
+
+[project.scripts]
+tw = "marketplace.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/belgare123/trading-workspace"
