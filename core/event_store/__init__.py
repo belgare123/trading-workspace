@@ -1,35 +1,37 @@
-"""Event Store — единый журнал событий платформы.
+"""Event Store — единый persisted журнал событий платформы.
 
-Фиксирует все доменные события: Decision, Lifecycle, Quality, Learning,
-Analytics, Portfolio — с полным tracing (correlation_id / causation_id).
-
-Паттерн: Event Sourcing Lite — persisted + subscribable + replayable.
+Архитектура:
+- aggregate + topic (не stream)
+- correlation_id + causation_id для трассировки
+- Persistence-first: SQLite INSERT → dispatch подписчикам
+- Sync publish для backward compat с существующими Bus-классами
 
 Usage::
 
-    from core.event_store import EventStore, EventQuery, StoredEvent
-
-    store = EventStore()
-    await store.connect()
+    store = EventStore(
+        repository=SQLiteEventRepository(db_path=Path("events.db")),
+    )
+    await store.init()
 
     event = StoredEvent.new(
-        aggregate="decision",
-        aggregate_id="decision#abc123",
-        topic="decision.accepted",
-        correlation_id="chain-001",
-        source="DecisionEngine",
-        payload=json.dumps(decision_event.to_dict()).encode(),
+        aggregate=AGGREGATE_DECISION,
+        aggregate_id="decision#123",
+        topic="decision.created",
+        event_type="DecisionCreated",
+        payload=b'{"key": "value"}',
     )
+
+    # Async publish (для новых сценариев)
     stored = await store.publish(event)
 
+    # Sync publish (для существующих Bus-классов)
+    stored = store.publish_sync(event)
+
     # Query
-    results = await store.read(EventQuery(aggregate="decision"))
-
-    # Subscribe
-    store.on_topic("opportunity.created", my_handler)
+    results = await store.read(
+        EventQuery(aggregate_id="decision#123", limit=10)
+    )
 """
-
-from __future__ import annotations
 
 from core.event_store.models import (
     AGGREGATE_ANALYTICS,
@@ -39,35 +41,42 @@ from core.event_store.models import (
     AGGREGATE_OPPORTUNITY,
     AGGREGATE_PLATFORM,
     AGGREGATE_PORTFOLIO,
+    AGGREGATE_PORTFOLIO_EVENT,
     AGGREGATE_QUALITY,
     EventNotFoundError,
-    EventStoreConnectionError,
     EventStoreError,
     StoredEvent,
 )
-from core.event_store.repository import EventQuery
-from core.event_store.store import EventStore, get_event_store, reset_event_store
+from core.event_store.publisher import EventPublisher
+from core.event_store.repository import EventQuery, EventRepository
+from core.event_store.sqlite_repo import SQLiteEventRepository
+from core.event_store.store import EventStore
+from core.event_store.subscription import SubscriptionHub
 
 __all__ = [
-    # Store
-    "EventStore",
-    "get_event_store",
-    "reset_event_store",
-    # Query
-    "EventQuery",
-    # Model
+    # Models
     "StoredEvent",
-    # Constants
+    "EventQuery",
+    "EventNotFoundError",
+    "EventStoreError",
     "AGGREGATE_DECISION",
     "AGGREGATE_OPPORTUNITY",
-    "AGGREGATE_MARKET",
-    "AGGREGATE_PORTFOLIO",
-    "AGGREGATE_QUALITY",
-    "AGGREGATE_LEARNING",
     "AGGREGATE_ANALYTICS",
+    "AGGREGATE_QUALITY",
+    "AGGREGATE_PORTFOLIO",
+    "AGGREGATE_PORTFOLIO_EVENT",
+    "AGGREGATE_LEARNING",
+    "AGGREGATE_MARKET",
     "AGGREGATE_PLATFORM",
-    # Exceptions
-    "EventStoreError",
-    "EventNotFoundError",
-    "EventStoreConnectionError",
+    # Repository
+    "EventRepository",
+    "SQLiteEventRepository",
+    # Store
+    "EventStore",
+    # Subscription
+    "SubscriptionHub",
+    # Protocol
+    "EventPublisher",
 ]
+
+__version__ = "0.1.0"

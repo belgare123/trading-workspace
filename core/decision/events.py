@@ -1,5 +1,4 @@
-"""
-Decision Events (7.8) — система событий Decision Engine.
+"""Decision Events (7.8) — система событий Decision Engine.
 
 Decision Engine публикует события, на которые подписываются:
   - Replay Engine
@@ -16,12 +15,18 @@ Decision Engine публикует события, на которые подп�
 
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Callable
 
 from core.decision.models import DecisionEventType, Opportunity, ConflictType
+from core.event_store import (
+    AGGREGATE_DECISION,
+    EventStore,
+    StoredEvent,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -65,27 +70,33 @@ EventHandler = Callable[[DecisionEvent], None]
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  EventBus
+#  EventBus — thin facade over EventStore
 # ═══════════════════════════════════════════════════════════════════
 
 
 class EventBus:
-    """Простая шина событий (pub/sub).
+    """Шина событий Decision Engine — тонкий фасад над EventStore.
 
-    Позволяет подписчикам получать события без прямой зависимости
-    от Decision Engine.
+    Режимы работы:
+      - С EventStore: emit() пишет в журнал через publish_sync(),
+        подписчики регистрируются на SubscriptionHub.
+      - Без EventStore: чистая legacy-шина (локальные подписчики).
 
-    Usage:
-        bus = EventBus()
+    Usage::
 
-        # Подписка
+        store = EventStore(...)
+        bus = EventBus(event_store=store)
+
+        # Подписка (через EventStore)
         bus.on(DecisionEventType.OPPORTUNITY_CREATED, my_handler)
 
-        # Публикация
+        # Публикация (пишет в SQLite + dispatch подписчикам)
         bus.emit(event)
     """
 
-    def __init__(self) -> None:
+    def __init__(self, event_store: EventStore | None = None) -> None:
+        self._store = event_store
+        # Legacy fallback (без EventStore)
         self._handlers: dict[DecisionEventType, list[EventHandler]] = {
             t: [] for t in DecisionEventType
         }
@@ -101,10 +112,34 @@ class EventBus:
             event_type: Тип события.
             handler:    Функция-обработчик.
         """
+        if self._store:
+            topic = f"decision.{event_type.value}"
+
+            # Оборачиваем: EventStore присылает StoredEvent,
+            # но подписчик ждёт DecisionEvent. Фильтруем по topic.
+            def _wrapper(stored: StoredEvent) -> None:
+                if stored.topic != topic:
+                    return
+                try:
+                    event = _stored_to_decision_event(stored)
+                    handler(event)
+                except Exception:
+                    logger.exception(
+                        "Handler failed for %s (via EventStore)", topic
+                    )
+
+            self._store.on_sync(_wrapper)
+            logger.debug(
+                "Subscribed handler for %s (via EventStore: %s)",
+                event_type.value, topic,
+            )
+            return
+
+        # Legacy fallback
         if event_type not in self._handlers:
             self._handlers[event_type] = []
         self._handlers[event_type].append(handler)
-        logger.debug("Subscribed handler for %s", event_type.value)
+        logger.debug("Subscribed handler for %s (legacy)", event_type.value)
 
     def off(
         self,
@@ -117,6 +152,15 @@ class EventBus:
             event_type: Тип события.
             handler:    Конкретный обработчик (или все, если None).
         """
+        if self._store:
+            # Через EventStore — отписка не поддерживается SubscriptionHub,
+            # но keep метод для backward compat (no-op)
+            logger.warning(
+                "off() not supported via EventStore — handler may remain active"
+            )
+            return
+
+        # Legacy fallback
         if handler:
             if handler in self._handlers.get(event_type, []):
                 self._handlers[event_type].remove(handler)
@@ -129,6 +173,13 @@ class EventBus:
         Args:
             event: Событие для публикации.
         """
+        if self._store:
+            # Persist + dispatch через EventStore
+            stored = self._to_stored(event)
+            self._store.publish_sync(stored)
+            return
+
+        # Legacy fallback
         handlers = self._handlers.get(event.type, [])
         for handler in handlers:
             try:
@@ -141,7 +192,39 @@ class EventBus:
 
     def clear(self) -> None:
         """Удалить всех подписчиков."""
+        if self._store:
+            logger.warning("clear() not fully supported via EventStore")
+            return
         self._handlers = {t: [] for t in DecisionEventType}
+
+    def _to_stored(self, event: DecisionEvent) -> StoredEvent:
+        """Конвертировать DecisionEvent → StoredEvent."""
+        return StoredEvent.new(
+            aggregate=AGGREGATE_DECISION,
+            aggregate_id=f"decision#{event.data.get('id', 'unknown')}",
+            topic=f"decision.{event.type.value}",
+            timestamp=event.timestamp or None,
+            source=event.source,
+            correlation_id=event.data.get("correlation_id", ""),
+            causation_id=event.data.get("causation_id", ""),
+            payload=json.dumps(event.to_dict()).encode("utf-8"),
+            metadata={
+                "event_type": event.type.value,
+                "source": event.source,
+                "category": "decision",
+            },
+        )
+
+
+def _stored_to_decision_event(stored: StoredEvent) -> DecisionEvent:
+    """Конвертировать StoredEvent → DecisionEvent."""
+    raw = json.loads(stored.payload.decode("utf-8"))
+    return DecisionEvent(
+        type=DecisionEventType(raw.get("type", "")),
+        timestamp=raw.get("timestamp", stored.timestamp),
+        data=raw.get("data", {}),
+        source=raw.get("source", stored.source),
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════

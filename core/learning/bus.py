@@ -1,12 +1,22 @@
 """
-Learning Engine — Event Bus (Phase 13.10).
+Learning Engine — Event Bus (Phase 13.10). Тонкий фасад над EventStore.
+
+Режимы работы:
+  - С EventStore: emit() пишет в журнал через publish_sync()
+  - Без EventStore: чистая legacy-шина (локальные подписчики)
 """
 
 from __future__ import annotations
 
+import json
 import logging
-from typing import Callable
+from typing import Any, Callable
 
+from core.event_store import (
+    AGGREGATE_LEARNING,
+    EventStore,
+    StoredEvent,
+)
 from core.learning.events import (
     LEARNING_ANOMALY_DETECTED,
     LEARNING_DATASET_UPDATED,
@@ -23,20 +33,33 @@ BusCallback = Callable[[LearningEvent], None]
 
 
 class LearningBus:
-    """Шина событий Learning Engine."""
+    """Шина событий Learning Engine — тонкий фасад над EventStore."""
 
-    def __init__(self) -> None:
+    def __init__(self, event_store: EventStore | None = None) -> None:
+        self._store = event_store
+        # Legacy fallback
         self._subscribers: dict[str, list[BusCallback]] = {}
 
     def subscribe(self, event_type: str, callback: BusCallback) -> None:
+        if self._store:
+            self._store.on_sync(_make_learning_wrapper(event_type, callback))
+            logger.debug("Subscribed %s (via EventStore)", event_type)
+            return
         self._subscribers.setdefault(event_type, []).append(callback)
 
     def unsubscribe(self, event_type: str, callback: BusCallback) -> None:
+        if self._store:
+            logger.warning("unsubscribe() not supported via EventStore")
+            return
         subs = self._subscribers.get(event_type, [])
         if callback in subs:
             subs.remove(callback)
 
     def emit(self, event: LearningEvent) -> None:
+        if self._store:
+            stored = self._to_stored(event)
+            self._store.publish_sync(stored)
+            return
         for cb in self._subscribers.get(event.event_type, []):
             try:
                 cb(event)
@@ -63,3 +86,31 @@ class LearningBus:
             model_name=model_name,
             predictions=predictions,
         ))
+
+    def _to_stored(self, event: LearningEvent) -> StoredEvent:
+        return StoredEvent.new(
+            aggregate=AGGREGATE_LEARNING,
+            aggregate_id=f"learning#{event.model_name or 'unknown'}",
+            topic=f"learning.{event.event_type}",
+            source="learning_engine",
+            payload=json.dumps(event.to_dict()).encode("utf-8"),
+        )
+
+
+def _make_learning_wrapper(event_type: str, callback: BusCallback) -> Callable[[StoredEvent], None]:
+    """Wrap StoredEvent → LearningEvent for legacy handler."""
+    def wrapper(stored: StoredEvent) -> None:
+        if stored.topic != event_type:
+            return
+        try:
+            raw = json.loads(stored.payload.decode("utf-8"))
+            event = LearningEvent(
+                event_type=raw.get("event_type", event_type),
+                model_name=raw.get("model_name", ""),
+                message=raw.get("message", ""),
+                timestamp=raw.get("timestamp", 0.0),
+            )
+            callback(event)
+        except Exception:
+            logger.exception("LearningBus handler failed via EventStore")
+    return wrapper

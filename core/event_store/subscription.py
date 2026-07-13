@@ -116,6 +116,18 @@ class SubscriptionHub:
             except Exception:
                 logger.exception("Global sync handler failed")
 
+    def sync_dispatch(self, event: StoredEvent) -> None:
+        """Синхронный dispatch (без await).
+
+        Вызывает только синхронных подписчиков (on_sync).
+        Async-подписчики игнорируются — для них есть dispatch().
+        """
+        for handler in self._sync_handlers:
+            try:
+                handler(event)
+            except Exception:
+                logger.exception("Global sync handler failed (sync_dispatch)")
+
     # ── State ──
 
     @property

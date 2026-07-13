@@ -119,51 +119,87 @@ class SQLiteEventRepository:
     async def append(self, event: StoredEvent, conn: Any = None) -> StoredEvent:
         db = conn or self._ensure_conn()
         with self._lock:
-            # Auto compute aggregate_version
-            if event.aggregate_version == 0:
-                cur = db.execute(
-                    "SELECT COALESCE(MAX(aggregate_version), 0) + 1 AS next_ver "
-                    "FROM events WHERE aggregate_id = ?",
-                    (event.aggregate_id,),
-                )
-                row = cur.fetchone()
-                next_ver = row["next_ver"] if row else 1
-                event = StoredEvent(
-                    event_id=event.event_id,
-                    aggregate=event.aggregate,
-                    aggregate_id=event.aggregate_id,
-                    aggregate_version=next_ver,
-                    topic=event.topic,
-                    timestamp=event.timestamp,
-                    correlation_id=event.correlation_id,
-                    causation_id=event.causation_id,
-                    source=event.source,
-                    payload=event.payload,
-                    metadata=event.metadata,
-                )
+            result = self._do_insert(db, event)
+        if conn is None:
+            db.commit()
+        return result
 
-            db.execute(
-                """INSERT OR IGNORE INTO events
-                   (event_id, aggregate, aggregate_id, aggregate_version,
-                    topic, timestamp, correlation_id, causation_id, source,
-                    payload, metadata)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (
-                    event.event_id,
-                    event.aggregate,
-                    event.aggregate_id,
-                    event.aggregate_version,
-                    event.topic,
-                    event.timestamp,
-                    event.correlation_id,
-                    event.causation_id,
-                    event.source,
-                    event.payload,
-                    json.dumps(event.metadata, default=str),
-                ),
+    def sync_append(self, event: StoredEvent, conn: Any = None) -> StoredEvent:
+        """Синхронный append — для publish_sync()."""
+        if self._conn is None:
+            self._sync_connect()
+        db = conn or self._ensure_conn()
+        with self._lock:
+            result = self._do_insert(db, event)
+        if conn is None:
+            db.commit()
+        return result
+
+    def _sync_connect(self) -> None:
+        """Открыть sync-соединение (если ещё не открыто)."""
+        self._conn = sqlite3.connect(str(self._db_path))
+        self._conn.row_factory = sqlite3.Row
+        self._conn.execute("PRAGMA journal_mode=WAL")
+        self._conn.execute("PRAGMA synchronous=NORMAL")
+        self._conn.executescript("""CREATE TABLE IF NOT EXISTS events (
+            event_id TEXT PRIMARY KEY, aggregate TEXT NOT NULL,
+            aggregate_id TEXT NOT NULL, aggregate_version INTEGER NOT NULL,
+            topic TEXT NOT NULL, timestamp REAL NOT NULL,
+            correlation_id TEXT NOT NULL DEFAULT '',
+            causation_id TEXT NOT NULL DEFAULT '',
+            source TEXT NOT NULL DEFAULT '',
+            payload BLOB, metadata TEXT NOT NULL DEFAULT '{}'
+        );
+        CREATE INDEX IF NOT EXISTS idx_events_aggregate ON events(aggregate, aggregate_id);
+        CREATE INDEX IF NOT EXISTS idx_events_topic ON events(topic);
+        CREATE INDEX IF NOT EXISTS idx_events_corr ON events(correlation_id);
+        CREATE INDEX IF NOT EXISTS idx_events_ts ON events(timestamp);""")
+        self._conn.commit()
+
+    def _do_insert(self, db: sqlite3.Connection, event: StoredEvent) -> StoredEvent:
+        # Auto compute aggregate_version
+        if event.aggregate_version == 0:
+            cur = db.execute(
+                "SELECT COALESCE(MAX(aggregate_version), 0) + 1 AS next_ver "
+                "FROM events WHERE aggregate_id = ?",
+                (event.aggregate_id,),
             )
-            if conn is None:
-                db.commit()
+            row = cur.fetchone()
+            next_ver = row["next_ver"] if row else 1
+            event = StoredEvent(
+                event_id=event.event_id,
+                aggregate=event.aggregate,
+                aggregate_id=event.aggregate_id,
+                aggregate_version=next_ver,
+                topic=event.topic,
+                timestamp=event.timestamp,
+                correlation_id=event.correlation_id,
+                causation_id=event.causation_id,
+                source=event.source,
+                payload=event.payload,
+                metadata=event.metadata,
+            )
+
+        db.execute(
+            """INSERT OR IGNORE INTO events
+               (event_id, aggregate, aggregate_id, aggregate_version,
+                topic, timestamp, correlation_id, causation_id, source,
+                payload, metadata)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                event.event_id,
+                event.aggregate,
+                event.aggregate_id,
+                event.aggregate_version,
+                event.topic,
+                event.timestamp,
+                event.correlation_id,
+                event.causation_id,
+                event.source,
+                event.payload,
+                json.dumps(event.metadata, default=str),
+            ),
+        )
         return event
 
     async def append_batch(self, events: list[StoredEvent], conn: Any = None) -> list[StoredEvent]:

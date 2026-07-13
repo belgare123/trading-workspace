@@ -78,7 +78,7 @@ class EventStore:
     # ── Write ──
 
     async def publish(self, event: StoredEvent) -> StoredEvent:
-        """Записать событие и разослать подписчикам.
+        """Записать событие и разослать подписчикам (async).
 
         Persistence-first: запись → dispatch.
         """
@@ -88,6 +88,16 @@ class EventStore:
         # dispatch
         await self._subscriptions.dispatch(stored)
 
+        return stored
+
+    def publish_sync(self, event: StoredEvent) -> StoredEvent:
+        """Синхронная публикация (без await).
+
+        Пишет в SQLite и вызывает sync-подписчиков.
+        Подходит для emit() в существующих Bus-классах.
+        """
+        stored = self.repo.sync_append(event)  # type: ignore[union-attr]
+        self._subscriptions.sync_dispatch(stored)
         return stored
 
     async def publish_batch(self, events: list[StoredEvent]) -> list[StoredEvent]:
