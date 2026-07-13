@@ -20,6 +20,7 @@ from typing import Any, AsyncIterator
 from core.event_store.models import StoredEvent
 from core.event_store.repository import EventQuery
 from core.event_store.store import EventStore
+from core.event_store.trace import TraceGraph, trace_by_correlation, trace_event
 
 logger = logging.getLogger(__name__)
 
@@ -491,6 +492,32 @@ class EventStoreReader:
         if events:
             return events[0].to_dict()
         return None
+
+    # ── Trace API ─────────────────────────────────────────────────
+
+    async def trace(self, correlation_id: str, max_depth: int = 20) -> TraceGraph:
+        """Полный граф трассировки по correlation_id.
+
+        Args:
+            correlation_id: ID трассировочной цепочки.
+            max_depth:      Максимальная глубина.
+
+        Returns:
+            ``TraceGraph`` со всеми узлами цепочки.
+        """
+        return await trace_by_correlation(self, correlation_id, max_depth=max_depth)
+
+    async def trace_event(self, event_id: str, max_depth: int = 10) -> TraceGraph:
+        """Граф трассировки от конкретного события.
+
+        Args:
+            event_id:  ID стартового события.
+            max_depth: Максимальная глубина.
+
+        Returns:
+            ``TraceGraph`` с цепочкой от event_id.
+        """
+        return await trace_event(self, event_id, max_depth=max_depth)
 
     # ── Utility ───────────────────────────────────────────────────
 

@@ -53,6 +53,7 @@ from core.event_store.sqlite_repo import SQLiteEventRepository
 from core.event_store.store import EventStore
 from core.event_store.reader import EventStoreReader, ReaderSnapshot, SnapshotReader
 from core.event_store.subscription import SubscriptionHub
+from core.event_store.trace import TraceNode, TraceGraph, TraceBuilder, trace_by_correlation, trace_event
 
 __all__ = [
     # Models
@@ -78,6 +79,12 @@ __all__ = [
     "EventStoreReader",
     "ReaderSnapshot",
     "SnapshotReader",
+    # Trace
+    "TraceNode",
+    "TraceGraph",
+    "TraceBuilder",
+    "trace_by_correlation",
+    "trace_event",
     "SubscriptionHub",
     # Protocol
     "EventPublisher",
