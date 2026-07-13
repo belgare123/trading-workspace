@@ -12,86 +12,111 @@
 
 | Severity | Count | Category |
 |----------|-------|----------|
-| 🔴 Critical | 2 | DI singleton cascade + God-object |
-| 🟠 High | 3 | V1/V2 engine shadow duplication |
-| 🟡 Medium | 3 | Legacy modules, test gaps |
-| 🔵 Low | 2 | Dead dirs, minor fragmentation |
+| 🔴 Critical | 2 | God-object (StrategyEngine) + Discovery duplication |
+| 🟠 High | 2 | DI singleton cascade + V1/V2 engine shadow duplication |
+| 🟡 Medium | 2 | Legacy modules, test gaps |
+| 🔵 Low | 1 | Dead dirs removed |
 
 ---
 
-## 🔴 Critical: DI Container vs Singleton Cascade
+## Architecture Health Score
 
-### Problem
-The DI container (`core/di/container.py`) has a **dual registry** — one keyed by interface type (`_registry[type]`), another by string name (`_components[name]`). `bootstrap.py` uses only the named API (`register_instance` / `get`), so the interface-based protocol is dead code.
+| Component | Size | Cohesion | Coupling | Dependencies | Health |
+|-----------|------|----------|----------|-------------|--------|
+| Strategy Engine | 🔴 | 🔴 | 🔴 | 🟡 | **3/10** |
+| Decision Engine | 🟢 | 🟢 | 🟢 | 🟢 | **9/10** |
+| Lifecycle | 🟢 | 🟢 | 🟢 | 🟢 | **10/10** |
+| Replay | 🟢 | 🟢 | 🟢 | 🟢 | **9/10** |
+| Marketplace | 🟢 | 🟢 | 🟢 | 🟢 | **9/10** |
+| Learning | 🟡 | 🟢 | 🟢 | 🟢 | **8/10** |
+| Features | 🟢 | 🟢 | 🟢 | 🟡 | **8/10** |
+| Quality | 🟢 | 🟢 | 🟢 | 🟢 | **9/10** |
+| Portfolio | 🟢 | 🟢 | 🟢 | 🟢 | **9/10** |
+| Workspace API | 🟢 | 🟢 | 🟡 | 🟢 | **8/10** |
 
-Meanwhile **15+ modules** in `core/` use module-level `get_*()` factory functions that create and cache singletons independently:
+**Вывод:** Единственный компонент, критически выбивающийся — `core/strategy/engine.py`. Всё остальное ядро (Decision, Replay, Marketplace, Lifecycle) в хорошем состоянии и готово к v1.0.
 
-```python
-# core/features/engine.py
-_engine: FeatureEngine | None = None
-def get_feature_engine() -> FeatureEngine:
-    global _engine
-    if _engine is None:
-        _engine = FeatureEngine(...)
-    return _engine
+---
+
+## 🔴 Critical: God-Object в `core/strategy/engine.py`
+
+**LOC:** 1,107 | **Классы:** 8+ (StrategyEngine, PipelineEngine, StrategyPipeline, _MockStrategyEngine и др.)
+
+### Ответственности (7+)
+1. **Plugin Discovery** — `discover_strategies()` читает manifest.yaml из `strategies/`
+2. **Plugin Loading** — загрузка, enable, disable, remove
+3. **Manifest Validation** — проверка структуры manifest.yaml
+4. **Sandbox** — `_stage_import_strategy()` c monkey-patch sys.path
+5. **Registration** — реестр загруженных стратегий
+6. **Strategy Runtime** — итерация по стратегиям, сбор сигналов
+7. **Pipeline Execution** — делегирование в PipelineEngine
+8. **Health / Metrics** — timing, error tracking через `@measure_time`
+9. **Mock Objects** — `_MockStrategyEngine`, `_MockFeatureEngine`
+
+### Рекомендуемая декомпозиция
+
+Предлагаемая структура:
+
+```
+core/strategy/
+├── loader.py          # Только загрузка стратегий (discover + parse manifest)
+├── registry.py        # Реестр загруженных стратегий
+├── runtime.py         # Pipeline execution, итерация по стратегиям
+├── health.py          # Health checks
+├── metrics.py         # Benchmark + timing
+├── manager.py         # Оркестратор (lifecycle координация)
+└── engine.py          # Тонкий фасад (~150 строк)
 ```
 
-| Module | get_* function |
-|--------|----------------|
-| `core/consensus/engine.py` | `get_consensus_engine()` |
-| `core/features/engine.py` | `get_feature_engine()` |
-| `core/features/store.py` | `get_feature_store()` |
-| `core/signal/engine.py` | `get_signal_engine()` |
-| `core/signal_dna.py` | `get_dna_store()` |
-| `core/market_replay.py` | `get_replay_engine()` |
-| `core/risk/engine.py` | `get_risk_engine()` |
-| `core/adaptive.py` | `get_adaptive_engine()` |
-| `core/cache.py` | `get_cache_service()` |
-| `core/session.py` | `get_session_manager()` |
-| `core/api.py` | `get_api_manager()` |
-| `core/ome/engine.py` | `get_ome_engine()` |
-| `core/state/manager.py` | `get_state_manager()` |
-| `core/dna/manager.py` | `get_dna_manager()` |
-| `core/strategy/engine.py` | `get_strategy_engine()` |
-
-### Impact
-- Tests that bypass bootstrap get **different singleton instances**
-- No single source of truth for dependency graph
-- Hard to mock — need to patch module-level globals
-- Two instances of same service can exist simultaneously
-
-### Recommendation
-- **Phase 1**: Add a `container` parameter to all `get_*()` functions (optional, defaults to module-level singleton)
-- **Phase 2**: Deprecate `get_*()` — use `container.get("name")` everywhere
-- **Phase 3**: Remove `get_*()` entirely
+**Engine не должен знать, как искать стратегии.** Он должен получать уже готовый список.
 
 ---
 
-## 🔴 Critical: God-Object in `core/strategy/engine.py`
+## 🔴 Critical: Discovery Duplication
 
-**LOC:** 1,107 | **Классы:** 8+ (StrategyEngine, PipelineEngine, StrategyPipeline, _MockStrategyEngine, _MockFeatureEngine, _StrategyExecutionWrapper и др.)
+**`core/strategy/engine.py:discover()`** и **`marketplace/registry.py:PackageIndexBuilder.build_index()`** независимо сканируют `strategies/*/manifest.yaml`.
 
-### Ответственности
-1. Plugin discovery — `discover_strategies()` читает manifest.yaml из `strategies/`
-2. Plugin lifecycle — load, enable, disable, remove
-3. **Dependency resolution** — `resolve_dependencies()` (DAG + cycle detection)
-4. Pipeline execution — iterate strategies, collect signals
-5. Pipeline engine delegation — `PipelineEngine` (sub-class)
-6. Mock objects — `_MockStrategyEngine`, `_MockFeatureEngine` для тестов
-7. Import autofix — `_stage_import_strategy()` с monkey-patch sys.path
-8. Metrics — timing, error tracking via `@measure_time`
+### Проблема
+- Нарушение **Single Source of Truth** — два независимых registry
+- Race condition: CLI установил плагин через marketplace, но strategy engine его не видит
+- Разные форматы возврата (PackageIndex vs list[StrategyDescriptor])
 
-### Проблемы
-- Нарушение SRP (Single Responsibility Principle) — 7+ ответственностей в одном файле
-- God-class затрудняет тестирование (нужно замокать половину класса для теста другой половины)
-- `discover()` дублирует сканирование manifest.yaml из `marketplace/registry.py:PackageIndexBuilder`
+### Рекомендуемая архитектура
 
-### Recommendation
-- Выделить `StrategyDiscoverer` (сканирование manifest.yaml)
-- Выделить `StrategyLifecycleManager` (enable/disable/remove)
-- Выделить `PipelineExecutor` (iter + measure)
-- Убрать mock-классы в отдельный `testing/` модуль
-- Объединить `discover()` с `PackageIndexBuilder` marketplace
+```
+Marketplace
+  ↓
+Registry — единый реестр
+  ↓
+Discovery — поиск и парсинг manifest.yaml
+  ↓
+StrategyEngine — получает уже готовый список
+```
+
+---
+
+## 🟠 High: DI Container vs Singleton Cascade
+
+### Проблема
+DI-контейнер (`core/di/container.py`) имеет **двойной registry**:
+- `_registry[type]` — interface-based (никем не используется)
+- `_components[name]` — строковый (используется bootstrap)
+
+**15+ модулей** обходят контейнер через глобальные `get_*()` фабрики.
+
+### Ключевой вопрос
+**Есть ли хотя бы один реальный потребитель interface-based DI?**
+
+Предварительный ответ: **нет**. `Container.register(IFeatureEngine, ...)` вызывается, но нигде не разрешается через `Container.resolve(IFeatureEngine)`. Весь код использует `container.get("feature_engine")` или `get_feature_engine()`.
+
+### Рекомендация
+1. Проверить: есть ли хоть один `resolve(InterfaceType)` вызов в коде?
+2. Если нет — **удалить мёртвую абстракцию** (interface-based регистрацию)
+3. Сфокусироваться на миграции `get_*()` → `container.get("name")`
+4. **Не усложнять**: хороший DI — это используемый DI. Неиспользуемый интерфейс только усложняет архитектуру.
+
+### Affected Modules (15+)
+`core/consensus/engine.py` · `core/features/engine.py` · `core/features/store.py` · `core/signal/engine.py` · `core/signal_dna.py` · `core/market_replay.py` · `core/risk/engine.py` · `core/adaptive.py` · `core/cache.py` · `core/session.py` · `core/api.py` · `core/ome/engine.py` · `core/state/manager.py` · `core/dna/manager.py` · `core/strategy/engine.py`
 
 ---
 
@@ -101,91 +126,63 @@ def get_feature_engine() -> FeatureEngine:
 
 | Aspect | V1 (`core/consensus/`) | V2 (`core/decision/consensus.py`) |
 |--------|----------------------|-----------------------------------|
-| Lines | ~500 LOC (engine + models + rank) | ~150 LOC |
-| Status | Still imported by `bootstrap.py:357`, `run_backtest.py:48`, `smoke_test.py:96` | Active pipeline |
-| Purpose | Original consensus with ranking | Refactored consensus in decision pipeline |
+| Lines | ~500 LOC | ~150 LOC |
+| Status | Still imported by bootstrap, run_backtest, smoke_test | Active pipeline |
 | Risk | Both run in boot. V1 is shadow — results ignored? | 🟠 |
 
-### 2. MarketReplayEngine vs ReplayEngine
+### 2. MarketReplay vs ReplayEngine
 
 | Aspect | V1 (`core/market_replay.py`) | V2 (`core/replay/`) |
 |--------|------------------------------|---------------------|
 | Lines | 282 LOC | 341 + 111 + 89 + 191 LOC |
-| Status | Imported by `bootstrap.py:238`, `run_backtest.py:36` | Active (Phase 9) |
+| Status | Imported by bootstrap, run_backtest | Active (Phase 9) |
 | Risk | V1 configures dashboard data; may cause inconsistency | 🟠 |
 
 ### 3. SignalEngine (dual identity)
-
-`core/signal/engine.py:21` is called both V1 and V2 in different imports. `bootstrap.py:390` imports it as `SignalEngineV2`. Possible confusion.
-
-### 4. Discovery duplication
-`core/strategy/engine.py:discover()` и `marketplace/registry.py:PackageIndexBuilder.build_index()` — **оба** независимо сканируют `strategies/*/manifest.yaml`. Отсутствие единого registry приводит к race condition при установке плагинов через CLI.
+`core/signal/engine.py` импортируется как `SignalEngineV2` в bootstrap. V1 naming — источник путаницы.
 
 ### Recommendation
-- **Audit V1 consumers**: which code still reads V1 engine output?
-- **Remove V1 imports** from bootstrap, run_backtest, smoke_test
-- **Migrate last V1 consumers** to V2 API
-- **Delete V1 modules** once migration confirmed
-- **Объединить scanning** — marketplace registry как source of truth
+- Audit V1 consumers, remove V1 imports from bootstrap/backtest/smoke_test
+- Delete V1 modules once migration confirmed
 
 ---
 
-## 🟡 Medium: Top-Level Legacy Modules — Deep Audit
+## 🟡 Medium: Top-Level Modules — Deep Audit
 
-Аудит всех 9 top-level директорий (22 файла проинспектировано).
+Аудит 9 top-level директорий (22 файла проинспектировано). Эти модули образуют **Engine Layer** — фундамент платформы:
+
+```
+Bybit WS → scanner → storage → events → Feature Engine → Decision
+```
+
+Их не стоит воспринимать как "отдельные модули скринера". Это скорее:
+
+```
+Market IO        — exchanges/ + scanner/
+Market Storage   — storage/ + core/storage/
+Market Context   — context/
+Market Events    — events/
+```
 
 ### Статус-карта
 
-| Directory | Files | Status | Used by | Core overlap |
-|-----------|-------|--------|---------|-------------|
-| `exchanges/` | 4 ✅ 1 impl | **ACTIVE** V1 | bootstrap, smoke_test | Нет — V1 WS-адаптеры vs `core/exchanges/` нормалайзеры |
-| `events/` | 4 | **ACTIVE** | bootstrap (EventBus) | Нет — typed надстройка над MarketDataBus |
-| `context/` | 2 🔥 | **ACTIVE** | bootstrap, все стратегии, backtest | Полностью зависит от `core.features.store`, `core.session` |
-| `storage/` | 3 | **ACTIVE** | bootstrap (WinRateChecker, StatsReporter) | Нет — аналитика сигналов vs `core/storage/` (свечи/тикеры) |
-| `scanner/` | 5 | **ACTIVE** | application (startup), smoke_test | V1 bridge от bus к `core.storage.*` |
-| `screener_sdk/` | 1 | **ACTIVE** facade | Momentum strategy | 100% реэкспорт из `core.strategy.*` |
-| `utils/` | 2 | **ACTIVE** | alerts/telegram | Нет — fmt utils + cooldown |
-| `bot/` | 0 | **DEAD** ❌ | — | — |
-| `dashboard/` | 0 | **DEAD** ❌ | — | — |
+| Directory | Files | Status | Engine Layer | Used by |
+|-----------|-------|--------|--------------|---------|
+| `scanner/` | 5 | **ACTIVE** | Market IO (bridge) | application startup |
+| `exchanges/` | 4 (1 impl) | **ACTIVE** V1 | Market IO (WS) | bootstrap, smoke_test |
+| `storage/` | 3 | **ACTIVE** | Market Storage | bootstrap |
+| `context/` 🔥 | 2 | **ACTIVE** | Market Context | все стратегии, backtest |
+| `events/` | 4 | **ACTIVE** | Market Events | bootstrap |
+| `screener_sdk/` | 1 | **FACADE** ✅ | Public API | Momentum strategy |
+| `utils/` | 2 | **ACTIVE** | Utilities | alerts/telegram |
+| `bot/` | 0 | ~~DEAD~~ **УДАЛЕНО** | — | — |
+| `dashboard/` | 0 | ~~DEAD~~ **УДАЛЕНО** | — | — |
 
-### Детали
+### `screener_sdk/` — оставить как есть
+Фасад совместимости. Переименование в `trading_workspace_sdk` или `workspace_sdk` — только когда будет отдельный пакет на PyPI. Пока работает корректно.
 
-#### `exchanges/`
-- **Состав:** `__init__.py` (ExchangeBase ABC), `bybit/__init__.py` (V1 WS-адаптер, aiohttp → MarketDataBus), `binance/__init__.py` и `okx/__init__.py` — пустые заглушки
-- **Используется:** `core/app/bootstrap.py:87`, `smoke_test.py:81`
-- **Overlap с core:** Нет. `core/exchanges/` — нормалайзеры (Bybit/Binance/OKX/Deribit `*_norm.py`), не WS-адаптеры
-- **Вывод:** V1 слой. Единственный реализованный адаптер — Bybit. Требует рефакторинга в core-архитектуру.
-
-#### `context/`
-- **Состав:** `market_context.py` (12.2 KB) — Level 3 реактивный контекст рынка
-- **Используется:** `strategies/base.py:16`, `strategies/__init__.py:95`, `run_backtest.py:39`, `test_strategy.py:12` — **повсеместно, 🔥 самый завязанный легаси**
-- **Overlap с core:** `core/strategy/context.py` — **разные сущности!** Стратегический контекст (signal/score) vs MarketContext (тренд, волатильность, сессия с TTL)
-- **Вывод:** Ключевая абстракция для стратегий. Миграция в `core/context/` сломает все стратегии — нужен phased подход.
-
-#### `storage/`
-- **Состав:** `analytics.py` (11.2 KB) — SignalDB, SignalRecorder, WinRateChecker, StatsReporter
-- **Используется:** `core/app/bootstrap.py:393`
-- **Overlap с core:** Нет. `core/storage/` — свечи, стакан, тикеры, трейды, ликвидции, whale. Разные storages.
-- **Вывод:** Актуально, служит для аналитики сигналов.
-
-#### `scanner/`
-- **Состав:** `__init__.py` (BaseScanner ABC), candles, orderbook, ticker, trades — 5 файлов
-- **Используется:** `core/app/application.py:220-223` — старт всех сканеров при запуске приложения
-- **Overlap с core:** V1 bridge от MarketDataBus к `core.storage.*` stores. Аналога нет.
-- **Вывод:** Обязателен для работы приложения. V1-стиль.
-
-#### `screener_sdk/`
-- **Состав:** Один `__init__.py` — реэкспорт из `core.strategy.*` (BaseStrategy, StrategyContext, Signal, SignalBundle и т.д.)
-- **Используется:** `strategies/Momentum/strategy.py:27`
-- **Вывод:** ✅ Правильный public API фасад. Можно сохранить как есть.
-
-#### `utils/`
-- **Состав:** `__init__.py` (fmt_usdt, fmt_percent, SignalCooldown, now_ts), `logger.py` (colorlog)
-- **Используется:** `alerts/telegram.py:19`
-- **Вывод:** Небольшая самодостаточная библиотека. Миграция не требуется.
-
-#### `bot/` и `dashboard/`
-- **Вывод:** ❌ Пустые директории. Можно удалить без последствий.
+### `context/` — отдельная заметка
+`MarketContext` — Level 3 реактивный контекст (тренд, волатильность, сессия с TTL). **Не путать** с `core/strategy/context.py` (стратегический контекст signal/score). Разные сущности. Требует phased migration.
 
 ---
 
@@ -194,37 +191,23 @@ def get_feature_engine() -> FeatureEngine:
 | Module | Test File | Status |
 |--------|-----------|--------|
 | `core/features/` | `tests/test_features.py` | **❌ MISSING** |
-| `core/replay/` | `tests/test_replay.py` | ✅ 75 passed |
-| `core/quality/` | `tests/test_quality.py` | ✅ |
-| `core/analytics/` | `tests/test_analytics.py` | ✅ |
-| `core/portfolio/` | `tests/test_portfolio.py` | ✅ |
-| `core/learning/` | `tests/test_learning.py` | ✅ |
-| `core/lifecycle/` | `tests/test_lifecycle.py` | ✅ |
 | `core/di/` | `tests/test_di.py` | **❌ MISSING** |
-| `core/strategy/` | `tests/test_strategy.py` | ✅ (large) |
-| `marketplace/` | `tests/test_marketplace.py` | ✅ (Phase 15) |
+| `core/replay/` | `tests/test_replay.py` | ✅ 75 passed |
+| Все остальные | `tests/test_*.py` | ✅ |
 
 ### Impact
-- FeatureEngine (the most performance-critical module) has no dedicated test file
-- DI container has no tests (makes migration harder)
-
-### Recommendation
-- Create `tests/test_features.py` — at minimum: smoke test all calculators, accuracy tests
-- Create `tests/test_di.py` — container registration, resolution, lifecycle
+- FeatureEngine (самый производительно-критичный модуль) без тестов
+- DI контейнер без тестов — усложняет миграцию
 
 ---
 
 ## 🔵 Low: Other Issues
 
-### 1. `core/legacy/` — empty placeholder
-- `__init__.py` with docstring "backward compatibility layer" but zero content
-- Fine as-is, or remove if unused
-
-### 2. `core/di/providers.py` (19 строк) и `core/di.py` (12 строк)
-- Только реэкспорт. Мёртвый код — bootstrap.py не использует.
-
-### 3. `workspace/apps/plugins/` — no Python files
-- Store app directory exists but empty. Needs wiring for Phase 15 Marketplace-store integration.
+| Issue | Status |
+|-------|--------|
+| `core/legacy/` — пустой плейсхолдер | Удалить или оставить — без разницы |
+| `core/di/providers.py` (19 строк) + `core/di.py` (12 строк) — dead re-exports | Удалить после DI cleanup |
+| `workspace/apps/plugins/` — пустая директория | Провести к Marketplace в v1.0 |
 
 ---
 
@@ -232,14 +215,15 @@ def get_feature_engine() -> FeatureEngine:
 
 | Priority | Task | Effort | Target |
 |----------|------|--------|--------|
-| **P0** | Move V1 engine consumers to V2 (consensus, replay, signal) | 2–3h | RC1 |
-| **P0** | Refactor StrategyEngine god-object (discovery + lifecycle + pipeline) | 3–4h | RC1 |
-| **P1** | Add container parameter to `get_*()` — begin DI migration | 4–6h | RC1 |
-| **P1** | Create `tests/test_features.py` | 2h | RC1 |
-| **P1** | Объединить `discover()` с `PackageIndexBuilder` | 1h | RC1 |
-| **P2** | Audit and clean `context/` migration path | 2h | RC2 |
-| **P2** | Create `tests/test_di.py` | 1h | RC2 |
-| **P2** | Remove `{exchanges` / `bot/` / `dashboard/` dead dirs | 0.3h | RC2 |
-| **P3** | Clean up unused V1 modules after migration | 1h | RC2 |
-| **P3** | Remove `core/legacy/` placeholder | 0.2h | RC2 |
-| **P4** | Wire `workspace/apps/plugins/` to Marketplace | 2h | v1.0.0 |
+| **🔴 P0** | **StrategyEngine — декомпозиция** (loader + registry + runtime + health + metrics + manager) | 3–4h | RC1 |
+| **🔴 P0** | **Discovery — единый Registry** (marketplace → registry → strategy engine) | 1–2h | RC1 |
+| **🔴 P0** | **V1 engine migration cleanup** (consensus, signal, market_replay → remove V1) | 2–3h | RC1 |
+| 🟠 P1 | **DI cleanup** — либо реально использовать interface-based, либо удалить | 2h | RC1 |
+| 🟠 P1 | `tests/test_features.py` — FeatureEngine smoke tests | 2h | RC1 |
+| 🟠 P1 | `tests/test_di.py` — DI container tests | 1h | RC1 |
+| 🟡 P2 | `context/` migration path audit | 2h | RC2 |
+| 🟡 P2 | `workspace/apps/plugins/` — Market Store wiring | 2h | v1.0.0 |
+
+---
+
+**Главный вывод:** Самый большой технический долг сместился с V1→V2 миграции в `core/strategy/engine.py`. Это единственный компонент, выбивающийся из архитектуры. Если его декомпозировать, убрать дублирование Discovery и навести порядок с DI, ядро платформы станет значительно более согласованным. После этого — думать о v1.0.
