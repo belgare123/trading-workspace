@@ -1,6 +1,6 @@
 """Симуляция MomentumStrategy для отладки."""
 import sys
-sys.path.insert(0, "G:\\bot\\crypto-screener-v2")
+sys.path.insert(0, "G:\\bot\\trading-workspace")
 
 import logging
 logging.basicConfig(level=logging.DEBUG, format="%(asctime)s [%(levelname)s] %(message)s")

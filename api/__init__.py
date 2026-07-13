@@ -14,7 +14,7 @@ from config import settings
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="crypto-screener API", version="0.1.0")
+app = FastAPI(title="Trading Workspace API", version="0.14.0")
 
 app.add_middleware(
     CORSMiddleware,

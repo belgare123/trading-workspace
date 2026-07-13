@@ -1,3 +1,3 @@
 """Tests placeholder — will use pytest."""
 
-# Test directory for crypto-screener
+# Test directory for Trading Workspace Platform

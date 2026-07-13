@@ -1,0 +1,15 @@
+# Momentum Strategy — конфигурация по умолчанию
+# Переопределяется через ctx.config.get() в runtime
+
+fast_period: 9
+slow_period: 21
+rsi_period: 14
+rsi_overbought: 70
+rsi_oversold: 30
+atr_period: 14
+atr_multiplier: 2.0
+min_confidence: 50
+symbols:
+  - BTC/USDT
+  - ETH/USDT
+  - SOL/USDT

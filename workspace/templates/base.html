@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Workspace{% endblock %} — Trading Platform</title>
+  <link rel="stylesheet" href="/static/css/workspace.css">
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <div class="workspace-layout">
+    <!-- Sidebar -->
+    <aside class="ws-sidebar">
+      <div class="ws-brand">
+        <span>⚡</span><span>Workspace</span>
+        <small>v0.14</small>
+      </div>
+      <nav class="ws-nav">
+        {% for category, apps in categories.items() %}
+        <div class="ws-nav-group">
+          <div class="ws-nav-group-title">{{ category }}</div>
+          {% for app in apps %}
+          <a class="ws-nav-item{% if active_app == app.id %} active{% endif %}"
+             href="{{ app.route }}"
+             data-app="{{ app.id }}"
+             title="{{ app.description }}">
+            <span>{{ app.icon }}</span>
+            <span>{{ app.name }}</span>
+            {% if app.badge > 0 %}
+            <span class="badge">{{ app.badge }}</span>
+            {% endif %}
+            {% if app.hotkey %}
+            <span class="hotkey">{{ app.hotkey }}</span>
+            {% endif %}
+          </a>
+          {% endfor %}
+        </div>
+        {% endfor %}
+      </nav>
+    </aside>
+
+    <!-- Main -->
+    <main class="ws-main">
+      <div class="ws-toolbar">
+        <span class="breadcrumb">Workspace / <span id="app-name">{% block app_name %}Home{% endblock %}</span></span>
+        <div class="spacer"></div>
+        <span class="status-dot online" id="ws-status" title="Connection status"></span>
+        <span id="ws-counter" style="font-size:11px;color:var(--text-muted)"></span>
+      </div>
+      <div class="ws-content">
+        {% block content %}{% endblock %}
+      </div>
+    </main>
+  </div>
+
+  <script src="/static/js/workspace.js"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

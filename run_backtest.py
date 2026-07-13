@@ -701,7 +701,7 @@ class BacktestRunner:
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Backtest Engine for crypto-screener-v2")
+    parser = argparse.ArgumentParser(description="Backtest Engine for Trading Workspace Platform")
     parser.add_argument("--symbol", default="BTC/USDT:USDT",
                         help="Symbol (default: BTC/USDT:USDT)")
     parser.add_argument("--interval", default="1h",

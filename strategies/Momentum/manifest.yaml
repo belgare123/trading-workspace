@@ -1,0 +1,116 @@
+# ── Обязательные поля ──
+name: Momentum
+
+# ── Идентификация ──
+version: 2.0.0
+author: Vitaliy
+description: "Трендовая стратегия на EMA-кроссовере с RSI-фильтром и ATR-стопом"
+homepage: ""
+repository: "https://github.com/belgare123/crypto-screener-v2"
+license: MIT
+
+# ── Совместимость ──
+api_version: "2.0"
+min_core: "0.12.0"
+
+# ── Категоризация ──
+category: trend
+tags:
+  - EMA
+  - Trend
+  - Breakout
+  - Crossover
+
+# ── Торговые параметры ──
+exchange:
+  - binance
+  - bybit
+markets:
+  - spot
+  - futures
+timeframes:
+  - 1m
+  - 5m
+  - 15m
+  - 1h
+
+# ── Поведенческий профиль ──
+profile:
+  style: trend_following
+  holding_time: intraday
+  signal_frequency: medium
+  expected_win_rate: 0.55
+  expected_rr: 2.5
+  risk_level: medium
+  preferred_market_regime:
+    - trending
+    - high_volatility
+
+# ── Возможности и разрешения ──
+capabilities:
+  - candles
+  - ema
+  - rsi
+  - atr
+permissions:
+  - market_data
+  - signals
+
+# ── Технические поля ──
+entry: strategy.py
+config_schema:
+  parameters:
+    fast_period:
+      type: int
+      default: 9
+      min: 3
+      max: 50
+      description: "Fast EMA period"
+    slow_period:
+      type: int
+      default: 21
+      min: 5
+      max: 200
+      description: "Slow EMA period"
+    rsi_period:
+      type: int
+      default: 14
+      min: 2
+      max: 100
+      description: "RSI calculation period"
+    atr_period:
+      type: int
+      default: 14
+      min: 2
+      max: 100
+      description: "ATR calculation period"
+    rsi_overbought:
+      type: int
+      default: 70
+      min: 50
+      max: 100
+      description: "RSI overbought threshold"
+    rsi_oversold:
+      type: int
+      default: 30
+      min: 0
+      max: 50
+      description: "RSI oversold threshold"
+    atr_multiplier:
+      type: float
+      default: 2.0
+      min: 0.5
+      max: 5.0
+      description: "ATR multiplier for stop-loss"
+    min_confidence:
+      type: int
+      default: 50
+      min: 0
+      max: 100
+      description: "Minimum confidence for signal (0-100)"
+    symbols:
+      type: list
+      default:
+        - BTC/USDT
+        - ETH/USDT
+      description: "Trading symbols"

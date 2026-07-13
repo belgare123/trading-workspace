@@ -1,6 +1,6 @@
 """Проверка фич в работающем процессе."""
 import sys
-sys.path.insert(0, "G:\\bot\\crypto-screener-v2")
+sys.path.insert(0, "G:\\bot\\trading-workspace")
 
 import asyncio
 

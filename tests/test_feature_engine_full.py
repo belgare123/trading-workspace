@@ -5,7 +5,7 @@ V1 signal integration tests removed with signals/ package.
 """
 import asyncio
 import sys
-sys.path.insert(0, r"G:\bot\crypto-screener-v2")
+sys.path.insert(0, r"G:\bot\trading-workspace")
 
 from core.features.store import get_feature_store
 from core.features.engine import get_feature_engine

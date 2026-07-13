@@ -1,8 +1,8 @@
-# crypto-screener-v2
+# ⚡ Trading Workspace Platform
 
-**Modular cryptocurrency screening platform** — real-time market data pipeline with pluggable strategies, shadow-mode execution, and Docker deployment.
+**Modular algorithmic trading platform** — real-time market data pipeline, pluggable strategies, decision engine, portfolio management, ML learning engine, and a full workspace UI.
 
-> **v0.5.0 Baseline** — архитектурный аудит завершён. `scanner/` → legacy, замена в v0.6.0. Подробнее: [ADR-001](docs/adr/001-scanner-deprecation.md).
+> **v0.14.0** — Phase 14: Workspace Platform.
 
 [![Python](https://img.shields.io/badge/python-3.11-blue)](https://python.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green)](LICENSE)
@@ -12,288 +12,129 @@
 ## Architecture
 
 ```
-                          Telegram Bot (@ecrv3_bot)
+                    ┌─────────────────────────┐
+                    │     Telegram Bot        │
+                    │  (notifications, cmds)  │
+                    └───────────┬─────────────┘
                                 │
-                          Dispatcher (signal → alert)
+┌───────────────────────────────┴──────────────────────────────────┐
+│                        WORKSPACE (Phase 14)                      │
+│  ┌──────────┬──────────┬──────────┬──────────┬─────────────────┐ │
+│  │ Scanner  │ Opport.  │ Strategy │ Replay   │  Inspector      │ │
+│  │ (signals)│ (trades) │ (mgmt)   │ (studio) │  (features)     │ │
+│  ├──────────┼──────────┼──────────┼──────────┼─────────────────┤ │
+│  │ Learning │ Plugins  │ Monitor  │  API Exp │  Settings       │ │
+│  │ (ML hub) │ (store)  │ (system) │ (explore)│  (config)       │ │
+│  └──────────┴──────────┴──────────┴──────────┴─────────────────┘ │
+└──────────────────────────────────────────────────────────────────┘
                                 │
                     ┌───────────┴───────────┐
-                    │                       │
-             Consensus Engine           OME (shadow)
-                    │                       │
-              State Engine           Risk Engine
-                    │                       │
-              Feature Engine           Learning Engine
-                    │
-         ┌──────────┴──────────┐
-         │                     │
-    Scanner Pool        Exchange WS
-(candles, ticker,        (Bybit)
- trades, liq, ob)
-         │                     │
-         └──────────┬──────────┘
-                    │
-             Data Engine
-         (normalization + cache)
+                    │    CORE ENGINE        │
+│  ┌──────────────────┬──────────────────┬──────────────────┐ │
+│  │  Decision Engine │  Portfolio       │  Learning        │ │
+│  │  (Phase 0–3)     │  (Phase 12)      │  (Phase 13)      │ │
+│  ├──────────────────┼──────────────────┼──────────────────┤ │
+│  │  Quality Engine  │  Analytics       │  Lifecycle       │ │
+│  │  (Phase 10)      │  (Phase 11)      │  (Phase 8)       │ │
+│  └──────────────────┴──────────────────┴──────────────────┘ │
+│                    │         │              │
+│                    ▼         ▼              ▼
+│              ┌─────────────────────────────────┐
+│              │  Market Data Bus + Plugin Runtime│
+│              │  (Service Registry, DI, Events)  │
+│              └─────────────────────────────────┘
 ```
-
-All 9 engines run in **shadow mode** — strategies evaluate, risk filters, OME simulates orders — no real capital at risk.
 
 ## Features
 
-- **Real-time WebSocket** — Bybit USDT perpetuals (kline, ticker, trades, liquidation, orderbook)
-- **5 scanners** — Ticker, Candle, Trade, Liquidation, OrderBook
-- **6 Feature Calculators** — Whale, Market, OHLCV, Volatility, OrderBook, Indicators
-- **State Engine** — regime detection (ranging/trending/volatile) by symbol
-- **Risk Engine** — pre-trade filters: spread, ATR, liquidity, session
-- **Consensus Engine** — weighted voting across strategies + Opportunity Ranking
-- **OME** — Order Management Engine (paper trading, shadow mode)
-- **Learning Engine** — winrate tracking, dynamic weight adjustment
-- **Docker** — containerized, health-checked, restart policy
-- **Telegram alerts** — configurable proxy (SOCKS5 via `CS_TG_PROXY`)
+| Feature | Status |
+|---------|--------|
+| Market Data Bus (WebSocket REST) | ✅ |
+| Pluggable Strategy Pipeline | ✅ |
+| Plugin Platform (10 components) | ✅ |
+| Decision Engine (Signals → Opportunities) | ✅ |
+| Opportunity Lifecycle (10 states) | ✅ |
+| Market Replay Framework | ✅ |
+| Quality Engine (passport, ★★★★★, confidence) | ✅ |
+| Analytics Engine (10 market regimes) | ✅ |
+| Portfolio Engine (dynamic weighting) | ✅ |
+| Learning Engine (ML: classifier, predictor, anomaly) | ✅ |
+| **Workspace Platform** (10 apps, WebSocket, API) | ✅ |
 
 ## Quick Start
 
-### Prerequisites
-
-- Python 3.11+
-- uv (recommended) or pip
-- Docker (optional)
-
-### Local
-
 ```bash
-# Clone
-git clone https://github.com/YOUR_USER/crypto-screener-v2.git
-cd crypto-screener-v2
-
 # Install
-uv pip install -r requirements.txt
+uv pip install -e .
 
-# Configure
-cp .env.example .env
-# Edit .env — fill in CS_TELEGRAM_TOKEN, CS_TELEGRAM_CHAT_ID, CS_BYBIT_API_KEY, etc.
+# Run workspace
+uvicorn workspace.main:app --host 127.0.0.1 --port 9120
 
-# Run
-python run.py
+# Open browser
+# → http://localhost:9120
 ```
 
-### Docker
+## Workspace Apps
 
-```bash
-# Start the main service
-docker compose up -d
-curl http://localhost:9120/health
+| # | App | Route | Description |
+|---|-----|-------|-------------|
+| 1 | 🔍 Scanner | `/scanner` | Live signal stream |
+| 2 | 🎯 Opportunities | `/opportunities` | Active/pending/stopped trades |
+| 3 | 🧠 Strategies | `/strategies` | Health, metrics, lifecycle |
+| 4 | ▶️ Replay Studio | `/replay` | Deterministic backtest IDE |
+| 5 | 🔬 Inspector | `/inspector` | Feature analysis per symbol |
+| 6 | 🤖 Learning Center | `/learning` | ML models, retrain, accuracy |
+| 7 | 🧩 Plugin Store | `/plugins` | Browse and install plugins |
+| 8 | 📊 System Monitor | `/monitor` | Runtime: services, CPU, RAM |
+| 9 | 📡 API Explorer | `/api` | Live endpoint reference |
+| 10 | ⚙️ Settings | `/settings` | Platform configuration |
 
-# (Optional) Start the full monitoring stack
-docker compose -f docker-compose.override.yml up -d
-```
+## API
 
-## Monitoring (Grafana + Prometheus)
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/v1/system/status` | Runtime status |
+| GET | `/api/v1/inspector/{symbol}` | Feature inspector |
+| GET | `/apps` | List workspace apps |
+| WS | `/ws/scanner` | Live signals |
+| WS | `/ws/opportunities` | Live opportunities |
+| WS | `/ws/strategies` | Strategy status |
 
-The project includes a production-ready monitoring stack for real-time observability.
+## Roadmap
 
-### Stack Overview
+| # | Phase | Status |
+|---|-------|--------|
+| 0–9 | Infrastructure → Replay | ✅ |
+| 10 | Quality Engine | ✅ |
+| 11 | Analytics Engine | ✅ |
+| 12 | Portfolio Engine | ✅ |
+| 13 | Learning Engine | ✅ |
+| **14** | **Workspace Platform** | **✅** |
+| 15 | Marketplace | ⏳ |
+| 16 | Multi-Exchange Runtime | ⏳ |
+| 17 | Simulation Lab | ⏳ |
 
-| Service    | Port  | Purpose                        |
-|------------|-------|--------------------------------|
-| Prometheus | 9090  | Metrics store (5s scrape)      |
-| Grafana    | 3000  | Dashboards (auto-provisioned)  |
+## Tech Stack
 
-### Start
-
-```bash
-# Start everything (screener + monitoring)
-docker compose -f docker-compose.override.yml up -d
-```
-
-Access Grafana at **http://localhost:3000** → login `admin` / `admin` (or `GF_SECURITY_ADMIN_PASSWORD` from `.env`).
-
-### Metrics
-
-The screener exposes Prometheus metrics at `GET /metrics` (port 9120):
-
-| Metric                            | Type    | Labels                         | Description                          |
-|-----------------------------------|---------|--------------------------------|--------------------------------------|
-| `signals_total`                   | Counter | `signal`, `symbol`             | Signals generated by the engine      |
-| `signals_blocked`                 | Counter | `signal`, `reason`             | Signals blocked (min_score/cooldown) |
-| `signal_errors`                   | Counter | `signal`, `symbol`             | Signal handler crashes               |
-| `dispatched_signals`              | Counter | —                              | Signals actually sent to Telegram    |
-| `dispatch_spam_blocked`           | Counter | `signal`                       | Duplicates blocked by anti-spam      |
-
-### Dashboard
-
-The dashboard *Crypto Screener V2* is auto-provisioned in Grafana with 6 panels:
-
-- **Signals Rate** — `rate(signals_total[5m])` by signal & symbol
-- **Total Signals** — cumulative counter
-- **Blocked by Filter** — total blocked signals
-- **Signal Errors** — crash count
-- **Dispatched Signals Rate** — sent to Telegram
-- **Blocked by Reason** — pie chart (min_score vs cooldown)
-
-### Alerts
-
-Prometheus alert rules in `prometheus/alerts.yml`:
-
-| Alert          | Condition                   | Severity |
-|----------------|-----------------------------|----------|
-| ScreenerDown   | `up{screener} == 0` for 30s | critical |
-
-### Architecture
-
-```
-┌──────────────┐     scrape :9120     ┌──────────────┐
-│  crypto-     │ ──────────────────→  │  Prometheus  │
-│  screener    │     /metrics 5s      │  :9090       │
-│  :9120       │                      │              │
-└──────────────┘                      └──────┬───────┘
-                                             │
-                                    query ───┤
-                                             │
-                                     ┌───────▼──────┐
-                                     │  Grafana     │
-                                     │  :3000       │
-                                     └──────────────┘
-```
-
-## Environment Variables
-
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `CS_BYBIT_API_KEY` | Yes | — | Bybit API key |
-| `CS_BYBIT_API_SECRET` | Yes | — | Bybit API secret |
-| `CS_TELEGRAM_TOKEN` | Yes | — | Telegram bot token |
-| `CS_TELEGRAM_CHAT_ID` | Yes | — | Telegram chat/user ID |
-| `CS_TG_PROXY` | No | — | SOCKS5 proxy for Telegram (e.g. `socks5://host.docker.internal:10808`) |
-| `CS_DATABASE_URL` | No | `sqlite+aiosqlite:///./screener.db` | Database connection string |
-| `CS_DB_PATH` | No | `./signals.db` | Path to signals DB file |
-| `CS_LOG_LEVEL` | No | `INFO` | Logging level |
-
-## Adding a Strategy
-
-Strategies live in `strategies/` and inherit from `BaseStrategy`:
-
-```python
-# strategies/my_strategy.py
-from strategies.base import BaseStrategy, Vote
-
-class MyStrategy(BaseStrategy):
-    async def evaluate(self, ctx: "Context") -> Vote:
-        # Access features via ctx.features
-        # Access state via ctx.state
-        # Return Vote(direction="buy"|"sell"|"neutral", score=0-100, confidence=0-1)
-        ...
-```
-
-Register in config and it loads automatically on next run.
+- **Language:** Python 3.11+
+- **Async Runtime:** asyncio
+- **Web:** FastAPI + Jinja2 + WebSocket
+- **Data:** WebSocket feeds (Bybit/Binance)
+- **ML:** scikit-learn (via Learning Engine)
+- **Runtime:** Docker (optional), uvicorn
 
 ## Project Structure
 
 ```
-├── core/              Event bus, feature engine, state, risk, consensus
-│   ├── features/      Feature calculators + engine
-│   ├── risk/          Risk rules (spread, ATR, liquidity, session)
-│   ├── consensus/     Weighted voting
-│   ├── state/         Market regime detection
-│   ├── ome/           Order Management Engine
-│   ├── learning/      Winrate tracking, dynamic weights
-│   └── monitoring/    Metrics server, healthcheck
-├── exchanges/         Exchange adapters (Bybit WS)
-├── scanner/           Data scanners (candles, ticker, trades, liq, ob)
-├── strategies/        Pluggable trading strategies
-├── alerts/            Telegram notifier
-├── config/            Pydantic settings
-├── run.py             Entry point
-├── Dockerfile         Container build
-└── docker-compose.yml Container orchestration
+G:\bot\trading-workspace/
+├── core/           — Engine layer (decision, lifecycle, replay, quality, analytics, portfolio, learning)
+├── workspace/      — Web UI (Phase 14)
+│   ├── main.py     — FastAPI entry
+│   ├── core/       — App registry, models
+│   ├── static/     — CSS, JS
+│   └── templates/  — Jinja2 layout
+├── plugins/        — Plugin platform
+├── tests/          — 799+ tests
+├── data/           — Market data cache
+└── docs/           — Architecture, ADRs
 ```
-
-## API
-
-| Endpoint | Description |
-|----------|-------------|
-| `GET /health` | Health check (all engines) |
-| `GET /metrics` | Prometheus metrics |
-| `GET /` | Service info |
-
-## Hyperopt (Parameter Optimization)
-
-`run_hyperopt.py` — Optuna-based automatic parameter tuning for strategies.
-
-```bash
-# Optimize momentum_v2 parameters (50 trials, profit factor)
-python run_hyperopt.py --symbol BTC/USDT:USDT --interval 1m \
-    --start 2026-06-01 --end 2026-06-30 --metric profit_factor --n-trials 50
-
-# Quick grid search (no Optuna)
-python run_hyperopt.py \
-    --grid momentum_threshold=0.3,0.5,1.0 min_consecutive=2,4,6
-
-# Visualize results (requires optuna-dashboard)
-optuna-dashboard sqlite:///optuna_studies.db
-# → http://localhost:8080
-```
-
-**Outputs:**
-| File | Description |
-|---|---|
-| `best_params.json` | Best parameter set found |
-| `optuna_trials.csv` | Full trial history |
-| `optuna_studies.db` | SQLite database (resumable) |
-
-```
-
-## Web UI (FastAPI + React)
-
-The platform includes a **Web UI** for strategy management and real-time metrics:
-
-- **URL:** `http://localhost:8001`
-- **Status:** [http://localhost:8001/api/health](http://localhost:8001/api/health)
-- **Docker service:** `webui` (FastAPI + React)
-
-### Features
-
-| Feature | Description |
-|---|---|
-| **Dashboard** | Real-time metrics via WebSocket: signals rate, blocked/dispatched counts, signal-by-symbol breakdown, blocked-by-reason chart |
-| **Strategy Management** | Browse all 54+ signals, filter by category/status/search, enable/disable live |
-| **Live WebSocket** | Server pushes metrics every ~5s from Prometheus |
-
-### API Endpoints
-
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/api/health` | Service health |
-| `GET` | `/api/overview` | Aggregate metrics overview |
-| `GET` | `/api/strategies` | List all registered signals |
-| `GET` | `/api/strategies/categories` | Category counts |
-| `PATCH` | `/api/strategies/{name}` | Enable/disable a signal |
-| `GET` | `/api/metrics` | Raw Prometheus metrics |
-| `WS` | `/api/ws/metrics` | Real-time metric stream |
-
-### Local Development
-
-```bash
-# Backend
-cd webui
-pip install -r requirements.txt
-uvicorn webui.main:app --reload --port 8000
-
-# Frontend (separate terminal)
-cd webui/frontend
-npm install
-npm run dev     # → http://localhost:5173 (proxies /api to :8000)
-```
-
-### Docker
-
-The `webui` service is included in `docker-compose.override.yml`:
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.override.yml up -d
-# → http://localhost:8001
-```
-
-## License
-
-MIT

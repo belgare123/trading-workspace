@@ -1,88 +1,177 @@
 """
-Learning Engine — модели данных.
+Learning Engine — Data Models (Phase 13).
+
+Модели данных для ML/обучения.
 """
+
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import Any
 
 
-@dataclass
-class WinRateEntry:
-    """Одна запись результата сделки для обучения."""
-    strategy_name: str
-    symbol: str
-    side: str                # buy | sell
-    entry_price: float
-    exit_price: float
-    pnl: float               # realised PnL (USDT)
-    pnl_pct: float           # % PnL
-    entry_time: float
-    exit_time: float
-    regime: str = "unknown"  # regime на момент сделки
-    exchange: str = "bybit"
-    extra: dict[str, Any] = field(default_factory=dict)
-
-    @property
-    def won(self) -> bool:
-        """Позитивная сделка (PnL > 0)."""
-        return self.pnl > 0
-
-    @property
-    def duration_hours(self) -> float:
-        return (self.exit_time - self.entry_time) / 3600
+class FeatureType(str, Enum):
+    """Типы признаков для ML."""
+    NUMERIC = "numeric"
+    CATEGORICAL = "categorical"
+    BOOLEAN = "boolean"
+    VECTOR = "vector"
 
 
-@dataclass
-class StrategyStats:
-    """Статистика стратегии на N сделок."""
-    strategy_name: str
-    total_trades: int = 0
-    wins: int = 0
-    losses: int = 0
-    total_pnl: float = 0.0
-    avg_pnl: float = 0.0
-    max_drawdown: float = 0.0
-    sharpe: float = 0.0
-    avg_duration_hours: float = 0.0
-    winrate: float = 0.0
-    last_updated: float = 0.0
+class ModelStatus(str, Enum):
+    """Статус модели в реестре."""
+    TRAINING = "training"
+    READY = "ready"
+    FAILED = "failed"
+    STALE = "stale"
+    DEPRECATED = "deprecated"
 
-    def update(self, entry: WinRateEntry):
-        """Добавить одну сделку в статистику."""
-        self.total_trades += 1
-        self.total_pnl += entry.pnl
-        if entry.won:
-            self.wins += 1
-        else:
-            self.losses += 1
-        self.avg_pnl = self.total_pnl / self.total_trades
-        self.winrate = self.wins / self.total_trades if self.total_trades > 0 else 0.0
-        self.last_updated = entry.exit_time
 
-    @property
-    def is_significant(self) -> bool:
-        """Минимально значимая выборка."""
-        return self.total_trades >= 10
+class TaskType(str, Enum):
+    """Тип ML-задачи."""
+    REGRESSION = "regression"
+    CLASSIFICATION = "classification"
+    CLUSTERING = "clustering"
+    ANOMALY_DETECTION = "anomaly_detection"
 
-    @property
-    def pf(self) -> float:
-        """Profit Factor — gross profit / gross loss."""
-        if self.losses == 0:
-            return float("inf") if self.wins > 0 else 1.0
-        return self.wins / self.losses if self.losses > 0 else 1.0
 
-    @property
-    def adjusted_winrate(self) -> float:
-        """Winrate с поправкой на малое n (wald-adj)."""
-        if self.total_trades == 0:
-            return 0.0
-        # Wald-adjusted: (wins + 2) / (n + 4) — аддитивное сглаживание
-        return (self.wins + 2) / (self.total_trades + 4)
+class AnomalyType(str, Enum):
+    """Типы обнаруживаемых аномалий."""
+    VOLUME_SPIKE = "volume_spike"
+    PRICE_JUMP = "price_jump"
+    VOLATILITY_SHIFT = "volatility_shift"
+    LIQUIDITY_DROP = "liquidity_drop"
+    PATTERN_BREAK = "pattern_break"
+    CORRELATION_REVERSAL = "correlation_reversal"
 
 
 @dataclass
-class RegimeStats:
-    """Статистика стратегии в конкретном режиме (trending/ranging/volatile)."""
-    regime: str
-    strategy_stats: dict[str, StrategyStats] = field(default_factory=dict)
+class Feature:
+    """Признак для ML-модели."""
+    name: str
+    value: float
+    feature_type: FeatureType = FeatureType.NUMERIC
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"name": self.name, "value": self.value, "type": self.feature_type.value}
+
+
+@dataclass
+class FeatureSet:
+    """Набор признаков для одного наблюдения."""
+    features: list[Feature] = field(default_factory=list)
+    timestamp: float = 0.0
+
+    def __post_init__(self) -> None:
+        if self.timestamp == 0.0:
+            self.timestamp = time.time()
+
+    def get(self, name: str) -> float:
+        for f in self.features:
+            if f.name == name:
+                return f.value
+        return 0.0
+
+    def to_dict(self) -> dict[str, Any]:
+        return {f.name: f.value for f in self.features}
+
+    def add(self, name: str, value: float) -> None:
+        self.features.append(Feature(name=name, value=value))
+
+    def __len__(self) -> int:
+        return len(self.features)
+
+
+@dataclass
+class TrainingExample:
+    """Один пример для обучения."""
+    features: FeatureSet
+    label: float
+    weight: float = 1.0
+    timestamp: float = 0.0
+
+    def __post_init__(self) -> None:
+        if self.timestamp == 0.0:
+            self.timestamp = time.time()
+
+
+@dataclass
+class ModelMetadata:
+    """Метаданные обученной модели."""
+    name: str
+    task: TaskType
+    version: str = "1.0.0"
+    status: ModelStatus = ModelStatus.TRAINING
+    description: str = ""
+    features_used: list[str] = field(default_factory=list)
+    classes: list[str] = field(default_factory=list)
+    score: float = 0.0  # RMSE, accuracy, etc.
+    params: dict[str, Any] = field(default_factory=dict)
+    train_count: int = 0
+    created_at: float = 0.0
+    updated_at: float = 0.0
+    path: str = ""  # Путь к файлу с весами
+
+    def __post_init__(self) -> None:
+        now = time.time()
+        if self.created_at == 0.0:
+            self.created_at = now
+        if self.updated_at == 0.0:
+            self.updated_at = now
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "name": self.name,
+            "task": self.task.value,
+            "version": self.version,
+            "status": self.status.value,
+            "score": self.score,
+            "train_count": self.train_count,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
+        }
+
+
+@dataclass
+class Anomaly:
+    """Зафиксированная аномалия."""
+    anomaly_type: AnomalyType
+    severity: float  # 0..1
+    symbol: str = ""
+    description: str = ""
+    expected_value: float = 0.0
+    actual_value: float = 0.0
+    confidence: float = 1.0
+    timestamp: float = 0.0
+
+    def __post_init__(self) -> None:
+        if self.timestamp == 0.0:
+            self.timestamp = time.time()
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "anomaly_type": self.anomaly_type.value,
+            "severity": self.severity,
+            "symbol": self.symbol,
+            "description": self.description,
+            "expected_value": self.expected_value,
+            "actual_value": self.actual_value,
+            "confidence": self.confidence,
+        }
+
+
+@dataclass
+class LearningEvent:
+    """Событие обучения."""
+    event_type: str
+    model_name: str = ""
+    anomaly: Anomaly | None = None
+    predictions: dict[str, float] | None = None
+    message: str = ""
+    timestamp: float = 0.0
+
+    def __post_init__(self) -> None:
+        if self.timestamp == 0.0:
+            self.timestamp = time.time()

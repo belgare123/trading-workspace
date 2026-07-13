@@ -62,7 +62,7 @@ class MetricsServer:
             return json.dumps(data, indent=2, ensure_ascii=False)
         elif path == "/":
             return json.dumps({
-                "service": "crypto-screener-v2",
+                "service": "trading-workspace",
                 "version": "v3",
                 "endpoints": ["/metrics", "/health"],
             }, indent=2)

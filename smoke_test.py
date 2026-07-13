@@ -69,7 +69,7 @@ async def smoke_test():
     START = time.time()
 
     logger.info("=" * 60)
-    logger.info("SMOKE TEST :: crypto-screener-v2")
+    logger.info("SMOKE TEST :: Trading Workspace Platform")
     logger.info("Duration: %ds  Symbol: %s  Metrics: %d", DURATION, SYMBOL, METRICS_PORT)
     logger.info("=" * 60)
 

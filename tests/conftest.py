@@ -1,4 +1,4 @@
-"""Shared pytest fixtures for crypto-screener-v2."""
+"""Shared pytest fixtures for Trading Workspace Platform."""
 from __future__ import annotations
 
 import pytest

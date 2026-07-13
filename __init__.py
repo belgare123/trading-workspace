@@ -1,4 +1,4 @@
 """
-crypto-screener — модульная платформа скрининга криптовалют.
-Архитектура: Market Data Bus → Signals → Dispatcher → Telegram/FastAPI.
+Trading Workspace Platform — алгоритмическая торговая платформа.
+Архитектура: Market Data Bus → Decision Engine → Opportunity Lifecycle → Portfolio → Learning → Workspace.
 """

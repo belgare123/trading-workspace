@@ -1,0 +1,29 @@
+[project]
+name = "trading-workspace"
+version = "0.14.0"
+description = "Modular algorithmic trading platform — real-time market data, decision engine, ML learning, workspace UI"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+authors = [
+    { name = "belgare123", email = "thejeremii@gmail.com" },
+]
+
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn>=0.27",
+    "jinja2>=3.1",
+    "websockets>=12",
+    "aiofiles>=23",
+    "pandas>=2.0",
+    "numpy>=1.24",
+    "scikit-learn>=1.3",
+]
+
+[project.urls]
+Homepage = "https://github.com/belgare123/trading-workspace"
+Repository = "https://github.com/belgare123/trading-workspace"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]

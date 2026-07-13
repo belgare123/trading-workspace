@@ -1,134 +1,177 @@
 """
-LearningEngine — фасад для трекинга winrate и обновления весов.
+Learning Engine -- Orchestrator (Phase 13.11).
+
+Central coordinator for the Learning Engine.
 """
+
 from __future__ import annotations
 
 import logging
-import time
+from typing import Any
 
-from core.learning.models import WinRateEntry
-from core.learning.winrate import WinRateTracker
-from core.learning.weight_updater import WeightUpdater
+from core.analytics import MarketProfile
+from core.learning.bus import LearningBus
+from core.learning.classifier import RegimeClassifier
+from core.learning.dataset import DatasetBuilder
+from core.learning.detector import AnomalyDetector
+from core.learning.features import FeatureExtractor
+from core.learning.models import (
+    Anomaly,
+    FeatureSet,
+    LearningEvent,
+    ModelMetadata,
+    ModelStatus,
+)
+from core.learning.optimizer import ParamOptimizer, ParamSpace
+from core.learning.predictor import PerformancePredictor
+from core.learning.registry import ModelRegistry
+from core.learning.trainer import Trainer
+from core.quality import RatingPassport
 
 logger = logging.getLogger(__name__)
 
 
 class LearningEngine:
-    """Фасад Learning Engine.
+    """Orchestrate ML training pipeline.
 
-    Объединяет WinRateTracker и WeightUpdater.
-    Может быть подключён к ConsensusEngine для динамических весов.
+    Pipeline:
+      Raw Data -> FeatureExtractor -> DatasetBuilder
+        -> Trainer (RegimeClassifier / PerformancePredictor)
+          -> ModelRegistry
+            -> Predictions & Anomaly Detection
     """
 
-    def __init__(self, tracker: WinRateTracker | None = None,
-                 updater: WeightUpdater | None = None,
-                 shadow: bool = True,
-                 update_interval: float = 3600.0):  # проверка весов раз в час
-        self.shadow = shadow
-        self.update_interval = update_interval
-        self.tracker = tracker or WinRateTracker(min_trades=10)
-        self.updater = updater or WeightUpdater(tracker=self.tracker)
-        self._last_update = 0.0
+    def __init__(self) -> None:
+        self._extractor = FeatureExtractor()
+        self._dataset = DatasetBuilder(self._extractor)
+        self._trainer = Trainer()
+        self._classifier = self._trainer.classifier
+        self._predictor = self._trainer.predictor
+        self._detector = AnomalyDetector()
+        self._optimizer = ParamOptimizer()
+        self._bus = LearningBus()
+        self._anomalies: list[Anomaly] = []
 
-    # ── Record trades ──
+    def extract_features(
+        self,
+        candles: list[dict] | None = None,
+        profile: MarketProfile | None = None,
+        passport: RatingPassport | None = None,
+    ) -> FeatureSet:
+        """Extract features from available sources."""
+        sets = []
+        if candles:
+            sets.append(FeatureExtractor.from_candles(candles))
+        if profile:
+            sets.append(FeatureExtractor.from_market_profile(profile))
+        if passport:
+            sets.append(FeatureExtractor.from_passport(passport))
+        return FeatureExtractor.merge(*sets) if sets else FeatureSet()
 
-    def record_result(self, strategy_name: str, symbol: str, side: str,
-                       entry_price: float, exit_price: float, pnl: float,
-                       regime: str = "unknown", exchange: str = "bybit",
-                       **extra) -> WinRateEntry:
-        """Записать результат одной сделки.
+    def add_example(
+        self,
+        features: FeatureSet,
+        label: float,
+        weight: float = 1.0,
+    ) -> None:
+        """Add a training example to the dataset."""
+        self._dataset.add(features, label, weight)
+        self._bus.emit(LearningEvent(
+            event_type="learning.dataset_updated",
+            message=f"Dataset: {self._dataset.count} examples",
+        ))
 
-        Автоматически проверяет, нужно ли обновить веса.
-        """
-        pnl_pct = ((exit_price - entry_price) / entry_price * 100) if entry_price else 0
-        if side == "sell":
-            pnl_pct = -pnl_pct
+    def train_classifier(self) -> ModelMetadata:
+        """Train the regime classifier."""
+        return self._trainer.train_classifier(self._dataset)
 
-        entry = WinRateEntry(
-            strategy_name=strategy_name,
-            symbol=symbol,
-            side=side,
-            entry_price=entry_price,
-            exit_price=exit_price,
-            pnl=pnl,
-            pnl_pct=pnl_pct,
-            entry_time=extra.pop("entry_time", time.time()),
-            exit_time=time.time(),
-            regime=regime,
-            exchange=exchange,
-            extra=extra,
-        )
+    def train_predictor(self) -> ModelMetadata:
+        """Train the performance predictor."""
+        return self._trainer.train_predictor(self._dataset)
 
-        self.tracker.record(entry)
+    def predict_regime(self, features: FeatureSet) -> tuple[str, float]:
+        """Predict market regime via ML."""
+        return self._classifier.predict(features)
 
-        # Проверка необходимости обновить веса
-        if not self.shadow:
-            now = time.time()
-            if now - self._last_update > self.update_interval:
-                self._maybe_update_weights()
-                self._last_update = now
+    def predict_performance(self, features: FeatureSet) -> dict[str, float]:
+        """Predict strategy metrics."""
+        result = self._predictor.predict(features)
+        self._bus.emit_prediction(result, "perf_predictor")
+        return result
 
-        return entry
+    def detect_anomalies(
+        self,
+        price: float | None = None,
+        volume: float | None = None,
+        atr_ratio: float | None = None,
+        volume_ratio: float | None = None,
+        symbol: str = "",
+    ) -> list[Anomaly]:
+        """Run anomaly detection across all channels."""
+        anomalies: list[Anomaly] = []
+        if price is not None:
+            a = self._detector.detect_price(price, symbol)
+            if a:
+                anomalies.append(a)
+        if volume is not None:
+            a = self._detector.detect_volume(volume, symbol)
+            if a:
+                anomalies.append(a)
+        if atr_ratio is not None:
+            a = self._detector.detect_volatility_shift(atr_ratio, symbol)
+            if a:
+                anomalies.append(a)
+        if volume_ratio is not None:
+            a = self._detector.detect_liquidity_drop(volume_ratio, symbol)
+            if a:
+                anomalies.append(a)
+        for a in anomalies:
+            self._anomalies.append(a)
+            self._bus.emit_anomaly(a, "anomaly_detector")
+        return anomalies
 
-    def record_batch(self, entries: list[dict]) -> list[WinRateEntry]:
-        """Записать группу сделок (словари с ключами как у record_result)."""
-        results = []
-        for e in entries:
-            results.append(self.record_result(**e))
-        return results
-
-    # ── Weights ──
-
-    def _maybe_update_weights(self):
-        """Проверить и обновить веса (лог в shadow-mode)."""
-        updates = self.updater.update_all()
-        if updates:
-            logger.info("[learning] Weight updates: %s", updates)
-            if self.shadow:
-                logger.info("[learning] SHADOW — weights not applied to engine")
-
-    def update_weights(self) -> dict[str, float]:
-        """Принудительно обновить все веса (вне interval)."""
-        updates = self.updater.update_all()
-        return updates
-
-    def get_weight(self, strategy_name: str) -> float:
-        return self.updater.get_weight(strategy_name)
-
-    def set_weight(self, strategy_name: str, weight: float):
-        self.updater.set_weight(strategy_name, weight)
-
-    # ── Stats ──
-
-    def strategy_stats(self, name: str):
-        return self.tracker.strategy_stats(name)
-
-    def winrate_table(self) -> list[dict]:
-        return self.tracker.winrate_table()
-
-    def top_strategies(self, limit: int = 5):
-        return self.tracker.top_strategies(limit)
+    def optimize_params(
+        self,
+        param_space: ParamSpace,
+        eval_fn: Any,
+        method: str = "random",
+        **kwargs: Any,
+    ) -> tuple[dict[str, float], float]:
+        """Optimize strategy parameters."""
+        if method == "grid":
+            result = self._optimizer.grid_search(param_space, eval_fn, **kwargs)
+        else:
+            result = self._optimizer.random_search(param_space, eval_fn, **kwargs)
+        self._bus.emit(LearningEvent(
+            event_type="learning.params_optimized",
+            message=f"Best score: {result[1]:.4f}",
+        ))
+        return result
 
     @property
-    def total_trades(self) -> int:
-        return self.tracker.total_records
+    def bus(self) -> LearningBus:
+        return self._bus
 
+    @property
+    def dataset(self) -> DatasetBuilder:
+        return self._dataset
 
-# Singleton
-_learning_engine: LearningEngine | None = None
+    @property
+    def registry(self) -> ModelRegistry:
+        return self._trainer.registry
 
+    @property
+    def classifier(self) -> RegimeClassifier:
+        return self._classifier
 
-def get_learning_engine(tracker: WinRateTracker | None = None,
-                         updater: WeightUpdater | None = None,
-                         shadow: bool = True) -> LearningEngine:
-    global _learning_engine
-    if _learning_engine is None:
-        _learning_engine = LearningEngine(
-            tracker=tracker, updater=updater, shadow=shadow,
-        )
-    return _learning_engine
+    @property
+    def predictor(self) -> PerformancePredictor:
+        return self._predictor
 
+    @property
+    def detector(self) -> AnomalyDetector:
+        return self._detector
 
-def reset_learning_engine():
-    global _learning_engine
-    _learning_engine = None
+    @property
+    def recent_anomalies(self, limit: int = 10) -> list[Anomaly]:
+        return self._anomalies[-limit:]

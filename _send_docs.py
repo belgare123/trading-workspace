@@ -4,11 +4,11 @@ import sys
 import re
 
 # Read the file
-with open('G:/bot/crypto-screener-v2/ARCHITECTURE.md', 'r', encoding='utf-8') as f:
+with open('G:/bot/trading-workspace/ARCHITECTURE.md', 'r', encoding='utf-8') as f:
     content = f.read()
 
 # Get token and chat_id from .env
-with open('G:/bot/crypto-screener-v2/.env', 'r', encoding='utf-8') as f:
+with open('G:/bot/trading-workspace/.env', 'r', encoding='utf-8') as f:
     env = f.read()
 
 token = re.search(r'CS_TELEGRAM_TOKEN=(.+)', env).group(1).strip().strip('"').strip("'")

@@ -54,7 +54,7 @@ def test_cache_worker():
 
 def test_api_imports():
     from api import app
-    assert app.title == "crypto-screener API"
+    assert app.title == "Trading Workspace API"
     print("✅ API imports OK")
 
 

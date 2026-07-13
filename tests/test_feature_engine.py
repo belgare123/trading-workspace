@@ -1,7 +1,7 @@
 """Quick test for Feature Engine imports and basic functionality."""
 import asyncio
 import sys
-sys.path.insert(0, r"G:\bot\crypto-screener-v2")
+sys.path.insert(0, r"G:\bot\trading-workspace")
 
 from core.features.store import FeatureStore, get_feature_store
 from core.features.base import BaseFeatureCalculator
