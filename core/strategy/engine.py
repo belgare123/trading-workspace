@@ -304,6 +304,20 @@ class StrategyEngine:
         # ── Runner ──
         self._runner = self._build_runner()
 
+        # ── Scheduler ──
+        self._scheduler = self._build_scheduler()
+
+    def _build_scheduler(self) -> Any:
+        """Создать StrategyScheduler."""
+        from core.strategy.scheduler import StrategyScheduler as Scheduler
+
+        return Scheduler(
+            analyze_fn=self.analyze_all,
+            analyze_on_tick=self._config.analyze_on_tick,
+            tick_interval=self._config.tick_interval,
+            logger_override=self._logger,
+        )
+
     def _build_runner(self) -> Any:
         """Создать StrategyRunner."""
         from core.strategy.runner import StrategyRunner as Runner
@@ -604,21 +618,9 @@ class StrategyEngine:
     async def tick(self) -> dict[str, SignalBundle]:
         """Один цикл выполнения.
 
-        Если analyze_on_tick = True — запускает analyze_all().
-        Если tick_interval > 0 — делает паузу.
-
-        Returns:
-            Результаты analyze_all().
+        Делегирует StrategyScheduler.
         """
-        if not self._config.analyze_on_tick:
-            return {}
-
-        results = await self.analyze_all()
-
-        if self._config.tick_interval > 0:
-            await asyncio.sleep(self._config.tick_interval)
-
-        return results
+        return await self._scheduler.tick()
 
     # ── IService compatible lifecycle ────────────────────────────
 
