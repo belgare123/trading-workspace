@@ -37,7 +37,7 @@ from core.strategy.descriptor import (
     StrategyDescriptor,
 )
 from core.strategy.config_schema import ConfigSchema, validate_config_with_schema, normalize_config
-from core.strategy.engine import PluginInfo, PluginLoader
+from core.strategy.loader import PluginInfo, PluginLoader
 
 logger = logging.getLogger(__name__)
 
