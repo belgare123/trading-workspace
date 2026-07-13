@@ -54,6 +54,7 @@ from core.event_store.store import EventStore
 from core.event_store.reader import EventStoreReader, ReaderSnapshot, SnapshotReader
 from core.event_store.subscription import SubscriptionHub
 from core.event_store.trace import TraceNode, TraceGraph, TraceBuilder, trace_by_correlation, trace_event
+from core.event_store.aggregate import AggregateStream, AggregateSnapshot, AggregateRepository, ConcurrencyError
 
 __all__ = [
     # Models
@@ -85,6 +86,11 @@ __all__ = [
     "TraceBuilder",
     "trace_by_correlation",
     "trace_event",
+    # Aggregate
+    "AggregateStream",
+    "AggregateSnapshot",
+    "AggregateRepository",
+    "ConcurrencyError",
     "SubscriptionHub",
     # Protocol
     "EventPublisher",
