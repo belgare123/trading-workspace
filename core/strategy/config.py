@@ -37,6 +37,4 @@ class EngineConfig:
     session: Optional[SessionInfo] = None
     default_config: dict[str, Any] = field(default_factory=dict)
     sandbox: SandboxConfig = field(default_factory=SandboxConfig.default)
-    discovery_engine: Any = None
-    plugin_registry: Any = None
     registry_path: str | None = None

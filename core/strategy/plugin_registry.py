@@ -27,7 +27,7 @@ from core.strategy.dependency import (
     DependencyResolver,
     ResolveReport,
 )
-from core.strategy.discovery import DiscoverySource, PluginDiscovery
+from core.strategy.discovery import DiscoveryEngine, DiscoverySource, PluginDiscovery, SourceType
 from core.strategy.feature_graph import (
     FeatureConflict,
     FeatureConflictError,
@@ -236,6 +236,7 @@ class PluginRegistry:
         health_monitor: PluginHealthMonitor | None = None,
         repository: PluginRepository | None = None,
         permission_policy: PermissionPolicy | None = None,
+        discovery_engine: DiscoveryEngine | None = None,
     ) -> None:
         self._plugins: dict[str, PluginRecord] = {}
         self._registry_path = registry_path
@@ -246,6 +247,7 @@ class PluginRegistry:
         self._repository = repository or PluginRepository()
         self._permissions: dict[str, PluginPermissions] = {}
         self._permission_policy = permission_policy or PermissionPolicy()
+        self._discovery = discovery_engine
         self._api_factory = PluginAPIFactory(
             permission_checker=self._check_permission,
             health_monitor=self._health_monitor,
@@ -515,6 +517,33 @@ class PluginRegistry:
     def repository(self) -> PluginRepository:
         """PluginRepository для этого реестра."""
         return self._repository
+
+    # ── Discovery Engine ──
+
+    @property
+    def discovery_engine(self) -> DiscoveryEngine | None:
+        """DiscoveryEngine для поиска плагинов."""
+        return self._discovery
+
+    async def discover(self) -> list[PluginRecord]:
+        """Обнаружить и зарегистрировать плагины через Discovery Engine.
+
+        Returns:
+            Список зарегистрированных PluginRecord.
+
+        Raises:
+            PluginRegistryError: Если Discovery Engine не настроен.
+        """
+        if not self._discovery:
+            raise PluginRegistryError(
+                "No DiscoveryEngine configured — cannot discover plugins"
+            )
+        discovered = await self._discovery.discover()
+        records: list[PluginRecord] = []
+        for plugin in discovered:
+            record = self.register(plugin)
+            records.append(record)
+        return records
 
     # ── Permissions ──
 

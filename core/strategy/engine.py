@@ -1,17 +1,23 @@
 """
-StrategyEngine — тонкий фасад над подсистемами декомпозиции.
+StrategyEngine — тонкий фасад над подсистемами.
 
-Управляет полным lifecycle стратегий: Discovery → Load → Initialize → Start → Analyze → Stop.
+Управляет lifecycle стратегий: Load → Initialize → Start → Analyze → Stop.
 
 Делегирует:
-  - PluginLoader           — импорт Python-модулей
-  - StrategyRegistry       — discovery, регистрация, enable/disable
-  - StrategyRunner         — analyze_all / analyze_one с sandbox
-  - StrategyScheduler      — tick() / interval
-  - StrategyLifecycle      — load / init / start / stop / shutdown
+  - PluginRegistry       — discovery, регистрация, enable/disable, зависимости
+  - PluginLoader         — импорт Python-модулей
+  - StrategyRunner       — analyze_all / analyze_one с sandbox
+  - StrategyScheduler    — tick() / interval
+  - StrategyLifecycle    — load / init / start / stop / shutdown
+
+Не знает:
+  - как работает marketplace
+  - где лежат файлы (только через PluginRegistry)
+  - как разрешаются зависимости
 
 Использование:
-    engine = StrategyEngine(config)
+    engine = StrategyEngine(registry=PluginRegistry(...))
+    await engine.discover()
     await engine.load_all()
     await engine.initialize_all()
     await engine.start_all()
@@ -21,7 +27,7 @@ StrategyEngine — тонкий фасад над подсистемами де�
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable, Optional
+from typing import Any, Optional
 
 from core.app.phases import Phase
 from core.strategy.base import BaseStrategy
@@ -33,7 +39,7 @@ from core.strategy.context import (
     SessionInfo,
     StrategyContext,
 )
-from core.strategy.lifecycle import StrategyState
+from core.strategy.discovery import DiscoveryEngine, DiscoverySource, SourceType
 from core.strategy.loader import PluginInfo, PluginLoader
 from core.strategy.mocks import (
     MockExchangeAPI,
@@ -41,6 +47,7 @@ from core.strategy.mocks import (
     MockMarketAPI,
     MockStateAPI,
 )
+from core.strategy.plugin_registry import PluginRegistry
 from core.strategy.sandbox import SandboxContext
 from core.strategy.signal import Signal, SignalBundle
 
@@ -50,8 +57,11 @@ from core.profiler import profile
 class StrategyEngine:
     """Оркестратор стратегий — тонкий фасад.
 
+    Получает PluginRegistry как единый источник истины о плагинах.
+    Не занимается discovery, регистрацией или разрешением зависимостей
+    — все это ответственность PluginRegistry.
+
     Полностью совместим с IService для ServiceRuntime.
-    Все реализации делегируются компонентам ниже.
     """
 
     # ── IService interface ──
@@ -61,40 +71,50 @@ class StrategyEngine:
     def __init__(
         self,
         config: EngineConfig | None = None,
+        registry: PluginRegistry | None = None,
         plugin_loader: PluginLoader | None = None,
         feature_api: FeatureAPI | None = None,
         market_api: MarketAPI | None = None,
         exchange_api: ExchangeAPI | None = None,
     ) -> None:
         self._config = config or EngineConfig()
-        self._loader = plugin_loader or PluginLoader(self._config.strategies_dir)
         self._logger = logging.getLogger("strategy.engine")
 
-        # API providers
+        # ── Plugin Registry — single source of truth ──
+        if registry is not None:
+            self._registry = registry
+        else:
+            # Создаём с DiscoveryEngine по умолчанию для strategies_dir
+            discovery = DiscoveryEngine()
+            discovery.add_source(
+                DiscoverySource(
+                    type=SourceType.LOCAL,
+                    path=self._config.strategies_dir,
+                    label="strategies",
+                    priority=10,
+                )
+            )
+            self._registry = PluginRegistry(
+                registry_path=self._config.registry_path,
+                discovery_engine=discovery,
+            )
+
+        # ── API providers ──
+        self._loader = plugin_loader or PluginLoader(self._config.strategies_dir)
         self._feature_api: FeatureAPI = feature_api or MockFeatureAPI()
         self._market_api: MarketAPI = market_api or MockMarketAPI()
         self._exchange_api: ExchangeAPI = exchange_api or MockExchangeAPI()
 
-        # Mutable state
+        # ── Mutable state ──
         self._strategies: dict[str, BaseStrategy] = {}
         self._plugins: list[PluginInfo] = []
         self._started = False
         self._sandbox_ctx = SandboxContext(self._config.sandbox)
 
-        # Delegate components
-        from core.strategy.registry import StrategyRegistry
+        # ── Delegate components ──
         from core.strategy.runner import StrategyRunner
         from core.strategy.scheduler import StrategyScheduler
         from core.strategy.lifecycle_ext import StrategyLifecycle
-
-        self._registry_service = StrategyRegistry(
-            discovery=self._config.discovery_engine,
-            plugin_registry=self._config.plugin_registry,
-            strategies_dir=self._config.strategies_dir,
-            registry_path=self._config.registry_path,
-        )
-        self._discovery = self._registry_service.discovery_engine
-        self._registry = self._registry_service.plugin_registry
 
         self._runner = StrategyRunner(
             strategies=self._strategies,
@@ -117,7 +137,6 @@ class StrategyEngine:
             config=self._config,
             build_context=self._build_context,
             set_started=lambda v: setattr(self, '_started', v),
-            discover_fn=self._registry_service.discover_plugins,
             logger_override=self._logger,
         )
 
@@ -138,70 +157,33 @@ class StrategyEngine:
     def get(self, name: str) -> BaseStrategy | None:
         return self._strategies.get(name)
 
+    @property
+    def registry(self) -> PluginRegistry:
+        """PluginRegistry — единый реестр плагинов платформы."""
+        return self._registry
+
     # ── Discovery ──
 
     async def discover(self) -> list[PluginInfo]:
-        records = await self._registry_service.discover_plugins()
+        """Обнаружить плагины через PluginRegistry.
+
+        Returns:
+            Список PluginInfo для всех найденных плагинов.
+        """
+        records = await self._registry.discover()
         self._plugins = [PluginInfo.from_plugin_record(r) for r in records]
         return self._plugins
-
-    # ── Registry delegation ──
-
-    @property
-    def discovery_engine(self) -> Any:
-        return self._registry_service.discovery_engine
-
-    @property
-    def plugin_registry(self) -> Any:
-        return self._registry_service.plugin_registry
-
-    async def discover_plugins(self) -> list[Any]:
-        return await self._registry_service.discover_plugins()
-
-    def enable_plugin(self, name: str) -> Any:
-        return self._registry_service.enable_plugin(name)
-
-    def disable_plugin(self, name: str, reason: str | None = None) -> Any:
-        return self._registry_service.disable_plugin(name, reason=reason)
-
-    def list_plugins(self) -> list[Any]:
-        return self._registry_service.list_plugins()
-
-    def list_enabled(self) -> list[Any]:
-        return self._registry_service.list_enabled()
-
-    def list_disabled(self) -> list[Any]:
-        return self._registry_service.list_disabled()
-
-    def get_plugin(self, name: str) -> Any:
-        return self._registry_service.get_plugin(name)
-
-    def save_registry(self) -> None:
-        self._registry_service.save_registry()
-
-    @property
-    def dependency_resolver(self) -> Any:
-        return self._registry_service.dependency_resolver
-
-    def resolve_dependencies(self, check_versions: bool = True, strict: bool = False) -> Any:
-        return self._registry_service.resolve_dependencies(
-            check_versions=check_versions, strict=strict
-        )
-
-    def resolve_plugin(self, name: str, check_versions: bool = True, strict: bool = False) -> Any:
-        return self._registry_service.resolve_plugin(
-            name, check_versions=check_versions, strict=strict
-        )
-
-    def startup_order(self) -> list[str]:
-        return self._registry_service.startup_order()
-
-    def check_dependencies(self, name: str) -> tuple[bool, list[str]]:
-        return self._registry_service.check_dependencies(name)
 
     # ── Pipeline: Load / Init / Start ──
 
     async def load_all(self) -> dict[str, BaseStrategy]:
+        """Загрузить стратегии.
+
+        Если список плагинов пуст — сначала выполняет discover().
+        Затем делегирует StrategyLifecycle для импорта модулей.
+        """
+        if not self._plugins:
+            await self.discover()
         return await self._lifecycle.load_all()
 
     def _build_context(self, strategy: BaseStrategy) -> StrategyContext:
@@ -264,6 +246,7 @@ class StrategyEngine:
     # ── IService: health / metrics ──
 
     async def health(self) -> dict[str, Any]:
+        from core.strategy.lifecycle import StrategyState
         strategy_states = {
             name: strat.state for name, strat in self._strategies.items()
         }

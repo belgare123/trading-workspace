@@ -5,6 +5,7 @@
   stop_all() → shutdown_all()
 
 Не содержит _build_context — получает его как callback от Engine.
+Не знает о discovery — получает уже заполненный список PluginInfo.
 
 Пример:
     lifecycle = StrategyLifecycle(
@@ -18,7 +19,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Awaitable, Callable
+from typing import Any, Callable
 
 from core.strategy.base import BaseStrategy
 from core.strategy.context import (
@@ -37,7 +38,7 @@ class StrategyLifecycle:
     """Управление lifecycle стратегий.
 
     Responsibilities:
-        - load_all()       — обнаружение + импорт + создание экземпляров
+        - load_all()       — импорт + создание экземпляров (из уже известных PluginInfo)
         - initialize_all() — построение контекста + инициализация + warmup
         - start_all()      — запуск стратегий
         - stop_all()       — остановка
@@ -61,7 +62,6 @@ class StrategyLifecycle:
         config: Any,
         build_context: Callable[[BaseStrategy], StrategyContext],
         set_started: Callable[[bool], None],
-        discover_fn: Callable[[], Awaitable[list[Any]]] | None = None,
         logger_override: logging.Logger | None = None,
     ) -> None:
         self._strategies = strategies
@@ -70,36 +70,27 @@ class StrategyLifecycle:
         self._config = config
         self._build_context = build_context
         self._set_started = set_started
-        self._discover_fn = discover_fn
         self._logger = logger_override or logging.getLogger("strategy.lifecycle")
 
     # ── Load ─────────────────────────────────────────────────────
 
     async def load_all(self) -> dict[str, BaseStrategy]:
-        """Загрузить все обнаруженные стратегии.
+        """Загрузить все известные плагины как стратегии.
 
         Шаги:
-          1. discover() — через единый Discovery Engine (или PluginLoader)
+          1. Итерирует self._plugins (предварительно заполнен Engine)
           2. Для каждого: импортировать модуль, создать экземпляр
 
         Returns:
             dict[name → BaseStrategy]
         """
-        plugins = self._plugins
-        if not plugins:
-            if self._discover_fn:
-                records = await self._discover_fn()
-                self._plugins.clear()
-                self._plugins.extend(
-                    PluginInfo.from_plugin_record(r) for r in records
-                )
-            else:
-                plugins = await self._loader.discover()
-                self._plugins.clear()
-                self._plugins.extend(plugins)
-            plugins = self._plugins
+        if not self._plugins:
+            self._logger.warning(
+                "No plugins to load — engine.discover() was not called"
+            )
+            return self._strategies
 
-        for info in plugins:
+        for info in self._plugins:
             if info.descriptor.name in self._strategies:
                 self._logger.warning(
                     f"Duplicate strategy: {info.descriptor.name}, skipping"
