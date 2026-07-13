@@ -301,6 +301,22 @@ class StrategyEngine:
         self._discovery = self._registry_service.discovery_engine
         self._registry = self._registry_service.plugin_registry
 
+        # ── Runner ──
+        self._runner = self._build_runner()
+
+    def _build_runner(self) -> Any:
+        """Создать StrategyRunner."""
+        from core.strategy.runner import StrategyRunner as Runner
+
+        return Runner(
+            strategies=self._strategies,
+            sandbox_ctx=self._sandbox_ctx,
+            sandbox_config=self._config.sandbox,
+            strategies_dir=self._config.strategies_dir,
+            build_context=self._build_context,
+            logger_override=self._logger,
+        )
+
     def _build_registry(self) -> RegistryService:
         """Создать StrategyRegistry из конфига."""
         from core.strategy.registry import StrategyRegistry as RegistryService
@@ -540,89 +556,16 @@ class StrategyEngine:
 
     # ── Pipeline: Analyze ────────────────────────────────────────
 
-    @profile("strategy_engine.analyze_all")
+    @profile("engine.analyze_all")
     async def analyze_all(self) -> dict[str, SignalBundle]:
-        """Выполнить analyze() на всех запущенных стратегиях.
-
-        Returns:
-            dict[strategy_name → SignalBundle]
-        """
-        results: dict[str, SignalBundle] = {}
-
-        for name, strategy in self._strategies.items():
-            if strategy.state != StrategyState.RUNNING.value:
-                continue
-
-            ctx = strategy.context
-            if ctx is None:
-                # Build context if not yet built
-                ctx = self._build_context(strategy)
-                # But don't save it — strategy should already have context
-
-            # Запускаем под sandbox (если включён)
-            strategy_dir = (
-                str(Path(self._config.strategies_dir) / name)
-                if self._config.strategies_dir
-                else None
-            )
-            sandbox = self._sandbox_ctx.for_strategy(strategy_dir or name)
-            sandbox_result, bundle = await sandbox.run(
-                strategy.run_analyze(ctx),
-                timeout=self._config.sandbox.analyze_timeout if self._config else None,
-            )
-
-            if sandbox_result.success and bundle is not None:
-
-                # Callback для сигналов
-                if bundle.signals and self._config.on_signal:
-                    for signal in bundle.signals:
-                        try:
-                            self._config.on_signal(signal)
-                        except Exception as e:
-                            self._logger.error(
-                                f"on_signal callback failed: {e}"
-                            )
-            else:
-                if sandbox_result.timed_out:
-                    self._logger.error(
-                        f"analyze_all {name} timed out after "
-                        f"{self._config.sandbox.analyze_timeout}s"
-                    )
-                elif sandbox_result.violations:
-                    self._logger.error(
-                        f"analyze_all {name} sandbox violations: "
-                        f"{'; '.join(sandbox_result.violations)}"
-                    )
-                else:
-                    self._logger.error(
-                        f"analyze_all {name} failed: {sandbox_result.error}"
-                    )
-                bundle = SignalBundle(strategy=name)
-
-            results[name] = bundle
-
-        return results
+        """Выполнить analyze() на всех запущенных стратегиях."""
+        return await self._runner.analyze_all(
+            on_signal=self._config.on_signal,
+        )
 
     async def analyze_one(self, name: str) -> Optional[SignalBundle]:
-        """Выполнить analyze() на одной стратегии.
-
-        Args:
-            name: Имя стратегии.
-
-        Returns:
-            SignalBundle или None если стратегия не найдена.
-        """
-        strategy = self._strategies.get(name)
-        if strategy is None:
-            self._logger.warning(f"Strategy not found: {name}")
-            return None
-
-        if strategy.state != StrategyState.RUNNING.value:
-            self._logger.warning(f"Strategy not running: {name}")
-            return SignalBundle(strategy=name)
-
-        ctx = strategy.context or self._build_context(strategy)
-        return await strategy.run_analyze(ctx)
+        """Выполнить analyze() на одной стратегии."""
+        return await self._runner.analyze_one(name)
 
     # ── Pipeline: Stop ───────────────────────────────────────────
 
