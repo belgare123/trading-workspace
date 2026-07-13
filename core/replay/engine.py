@@ -33,6 +33,7 @@ from core.replay.bus import (
     REPLAY_STOPPED,
     ReplayBus,
 )
+from core.event_store import EventStoreReader
 from core.profiler import profile
 from core.replay.controller import ReplayController
 from core.replay.debugger import ReplayDebugger
@@ -101,6 +102,37 @@ class ReplayEngine:
             "ReplayEngine loaded package '%s': %d events, %.1fs",
             package.manifest.name, len(package.events), package.duration,
         )
+
+    async def load_from_reader(
+        self,
+        reader: EventStoreReader,
+        stream: str = "market",
+        since: float | None = None,
+        until: float | None = None,
+        limit: int = 10000,
+    ) -> int:
+        """Загрузить события из EventStoreReader.
+
+        Args:
+            reader: Экземпляр EventStoreReader.
+            stream: Тип агрегата (``"market"``).
+            since:  Загружать события после timestamp.
+            until:  Загружать события до timestamp.
+            limit:  Максимум событий.
+
+        Returns:
+            Количество загруженных событий.
+        """
+        cnt = await self.timeline.load_from_reader(
+            reader=reader,
+            stream=stream,
+            since=since,
+            until=until,
+            limit=limit,
+        )
+        self._context = None
+        logger.info("ReplayEngine loaded %d events from EventStore", cnt)
+        return cnt
 
     # ── Callback API ─────────────────────────────────────────────
 

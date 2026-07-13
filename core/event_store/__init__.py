@@ -51,6 +51,7 @@ from core.event_store.publisher import EventPublisher
 from core.event_store.repository import EventQuery, EventRepository
 from core.event_store.sqlite_repo import SQLiteEventRepository
 from core.event_store.store import EventStore
+from core.event_store.reader import EventStoreReader, ReaderSnapshot, SnapshotReader
 from core.event_store.subscription import SubscriptionHub
 
 __all__ = [
@@ -73,7 +74,10 @@ __all__ = [
     "SQLiteEventRepository",
     # Store
     "EventStore",
-    # Subscription
+    # Reader
+    "EventStoreReader",
+    "ReaderSnapshot",
+    "SnapshotReader",
     "SubscriptionHub",
     # Protocol
     "EventPublisher",

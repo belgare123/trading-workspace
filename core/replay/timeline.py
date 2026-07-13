@@ -12,6 +12,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
+from core.event_store import EventQuery, EventStoreReader
 from core.replay.models import ReplayEvent, ReplayPackage
 
 logger = logging.getLogger(__name__)
@@ -72,6 +73,51 @@ class Timeline:
             "Timeline loaded package '%s': %d events, %.1fs duration",
             package.manifest.name, len(self._events), package.duration,
         )
+
+    async def load_from_reader(
+        self,
+        reader: EventStoreReader,
+        stream: str = "market",
+        since: float | None = None,
+        until: float | None = None,
+        limit: int = 10000,
+    ) -> int:
+        """Загрузить события из EventStoreReader.
+
+        Args:
+            reader: Экземпляр EventStoreReader.
+            stream: Тип агрегата (``"market"``).
+            since:  Загружать события после timestamp.
+            until:  Загружать события до timestamp.
+            limit:  Максимум событий.
+
+        Returns:
+            Количество загруженных событий.
+        """
+        from core.replay.eventstore_source import stored_to_replay
+
+        stored_events = await reader._store.read(
+            EventQuery(
+                aggregate=stream,
+                from_timestamp=since,
+                to_timestamp=until,
+                limit=limit,
+                order="asc",
+            ),
+        )
+
+        replay_events: list[ReplayEvent] = []
+        for se in stored_events:
+            replay = stored_to_replay(se)
+            if replay is not None:
+                replay_events.append(replay)
+
+        self.load(replay_events)
+        logger.info(
+            "Timeline loaded %d events from EventStore (stream=%s)",
+            len(replay_events), stream,
+        )
+        return len(replay_events)
 
     def subscribe(self, stream: str, handler: EventHandler) -> None:
         """Подписаться на события потока (wildcard '*' разрешён)."""
