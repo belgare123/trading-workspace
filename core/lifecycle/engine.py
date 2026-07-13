@@ -48,6 +48,8 @@ from core.lifecycle.events import LifecycleEvent, LifecycleEventType
 from core.lifecycle.expiration import ExpirationEngine
 from core.lifecycle.journal import OpportunityJournal
 from core.lifecycle.metrics import FinalMetrics, MetricsCalculator
+from core.event_store import EventStore
+from core.event_store.sqlite_repo import SQLiteEventRepository
 from core.lifecycle.bus import OpportunityBus
 from core.lifecycle.versioning import VersionTracker
 
@@ -168,7 +170,9 @@ class LifecycleEngine:
         self.expiration = expiration or ExpirationEngine()
         self.journal = journal or OpportunityJournal()
         self.metrics = metrics or MetricsCalculator()
-        self.bus = bus or OpportunityBus()
+        self.bus = bus or OpportunityBus(
+            event_store=EventStore(repository=SQLiteEventRepository(db_path=":memory:"))
+        )
         self.versioning = versioning or VersionTracker()
 
     # ── Lifecycle: Create ──

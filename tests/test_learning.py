@@ -274,8 +274,12 @@ class TestModelRegistry:
 # ── LearningEngine ─────────────────────────────────────────────────
 
 class TestLearningEngine:
+    @pytest.fixture(autouse=True)
+    def _store(self, event_store):
+        self._event_store = event_store
+
     def test_extract_features(self):
-        engine = LearningEngine()
+        engine = LearningEngine(event_store=self._event_store)
         fs = engine.extract_features(candles=[
             {"open": 100, "high": 105, "low": 99, "close": 102, "volume": 1000},
             {"open": 102, "high": 108, "low": 101, "close": 107, "volume": 1200},
@@ -284,21 +288,21 @@ class TestLearningEngine:
         assert fs.get("return_mean") != 0
 
     def test_add_example(self):
-        engine = LearningEngine()
+        engine = LearningEngine(event_store=self._event_store)
         fs = FeatureSet()
         fs.add("x", 1.0)
         engine.add_example(fs, 0.5)
         assert engine.dataset.count == 1
 
     def test_detect_anomalies(self):
-        engine = LearningEngine()
+        engine = LearningEngine(event_store=self._event_store)
         for _ in range(20):
             engine.detect_anomalies(price=100.0)
         anomalies = engine.detect_anomalies(price=200.0)
         assert len(anomalies) > 0
 
     def test_optimize_params(self):
-        engine = LearningEngine()
+        engine = LearningEngine(event_store=self._event_store)
         space = {"threshold": (0.1, 0.9)}
         best_params, best_score = engine.optimize_params(
             space, lambda p: p["threshold"], method="random", iterations=20,
@@ -307,7 +311,7 @@ class TestLearningEngine:
         assert best_score > 0
 
     def test_train_classifier(self):
-        engine = LearningEngine()
+        engine = LearningEngine(event_store=self._event_store)
         for i in range(10):
             fs = FeatureSet()
             fs.add("trend", float(i) / 10)
@@ -317,7 +321,7 @@ class TestLearningEngine:
         assert meta.status.value == "ready"
 
     def test_predict_regime(self):
-        engine = LearningEngine()
+        engine = LearningEngine(event_store=self._event_store)
         for i in range(10):
             fs = FeatureSet()
             fs.add("trend", float(i) / 10)
@@ -331,24 +335,8 @@ class TestLearningEngine:
         assert isinstance(regime, str)
         assert 0 <= conf <= 1
 
-    def test_detect_anomalies(self):
-        engine = LearningEngine()
-        for _ in range(20):
-            engine.detect_anomalies(price=100.0)
-        anomalies = engine.detect_anomalies(price=200.0)
-        assert len(anomalies) > 0
-
-    def test_optimize_params(self):
-        engine = LearningEngine()
-        space = {"threshold": (0.1, 0.9)}
-        best_params, best_score = engine.optimize_params(
-            space, lambda p: p["threshold"], iterations=20,
-        )
-        assert "threshold" in best_params
-        assert best_score > 0
-
     def test_recent_anomalies(self):
-        engine = LearningEngine()
+        engine = LearningEngine(event_store=self._event_store)
         for _ in range(20):
             engine.detect_anomalies(price=100.0)
         engine.detect_anomalies(price=200.0)

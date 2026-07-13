@@ -401,7 +401,7 @@ class StrategyDescriptor:
         timeframes:     Таймфреймы (e.g. [\"1m\", \"5m\", \"1h\"]).
         permissions:    Разрешения стратегии.
         dependencies:   Зависимости от других плагинов.
-        entry_point:    Путь к strategy.py (v1-совместимое имя, маппится из entry).
+        entry_point:    Путь к strategy.py (маппится из entry).
         config_schema:  JSON-схема для config.yaml (опционально).
         profile:        Поведенческий профиль стратегии.
         path:           Абсолютный путь к директории стратегии.

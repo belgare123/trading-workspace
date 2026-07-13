@@ -182,7 +182,7 @@ class OBStore(DataStore):
             self._data[symbol] = OrderBookState(max_levels=max_levels)
         return self._data[symbol]
 
-    # ── Синхронный доступ (для legacy getter callback) ──────────
+    # ── Синхронный доступ ──────────────────────────
 
     def get_sync(self, symbol: str) -> Optional[OrderBookState]:
         """Синхронное чтение (без блокировки)."""

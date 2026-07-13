@@ -5,8 +5,6 @@ Strategy Engine (L4) — центральный движок стратегий.
 - Реестр стратегий (аналог _signal_registry)
 - Декоратор @register_strategy
 - StrategyEngine — подписывается на шину и запускает стратегии
-
-Dual-Run: работает параллельно с V1 Signal Engine. V1 не отключается.
 """
 
 from __future__ import annotations
@@ -88,16 +86,14 @@ class StrategyEngine:
         self,
         feature_engine=None,
         context_engine=None,
-        signal_engine=None,  # V1 SignalEngine (удалён в v0.10.0)
-        notifier=None,       # V2: TelegramNotifier для прямой отправки
+        notifier=None,
     ):
         from core.features import get_feature_engine
         from context import get_context_engine
 
         self._fe = feature_engine or get_feature_engine()
         self._ce = context_engine or get_context_engine()
-        self._signal_engine = signal_engine  # SignalEngine (опционально, V1)
-        self._notifier = notifier  # TelegramNotifier (V2)
+        self._notifier = notifier
 
         self._strategies: list[BaseStrategy] = []
         self._strategy_by_name: dict[str, BaseStrategy] = {}
@@ -182,34 +178,7 @@ class StrategyEngine:
                 result.context.session_name,
             )
 
-            # Отправка в SignalEngine (через push_signal) — V1 legacy
-            if self._signal_engine is not None:
-                try:
-                    from core import SignalResult as SR
-                    sig = SR(
-                        signal_name=result.strategy_name,
-                        symbol=result.symbol,
-                        exchange="bybit",
-                        score=result.score,
-                        direction=result.direction,
-                        meta={
-                            "confidence": result.confidence,
-                            "factors": result.factors,
-                            "context": result.context.to_dict(),
-                            **result.meta,
-                        },
-                        ts=result.ts,
-                        cooldown=strategy.meta.cooldown,
-                    )
-                    await self._signal_engine.push_signal(sig)
-                    logger.info(
-                        "[strategy] dispatched %s %s score=%.0f dir=%s → SignalEngine (V1)",
-                        result.strategy_name, result.symbol, result.score, result.direction,
-                    )
-                except Exception:
-                    logger.exception("[strategy] push_signal error for %s", result.strategy_name)
-
-            # V2: прямая отправка через TelegramNotifier (v0.10.0+)
+            # Прямая отправка через TelegramNotifier
             if self._notifier is not None:
                 try:
                     from core import SignalResult as SR
@@ -230,7 +199,7 @@ class StrategyEngine:
                     )
                     await self._notifier.send_signal(sig)
                     logger.info(
-                        "[strategy] sent %s %s score=%.0f dir=%s → Telegram (V2)",
+                        "[strategy] sent %s %s score=%.0f dir=%s → Telegram",
                         result.strategy_name, result.symbol, result.score, result.direction,
                     )
                 except Exception:

@@ -1,9 +1,8 @@
 """
 Strategy Base — BaseStrategy, StrategyMeta, StrategyResult, StrategyContext.
-Level 4 в архитектуре ARCHITECTURE_V2.md.
+Level 4 в архитектуре.
 
-Стратегия — это замена группе V1 сигналов.
-Одна стратегия = несколько факторов из FeatureStore → 1 сигнал.
+Стратегия — несколько факторов из FeatureStore → 1 сигнал.
 """
 
 from __future__ import annotations

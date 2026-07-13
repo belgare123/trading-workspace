@@ -1,7 +1,24 @@
 """Shared pytest fixtures for Trading Workspace Platform."""
 from __future__ import annotations
 
+import tempfile
+from pathlib import Path
+
 import pytest
+
+from core.event_store import EventStore
+from core.event_store.sqlite_repo import SQLiteEventRepository
+
+
+@pytest.fixture
+def event_store():
+    """Create a temporary EventStore for testing."""
+    import shutil
+    tmpdir = tempfile.mkdtemp()
+    repo = SQLiteEventRepository(db_path=Path(tmpdir) / "test.db")
+    store = EventStore(repository=repo)
+    yield store
+    shutil.rmtree(tmpdir, ignore_errors=True)
 
 
 @pytest.fixture

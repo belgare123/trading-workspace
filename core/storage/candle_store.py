@@ -37,10 +37,10 @@ class CandleStore(DataStore):
 
         Поддерживает две формы:
         * Новая: get(symbol, interval="1m", limit=50) -> CandleStore API
-        * Старая: get(symbol, "1", 60)                    -> CandleBuffer compat
+        * Старая: get(symbol, "1", 60)                    -> CandleBuffer совместимость
         * Без interval → {interval: [CandleDict, ...]}
         """
-        # backward compat: old callers pass (symbol, timeframe, count)
+        # Старый формат: callers pass (symbol, timeframe, count)
         interval = timeframe or kwargs.get("interval")
         limit = count or kwargs.get("limit", None)
 
@@ -114,7 +114,7 @@ class CandleStore(DataStore):
         async with self._lock:
             self._data.pop(symbol, None)
 
-    # ── Синхронный доступ (для legacy getter callback) ──────────
+    # ── Синхронный доступ ──────────────────────────
 
     def get_sync(self, symbol: str, interval: str = "1m", limit: Optional[int] = None) -> List[CandleDict]:
         """Синхронное чтение — без блокировки, для sync callbacks."""

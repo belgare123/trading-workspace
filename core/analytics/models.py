@@ -252,8 +252,8 @@ class AnalyticsEvent:
         return {
             "event_type": self.event_type,
             "symbol": self.symbol,
-            "regime_before": self.regime_before.to_dict() if self.regime_before else None,
-            "regime_after": self.regime_after.to_dict() if self.regime_after else None,
+            "regime_before": self.regime_before.value if self.regime_before else None,
+            "regime_after": self.regime_after.value if self.regime_after else None,
             "timestamp": self.timestamp,
         }
 

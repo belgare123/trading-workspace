@@ -295,4 +295,3 @@ class Opportunity:
         }
 
 
-# ── (Legacy Decision class removed — replaced by ConsensusResult) ──

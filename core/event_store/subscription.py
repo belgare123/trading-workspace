@@ -109,7 +109,7 @@ class SubscriptionHub:
             except Exception:
                 logger.exception("Global async handler failed")
 
-        # 4. Синхронные (для backward compat)
+        # 4. Синхронные
         for handler in self._sync_handlers:
             try:
                 handler(event)

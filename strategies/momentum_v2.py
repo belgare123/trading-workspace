@@ -1,17 +1,13 @@
 """
 Momentum Strategy (L4) — комбинация momentum + consecutive + context.
-Level 4 в архитектуре ARCHITECTURE_V2.md.
+Level 4 в архитектуре.
 
-Заменяет V1 сигналы:
-- momentum.py (MomentumSignal)
-- candle_technicals.py (ConsecutiveSignal)
+Комбинирует факторы momentum и consecutive свечей с контекстом рынка.
 
 Факторы:
 1. Momentum — % change последней закрытой свечи (адаптивный порог от волатильности)
 2. Consecutive — сколько свечей подряд одного цвета (c учётом контекста)
 3. Context bonus — сессия + волатильность + тренд влияют на итоговый score
-
-Dual-Run: V1 сигналы momentum + consecutive продолжают работать параллельно.
 """
 
 from __future__ import annotations
@@ -30,7 +26,7 @@ logger = logging.getLogger(__name__)
     description="Комбинированный: momentum + consecutive + контекст рынка (тренд, волатильность, сессия)",
     category="momentum",
     min_score=35,
-    cooldown=180,       # 3 мин — быстрее V1 (5 мин)
+    cooldown=180,       # 3 мин
     timeframes=["1m"],
 )
 class MomentumStrategy(BaseStrategy):

@@ -297,14 +297,14 @@ class ContextEngine:
 
 
 # ──────────────────────────────────────────────
-#  Global singleton (backward compat)
+#  Global singleton
 # ──────────────────────────────────────────────
 
 _context_engine: ContextEngine | None = None
 
 
 def get_context_engine() -> ContextEngine:
-    """Глобальный синглтон ContextEngine (backward compat)."""
+    """Глобальный синглтон ContextEngine."""
     global _context_engine
     if _context_engine is None:
         _context_engine = ContextEngine()

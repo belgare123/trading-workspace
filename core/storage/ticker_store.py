@@ -51,7 +51,7 @@ class TickerStore(DataStore):
             )
             return [item[1] for item in sorted_items[:n]]
 
-    # ── Синхронный доступ (для legacy getter callback) ──────────
+    # ── Синхронный доступ ──────────────────────────
 
     def all_sync(self) -> Dict[str, TickerDict]:
         """Вернуть все тикеры синхронно (без блокировки)."""

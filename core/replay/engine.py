@@ -33,7 +33,7 @@ from core.replay.bus import (
     REPLAY_STOPPED,
     ReplayBus,
 )
-from core.event_store import EventStoreReader
+from core.event_store import EventStore, EventStoreReader
 from core.profiler import profile
 from core.replay.controller import ReplayController
 from core.replay.debugger import ReplayDebugger
@@ -70,8 +70,8 @@ class ReplayEngine:
       - ReplayBus — шина событий
     """
 
-    def __init__(self) -> None:
-        self.bus = ReplayBus()
+    def __init__(self, event_store: EventStore) -> None:
+        self.bus = ReplayBus(event_store=event_store)
         self.timeline = Timeline()
         self.speed = SpeedController(1.0)
         self.controller = ReplayController()

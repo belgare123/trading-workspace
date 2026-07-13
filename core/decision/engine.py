@@ -102,7 +102,7 @@ class DecisionEngine:
         self._confidence = confidence_engine or ConfidenceEngine()
         self._builder = opportunity_builder or OpportunityBuilder()
         self._weights = weight_engine or StrategyWeightEngine()
-        self._events = event_bus or EventBus()
+        self._events = event_bus
         self._default_policy = default_policy
 
         # Кэш последнего консенсуса
@@ -192,11 +192,13 @@ class DecisionEngine:
             )
             if resolved.is_conflict != consensus.is_conflict:
                 # Конфликт разрешён
-                self._events.emit(consensus_changed_event(old_consensus, resolved))
+                if self._events:
+                    self._events.emit(consensus_changed_event(old_consensus, resolved))
                 consensus = resolved
             else:
                 # Конфликт не разрешён — события
-                self._events.emit(conflict_detected_event(normalized, consensus))
+                if self._events:
+                    self._events.emit(conflict_detected_event(normalized, consensus))
                 return DecisionResult(
                     accepted=False,
                     reason=f"Unresolved conflict: {consensus.details}",
@@ -206,7 +208,8 @@ class DecisionEngine:
                 )
 
         if old_consensus and old_consensus.direction != consensus.direction:
-            self._events.emit(consensus_changed_event(old_consensus, consensus))
+            if self._events:
+                self._events.emit(consensus_changed_event(old_consensus, consensus))
 
         self._last_consensus = consensus
 
@@ -248,7 +251,8 @@ class DecisionEngine:
 
         if not policy_result:
             opportunity.status = OpportunityStatus.REJECTED
-            self._events.emit(opportunity_rejected_event(opportunity, policy_result.reason))
+            if self._events:
+                self._events.emit(opportunity_rejected_event(opportunity, policy_result.reason))
             return DecisionResult(
                 accepted=False,
                 reason=f"Policy rejected: {policy_result.reason}",
@@ -261,7 +265,8 @@ class DecisionEngine:
 
         # ── Акцепт ──
         opportunity.status = OpportunityStatus.ACTIVE
-        self._events.emit(opportunity_created_event(opportunity))
+        if self._events:
+            self._events.emit(opportunity_created_event(opportunity))
 
         return DecisionResult(
             accepted=True,

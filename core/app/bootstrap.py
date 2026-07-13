@@ -210,7 +210,6 @@ def register_strategy_engine(container: Any) -> None:
         feature_engine=container.get("feature_engine"),
         context_engine=ce,
         notifier=container.get("notifier"),
-        signal_engine=None,  # V1 SignalEngine removed in v0.10.0
     )
     se.register_all()
     from strategies import set_strategy_engine as _set_se
@@ -440,7 +439,7 @@ def register_outputs(container: Any) -> None:
     router = setup_telegram_handlers(settings_db, notifier)
     container.register_instance("telegram_router", router)
 
-    # Recent signals listener (replaces V1 dispatcher listeners)
+    # Recent signals listener
     recent_signals: list[dict] = []
 
     async def _on_signal(sig):

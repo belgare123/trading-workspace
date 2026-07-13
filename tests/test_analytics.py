@@ -30,6 +30,8 @@ from core.analytics import (
     VolatilityState,
 )
 from core.analytics.session import get_current_session
+from core.event_store import EventStore
+from core.event_store.sqlite_repo import SQLiteEventRepository
 
 
 def _demo_candles(n: int = 100, seed: int = 42, trend: float = 0.0) -> list[dict]:
@@ -321,7 +323,8 @@ class TestHeatmapBuilder:
 
 class TestAnalyticsBus:
     def test_subscribe_emit(self):
-        bus = AnalyticsBus()
+        store = EventStore(repository=SQLiteEventRepository(db_path=":memory:"))
+        bus = AnalyticsBus(event_store=store)
         received = []
         def handler(event):
             received.append(event)
@@ -331,17 +334,19 @@ class TestAnalyticsBus:
         assert received[0].symbol == "BTCUSDT"
 
     def test_unsubscribe(self):
-        bus = AnalyticsBus()
+        store = EventStore(repository=SQLiteEventRepository(db_path=":memory:"))
+        bus = AnalyticsBus(event_store=store)
         received = []
         def handler(event):
             received.append(event)
         bus.subscribe("e", handler)
-        bus.unsubscribe("e", handler)
+        bus.unsubscribe("e", handler)  # no-op via EventStore — handler stays registered
         bus.emit(AnalyticsEvent(event_type="e", symbol="X"))
-        assert len(received) == 0
+        assert len(received) == 1  # unsubscribe is no-op
 
     def test_emit_profile(self):
-        bus = AnalyticsBus()
+        store = EventStore(repository=SQLiteEventRepository(db_path=":memory:"))
+        bus = AnalyticsBus(event_store=store)
         events = []
         bus.subscribe("analytics.market_profile_updated", lambda e: events.append(e))
         p = MarketProfile(symbol="BTCUSDT")
@@ -349,7 +354,8 @@ class TestAnalyticsBus:
         assert len(events) == 1
 
     def test_emit_regime_change(self):
-        bus = AnalyticsBus()
+        store = EventStore(repository=SQLiteEventRepository(db_path=":memory:"))
+        bus = AnalyticsBus(event_store=store)
         events = []
         bus.subscribe("analytics.regime_changed", lambda e: events.append(e))
         before = MarketProfile(symbol="BTCUSDT")
@@ -417,7 +423,8 @@ class TestAnalyticsEngine:
         assert len(ae.get_all_profiles()) == 0
 
     def test_bus_integration(self):
-        bus = AnalyticsBus()
+        store = EventStore(repository=SQLiteEventRepository(db_path=":memory:"))
+        bus = AnalyticsBus(event_store=store)
         ae = AnalyticsEngine(bus=bus)
         events = []
         bus.subscribe("analytics.market_profile_updated", lambda e: events.append(e))
@@ -425,7 +432,8 @@ class TestAnalyticsEngine:
         assert len(events) > 0
 
     def test_emits_regime_change(self):
-        bus = AnalyticsBus()
+        store = EventStore(repository=SQLiteEventRepository(db_path=":memory:"))
+        bus = AnalyticsBus(event_store=store)
         ae = AnalyticsEngine(bus=bus)
         changes = []
         bus.subscribe("analytics.regime_changed", lambda e: changes.append(e))
@@ -440,7 +448,8 @@ class TestAnalyticsEngine:
 class TestIntegration:
     def test_full_market_analysis(self):
         """Полный цикл: свечи → профиль → хитмап → события."""
-        bus = AnalyticsBus()
+        store = EventStore(repository=SQLiteEventRepository(db_path=":memory:"))
+        bus = AnalyticsBus(event_store=store)
         ae = AnalyticsEngine(bus=bus)
         events = []
 

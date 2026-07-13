@@ -77,10 +77,8 @@ EventHandler = Callable[[DecisionEvent], None]
 class EventBus:
     """Шина событий Decision Engine — тонкий фасад над EventStore.
 
-    Режимы работы:
-      - С EventStore: emit() пишет в журнал через publish_sync(),
-        подписчики регистрируются на SubscriptionHub.
-      - Без EventStore: чистая legacy-шина (локальные подписчики).
+    Все события пишутся в EventStore через publish_sync(),
+    подписчики регистрируются через SubscriptionHub.
 
     Usage::
 
@@ -94,12 +92,8 @@ class EventBus:
         bus.emit(event)
     """
 
-    def __init__(self, event_store: EventStore | None = None) -> None:
+    def __init__(self, event_store: EventStore) -> None:
         self._store = event_store
-        # Legacy fallback (без EventStore)
-        self._handlers: dict[DecisionEventType, list[EventHandler]] = {
-            t: [] for t in DecisionEventType
-        }
 
     def on(
         self,
@@ -112,34 +106,24 @@ class EventBus:
             event_type: Тип события.
             handler:    Функция-обработчик.
         """
-        if self._store:
-            topic = f"decision.{event_type.value}"
+        topic = f"decision.{event_type.value}"
 
-            # Оборачиваем: EventStore присылает StoredEvent,
-            # но подписчик ждёт DecisionEvent. Фильтруем по topic.
-            def _wrapper(stored: StoredEvent) -> None:
-                if stored.topic != topic:
-                    return
-                try:
-                    event = _stored_to_decision_event(stored)
-                    handler(event)
-                except Exception:
-                    logger.exception(
-                        "Handler failed for %s (via EventStore)", topic
-                    )
+        def _wrapper(stored: StoredEvent) -> None:
+            if stored.topic != topic:
+                return
+            try:
+                event = _stored_to_decision_event(stored)
+                handler(event)
+            except Exception:
+                logger.exception(
+                    "Handler failed for %s (via EventStore)", topic
+                )
 
-            self._store.on_sync(_wrapper)
-            logger.debug(
-                "Subscribed handler for %s (via EventStore: %s)",
-                event_type.value, topic,
-            )
-            return
-
-        # Legacy fallback
-        if event_type not in self._handlers:
-            self._handlers[event_type] = []
-        self._handlers[event_type].append(handler)
-        logger.debug("Subscribed handler for %s (legacy)", event_type.value)
+        self._store.on_sync(_wrapper)
+        logger.debug(
+            "Subscribed handler for %s (via EventStore: %s)",
+            event_type.value, topic,
+        )
 
     def off(
         self,
@@ -152,20 +136,10 @@ class EventBus:
             event_type: Тип события.
             handler:    Конкретный обработчик (или все, если None).
         """
-        if self._store:
-            # Через EventStore — отписка не поддерживается SubscriptionHub,
-            # но keep метод для backward compat (no-op)
-            logger.warning(
-                "off() not supported via EventStore — handler may remain active"
-            )
-            return
-
-        # Legacy fallback
-        if handler:
-            if handler in self._handlers.get(event_type, []):
-                self._handlers[event_type].remove(handler)
-        else:
-            self._handlers[event_type] = []
+        # Через EventStore отписка не поддерживается SubscriptionHub (no-op)
+        logger.warning(
+            "off() not supported via EventStore — handler may remain active"
+        )
 
     def emit(self, event: DecisionEvent) -> None:
         """Опубликовать событие.
@@ -173,29 +147,12 @@ class EventBus:
         Args:
             event: Событие для публикации.
         """
-        if self._store:
-            # Persist + dispatch через EventStore
-            stored = self._to_stored(event)
-            self._store.publish_sync(stored)
-            return
-
-        # Legacy fallback
-        handlers = self._handlers.get(event.type, [])
-        for handler in handlers:
-            try:
-                handler(event)
-            except Exception:
-                logger.exception(
-                    "Handler error for event %s", event.type.value
-                )
-        logger.debug("Emitted %s to %d handler(s)", event.type.value, len(handlers))
+        stored = self._to_stored(event)
+        self._store.publish_sync(stored)
 
     def clear(self) -> None:
         """Удалить всех подписчиков."""
-        if self._store:
-            logger.warning("clear() not fully supported via EventStore")
-            return
-        self._handlers = {t: [] for t in DecisionEventType}
+        logger.warning("clear() not fully supported via EventStore")
 
     def _to_stored(self, event: DecisionEvent) -> StoredEvent:
         """Конвертировать DecisionEvent → StoredEvent."""

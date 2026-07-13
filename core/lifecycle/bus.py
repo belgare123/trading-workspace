@@ -2,17 +2,12 @@
 8.10 Opportunity Bus — тонкий фасад над EventStore для Lifecycle событий.
 
 Decision Engine → OpportunityBus → EventStore → Replay / Quality / Dashboard / Learning
-
-Режимы работы:
-  - С EventStore: emit() пишет в журнал через publish_sync()
-  - Без EventStore: чистая legacy-шина (локальные подписчики)
 """
 
 from __future__ import annotations
 
 import json
 import logging
-from collections import defaultdict
 from typing import Any, Callable
 
 from core.event_store import (
@@ -38,12 +33,8 @@ class OpportunityBus:
         bus.publish(event)
     """
 
-    def __init__(self, event_store: EventStore | None = None) -> None:
+    def __init__(self, event_store: EventStore) -> None:
         self._store = event_store
-        # Legacy fallback (без EventStore)
-        self._handlers: dict[LifecycleEventType, list[EventHandler]] = defaultdict(list)
-        self._all_handlers: list[EventHandler] = []
-        self._history: list[LifecycleEvent] = []
 
     def subscribe(
         self,
@@ -51,98 +42,54 @@ class OpportunityBus:
         handler: EventHandler,
     ) -> Callable[[], None]:
         """Подписаться на конкретный тип события."""
-        if self._store:
-            topic = f"lifecycle.{event_type.value}"
+        topic = f"lifecycle.{event_type.value}"
 
-            def _wrapper(stored: StoredEvent) -> None:
-                if stored.topic != topic:
-                    return
-                try:
-                    raw = json.loads(stored.payload.decode("utf-8"))
-                    event = LifecycleEvent(
-                        type=LifecycleEventType(raw.get("type", "")),
-                        opportunity_id=raw.get("opportunity_id", ""),
-                        timestamp=raw.get("timestamp", 0.0),
-                        source=raw.get("source", "lifecycle_engine"),
-                        data=raw.get("data", {}),
-                    )
-                    handler(event)
-                except Exception:
-                    logger.exception("Handler failed for %s (via EventStore)", topic)
+        def _wrapper(stored: StoredEvent) -> None:
+            if stored.topic != topic:
+                return
+            try:
+                raw = json.loads(stored.payload.decode("utf-8"))
+                event = LifecycleEvent(
+                    type=LifecycleEventType(raw.get("type", "")),
+                    opportunity_id=raw.get("opportunity_id", ""),
+                    timestamp=raw.get("timestamp", 0.0),
+                    source=raw.get("source", "lifecycle_engine"),
+                    data=raw.get("data", {}),
+                )
+                handler(event)
+            except Exception:
+                logger.exception("Handler failed for %s (via EventStore)", topic)
 
-            self._store.on_sync(_wrapper)
-            logger.debug("Subscribed to %s (via EventStore)", event_type.value)
-            return lambda: None  # no-op unsubscribe
-
-        # Legacy fallback
-        self._handlers[event_type].append(handler)
-        logger.debug("Subscribed to %s (legacy)", event_type.value)
-
-        def unsubscribe() -> None:
-            self._handlers[event_type].remove(handler)
-
-        return unsubscribe
+        self._store.on_sync(_wrapper)
+        logger.debug("Subscribed to %s (via EventStore)", event_type.value)
+        return lambda: None  # no-op unsubscribe
 
     def subscribe_all(self, handler: EventHandler) -> Callable[[], None]:
         """Подписаться на все события."""
-        if self._store:
-            # Subscribe to lifecycle.* via on_topic
-            self._store.on_sync(_make_all_wrapper(handler))
-            logger.debug("Subscribed to all lifecycle events (via EventStore)")
-            return lambda: None
-
-        # Legacy fallback
-        self._all_handlers.append(handler)
-
-        def unsubscribe() -> None:
-            self._all_handlers.remove(handler)
-
-        return unsubscribe
+        self._store.on_sync(_make_all_wrapper(handler))
+        logger.debug("Subscribed to all lifecycle events (via EventStore)")
+        return lambda: None
 
     def publish(self, event: LifecycleEvent) -> None:
         """Опубликовать событие."""
-        if self._store:
-            stored = self._to_stored(event)
-            self._store.publish_sync(stored)
-            return
-
-        # Legacy fallback
-        self._history.append(event)
-        for handler in self._handlers.get(event.type, []):
-            try:
-                handler(event)
-            except Exception as e:
-                logger.error("Handler failed for %s: %s", event.type.value, e)
-        for handler in self._all_handlers:
-            try:
-                handler(event)
-            except Exception as e:
-                logger.error("All-handler failed for %s: %s", event.type.value, e)
+        stored = self._to_stored(event)
+        self._store.publish_sync(stored)
 
     def get_history(
         self,
         event_type: LifecycleEventType | None = None,
         limit: int = 50,
     ) -> list[LifecycleEvent]:
-        """Получить историю событий (legacy / from EventStore)."""
-        if self._store:
-            logger.warning("get_history() from EventStore not yet implemented")
-            return []
-        if event_type is None:
-            return self._history[-limit:]
-        return [e for e in self._history if e.type == event_type][-limit:]
+        """Получить историю событий."""
+        logger.warning("get_history() from EventStore not yet implemented")
+        return []
 
     def clear(self) -> None:
-        if self._store:
-            logger.warning("clear() not supported via EventStore")
-            return
-        self._history.clear()
+        logger.warning("clear() not supported via EventStore")
 
     @property
     def event_count(self) -> int:
-        if self._store:
-            return 0
-        return len(self._history)
+        return 0
 
     def _to_stored(self, event: LifecycleEvent) -> StoredEvent:
         return StoredEvent.new(

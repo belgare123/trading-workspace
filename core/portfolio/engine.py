@@ -19,6 +19,8 @@ from typing import Any
 
 from core.analytics import AnalyticsEngine, MarketRegime, RegimeType
 from core.portfolio.allocator import RegimeAllocator
+from core.event_store import EventStore
+from core.event_store.sqlite_repo import SQLiteEventRepository
 from core.portfolio.bus import PortfolioBus
 from core.portfolio.metrics import PortfolioMetricsCollector
 from core.portfolio.models import (
@@ -49,7 +51,9 @@ class PortfolioEngine:
         quality: QualityEngine | None = None,
     ) -> None:
         self._config = config or PortfolioConfig()
-        self._bus = bus or PortfolioBus()
+        self._bus = bus or PortfolioBus(
+            event_store=EventStore(repository=SQLiteEventRepository(db_path=":memory:"))
+        )
         self._analytics = analytics
         self._quality = quality
 

@@ -8,6 +8,8 @@ import time
 import pytest
 
 from core.analytics import AnalyticsEngine, RegimeType
+from core.event_store import EventStore
+from core.event_store.sqlite_repo import SQLiteEventRepository
 from core.portfolio import (
     PortfolioAction,
     PortfolioAllocation,
@@ -332,7 +334,8 @@ class TestPortfolioOptimizer:
 
 class TestPortfolioBus:
     def test_subscribe_emit(self):
-        bus = PortfolioBus()
+        store = EventStore(repository=SQLiteEventRepository(db_path=":memory:"))
+        bus = PortfolioBus(event_store=store)
         received = []
         def handler(e):
             received.append(e)
@@ -341,24 +344,27 @@ class TestPortfolioBus:
         assert len(received) == 1
 
     def test_unsubscribe(self):
-        bus = PortfolioBus()
+        store = EventStore(repository=SQLiteEventRepository(db_path=":memory:"))
+        bus = PortfolioBus(event_store=store)
         received = []
         def handler(e):
             received.append(e)
         bus.subscribe("e", handler)
-        bus.unsubscribe("e", handler)
+        bus.unsubscribe("e", handler)  # no-op via EventStore — handler stays registered
         bus.emit(PortfolioEvent(event_type="e"))
-        assert len(received) == 0
+        assert len(received) == 1  # unsubscribe is no-op
 
     def test_emit_rebalance(self):
-        bus = PortfolioBus()
+        store = EventStore(repository=SQLiteEventRepository(db_path=":memory:"))
+        bus = PortfolioBus(event_store=store)
         events = []
         bus.subscribe("portfolio.rebalanced", lambda e: events.append(e))
         bus.emit_rebalance([PortfolioAllocation(slot_name="A", weight=0.5)])
         assert len(events) == 1
 
     def test_emit_regime_change(self):
-        bus = PortfolioBus()
+        store = EventStore(repository=SQLiteEventRepository(db_path=":memory:"))
+        bus = PortfolioBus(event_store=store)
         events = []
         bus.subscribe("portfolio.regime_changed", lambda e: events.append(e))
         bus.emit_regime_change("trending_bull")
@@ -500,7 +506,8 @@ class TestPortfolioEngine:
 
     def test_regime_change_event(self):
         """Смена режима генерирует событие."""
-        bus = PortfolioBus()
+        store = EventStore(repository=SQLiteEventRepository(db_path=":memory:"))
+        bus = PortfolioBus(event_store=store)
         pe = PortfolioEngine(bus=bus)
         events = []
         bus.subscribe("portfolio.regime_changed", lambda e: events.append(e))

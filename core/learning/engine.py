@@ -41,7 +41,7 @@ class LearningEngine:
             -> Predictions & Anomaly Detection
     """
 
-    def __init__(self) -> None:
+    def __init__(self, event_store: EventStore) -> None:
         self._extractor = FeatureExtractor()
         self._dataset = DatasetBuilder(self._extractor)
         self._trainer = Trainer()
@@ -49,7 +49,7 @@ class LearningEngine:
         self._predictor = self._trainer.predictor
         self._detector = AnomalyDetector()
         self._optimizer = ParamOptimizer()
-        self._bus = LearningBus()
+        self._bus = LearningBus(event_store=event_store)
         self._anomalies: list[Anomaly] = []
 
     def extract_features(

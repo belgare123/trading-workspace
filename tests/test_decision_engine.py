@@ -7,7 +7,10 @@ from core.decision.models import DecisionEventType, SignalDirection
 
 class TestDecisionEngine:
     def setup_method(self):
-        self.engine = DecisionEngine()
+        from core.event_store import EventStore, SQLiteEventRepository
+        from core.decision.events import EventBus
+        store = EventStore(repository=SQLiteEventRepository(db_path=":memory:"))
+        self.engine = DecisionEngine(event_bus=EventBus(event_store=store))
 
     def test_simple_accept(self):
         """Один сигнал LONG → accept."""

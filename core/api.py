@@ -2,8 +2,6 @@
 Core API — контракты для всех компонентов системы.
 
 Текущая версия API: 2.0
-Compatibility Layer живёт до версии 1.0.0,
-после чего удаляется.
 
 Используем typing.Protocol для структурной типизации:
 реализация не обязана наследовать протокол явно,
@@ -22,13 +20,7 @@ from typing import Any, Callable, Coroutine, Protocol, runtime_checkable
 # ══════════════════════════════════════════════
 
 CORE_API_VERSION: str = "2.0"
-"""Текущая версия Core API.
-Compatibility Layer включён для стратегий c api < CORE_API_VERSION.
-Удаляется при переходе на 3.0."""
-
-MAX_COMPAT_API_VERSION: str = "1.0"
-"""Максимальная версия API, для которой работает Compatibility Layer.
-Стратегии c api <= MAX_COMPAT_API_VERSION получают адаптер автоматически."""
+"""Текущая версия Core API. Стратегии указывают api в манифесте."""
 
 
 # ══════════════════════════════════════════════
@@ -83,11 +75,7 @@ CURRENT_EVENT_VERSION = 2
 
 @dataclass
 class Event:
-    """Версионированное событие от источника данных.
-
-    v2: добавлены `version` и `source` для совместимости
-    с множественными биржами и форматами данных.
-    """
+    """Версионированное событие от источника данных."""
     version: int = CURRENT_EVENT_VERSION
     source: str = "unknown"       # bybit | binance | okx | replay
     channel: str = ""             # candles.BTCUSDT.5m | trades.BTCUSDT
@@ -99,7 +87,7 @@ class Event:
 
 @dataclass
 class SignalResult:
-    """Результат обработки сигнала (V1-compat stub).
+    """Результат обработки сигнала.
 
     Используется SignalEngine и TelegramNotifier.
     """
@@ -218,7 +206,7 @@ class IStorage(Protocol):
 
 @dataclass
 class MarketDataEvent:
-    """Событие рыночных данных (V2-compat)."""
+    """Событие рыночных данных."""
     channel: str = ""
     symbol: str = ""
     data: dict = field(default_factory=dict)
@@ -226,10 +214,10 @@ class MarketDataEvent:
 
 
 class MarketDataBus:
-    """V2 Event Bus (stub для обратной совместимости).
+    """Шина событий рыночных данных.
 
-    В Phase 0-4 заменён на чистый DI + ServiceRuntime.
-    Оставлен для совместимости V1 модулей.
+    Распределяет события от бирж по подписчикам
+    (FeatureEngine, StateEngine, Scanner).
     """
 
     def __init__(self) -> None:
@@ -263,13 +251,12 @@ class MarketDataBus:
 
 
 def get_bus() -> MarketDataBus:
-    """Получить глобальный MarketDataBus (stub)."""
+    """Получить глобальный MarketDataBus."""
     return MarketDataBus()
 
 @dataclass
 class Opportunity:
     """Рыночная возможность — результат анализа стратегии.
-    Заменяет сырой SignalResult в v2 pipeline.
 
     Strategy.analyze() возвращает Opportunity.
     DecisionEngine принимает список Opportunity и решает,

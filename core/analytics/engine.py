@@ -14,6 +14,8 @@ from core.analytics.heatmap import HeatmapBuilder
 from core.analytics.models import AnalyticsEvent, MarketHeatmap, MarketProfile, RegimeType
 from core.analytics.profile import ProfileBuilder
 from core.analytics.session import get_current_session
+from core.event_store import EventStore
+from core.event_store.sqlite_repo import SQLiteEventRepository
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +31,9 @@ class AnalyticsEngine:
     """
 
     def __init__(self, bus: AnalyticsBus | None = None) -> None:
-        self._bus = bus or AnalyticsBus()
+        self._bus = bus or AnalyticsBus(
+            event_store=EventStore(repository=SQLiteEventRepository(db_path=":memory:"))
+        )
         self._builder = ProfileBuilder()
         self._heatmap = HeatmapBuilder()
         self._profiles: dict[str, MarketProfile] = {}

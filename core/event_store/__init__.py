@@ -4,7 +4,7 @@
 - aggregate + topic (не stream)
 - correlation_id + causation_id для трассировки
 - Persistence-first: SQLite INSERT → dispatch подписчикам
-- Sync publish для backward compat с существующими Bus-классами
+- Sync publish для совместимости с существующими Bus-классами
 
 Usage::
 

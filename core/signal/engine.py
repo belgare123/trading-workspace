@@ -76,8 +76,7 @@ class SignalEngine:
 
         # 1. DecisionEngine (adaptive thresholds + SL/TP)
         # NOTE: V2 DecisionEngine no longer has evaluate().
-        # This code path is part of legacy V1 signal pipeline awaiting
-        # migration to core/execution/signal_orchestrator.py
+        # This code path will be migrated to core/execution/signal_orchestrator.py
         decision: DecisionCompat | None = None
         if self.decision_engine and hasattr(self.decision_engine, "evaluate"):
             decision = await self.decision_engine.evaluate(symbol, consensus)

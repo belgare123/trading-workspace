@@ -94,6 +94,14 @@ class PortfolioAllocation:
     action: PortfolioAction = PortfolioAction.NO_CHANGE
     reason: str = ""
 
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "slot_name": self.slot_name,
+            "weight": self.weight,
+            "action": self.action.value,
+            "reason": self.reason,
+        }
+
 
 @dataclass
 class PortfolioState:
@@ -158,3 +166,13 @@ class PortfolioEvent:
     def __post_init__(self) -> None:
         if self.timestamp == 0.0:
             self.timestamp = time.time()
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "event_type": self.event_type,
+            "slot_name": self.slot_name,
+            "regime": self.regime.value if self.regime else None,
+            "allocation": self.allocation.to_dict() if self.allocation else None,
+            "message": self.message,
+            "timestamp": self.timestamp,
+        }

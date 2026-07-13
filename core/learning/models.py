@@ -175,3 +175,13 @@ class LearningEvent:
     def __post_init__(self) -> None:
         if self.timestamp == 0.0:
             self.timestamp = time.time()
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "event_type": self.event_type,
+            "model_name": self.model_name,
+            "anomaly": self.anomaly.to_dict() if self.anomaly else None,
+            "predictions": self.predictions,
+            "message": self.message,
+            "timestamp": self.timestamp,
+        }

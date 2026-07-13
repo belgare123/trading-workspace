@@ -1,7 +1,7 @@
 """
 Event Engine — типобезопасная система событий рынка.
 
-Строится поверх MarketDataBus (V1), добавляя:
+Строится поверх MarketDataBus, добавляя:
 1. MarketEvent — базовый класс с типизированными данными
 2. EventBus — типобезопасный роутер + фильтры
 3. Domain events: CandleEvent, WhaleEvent, VolumeEvent

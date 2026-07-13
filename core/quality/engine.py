@@ -40,8 +40,14 @@ class QualityEngine:
         bus: QualityBus | None = None,
         history: QualityHistory | None = None,
         storage_dir: str = "",
+        event_store: EventStore | None = None,
     ) -> None:
-        self._bus = bus or QualityBus()
+        if bus is None:
+            if event_store is None:
+                raise TypeError("QualityEngine requires event_store when bus is not provided")
+            self._bus = QualityBus(event_store=event_store)
+        else:
+            self._bus = bus
         self._history = history or QualityHistory(storage_dir=storage_dir)
         self._generator = PassportGenerator()
         self._calculator = RatingCalculator()

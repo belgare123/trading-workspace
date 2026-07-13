@@ -1,9 +1,5 @@
 """
 Analytics Engine — Event Bus (Phase 11.9). Тонкий фасад над EventStore.
-
-Режимы работы:
-  - С EventStore: emit() пишет в журнал через publish_sync()
-  - Без EventStore: чистая legacy-шина (локальные подписчики)
 """
 
 from __future__ import annotations
@@ -39,36 +35,19 @@ Handler = Callable[[AnalyticsEvent], None]
 class AnalyticsBus:
     """Шина событий Analytics Engine — тонкий фасад над EventStore."""
 
-    def __init__(self, event_store: EventStore | None = None) -> None:
+    def __init__(self, event_store: EventStore) -> None:
         self._store = event_store
-        # Legacy fallback
-        self._handlers: dict[str, list[Handler]] = {}
 
     def subscribe(self, event_type: str, handler: Handler) -> None:
-        if self._store:
-            self._store.on_sync(_make_analytics_wrapper(event_type, handler))
-            logger.debug("Subscribed %s (via EventStore)", event_type)
-            return
-        self._handlers.setdefault(event_type, []).append(handler)
+        self._store.on_sync(_make_analytics_wrapper(event_type, handler))
+        logger.debug("Subscribed %s (via EventStore)", event_type)
 
     def unsubscribe(self, event_type: str, handler: Handler) -> None:
-        if self._store:
-            logger.warning("unsubscribe() not supported via EventStore")
-            return
-        handlers = self._handlers.get(event_type, [])
-        if handler in handlers:
-            handlers.remove(handler)
+        logger.warning("unsubscribe() not supported via EventStore")
 
     def emit(self, event: AnalyticsEvent) -> None:
-        if self._store:
-            stored = self._to_stored(event)
-            self._store.publish_sync(stored)
-            return
-        for handler in self._handlers.get(event.event_type, []):
-            try:
-                handler(event)
-            except Exception:
-                logger.exception("AnalyticsBus: handler failed for %s", event.event_type)
+        stored = self._to_stored(event)
+        self._store.publish_sync(stored)
 
     def emit_profile(self, symbol: str, profile: MarketProfile) -> None:
         self.emit(AnalyticsEvent(
@@ -102,17 +81,20 @@ class AnalyticsBus:
 
 
 def _make_analytics_wrapper(event_type: str, handler: Handler) -> Callable[[StoredEvent], None]:
-    """Wrap StoredEvent → AnalyticsEvent for legacy handler."""
+    """Wrap StoredEvent → AnalyticsEvent."""
     def wrapper(stored: StoredEvent) -> None:
-        if stored.topic != event_type:
+        if stored.topic != f"analytics.{event_type}":
             return
         try:
             raw = json.loads(stored.payload.decode("utf-8"))
+            regime_before = RegimeType(raw["regime_before"]) if raw.get("regime_before") else None
+            regime_after = RegimeType(raw["regime_after"]) if raw.get("regime_after") else None
             event = AnalyticsEvent(
                 event_type=raw.get("event_type", event_type),
                 symbol=raw.get("symbol", ""),
                 timestamp=raw.get("timestamp", 0.0),
-                **{k: v for k, v in raw.items() if k not in ("event_type", "symbol", "timestamp")},
+                regime_before=regime_before,
+                regime_after=regime_after,
             )
             handler(event)
         except Exception:

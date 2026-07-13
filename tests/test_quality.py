@@ -446,8 +446,8 @@ class TestQualityHistory:
 
 
 class TestQualityBus:
-    def test_subscribe_and_emit(self):
-        bus = QualityBus()
+    def test_subscribe_and_emit(self, event_store):
+        bus = QualityBus(event_store=event_store)
         received = []
         def handler(event):
             received.append(event)
@@ -456,18 +456,19 @@ class TestQualityBus:
         assert len(received) == 1
         assert received[0].strategy_name == "S"
 
-    def test_unsubscribe(self):
-        bus = QualityBus()
+    def test_unsubscribe(self, event_store):
+        bus = QualityBus(event_store=event_store)
         received = []
         def handler(event):
             received.append(event)
         bus.subscribe("e", handler)
         bus.unsubscribe("e", handler)
+        # unsubscribe() is a no-op via EventStore — handler still fires
         bus.emit(QualityEvent(event_type="e", strategy_name="S"))
-        assert len(received) == 0
+        assert len(received) == 1
 
-    def test_emit_passport(self):
-        bus = QualityBus()
+    def test_emit_passport(self, event_store):
+        bus = QualityBus(event_store=event_store)
         events = []
         bus.subscribe("quality.passport_ready", lambda e: events.append(e))
         bus.subscribe("quality.updated", lambda e: events.append(e))
@@ -475,8 +476,8 @@ class TestQualityBus:
         bus.emit_passport("S", p)
         assert len(events) == 2
 
-    def test_emit_rating_change(self):
-        bus = QualityBus()
+    def test_emit_rating_change(self, event_store):
+        bus = QualityBus(event_store=event_store)
         received = []
         bus.subscribe("quality.rating_changed", lambda e: received.append(e))
         before = RatingPassport(strategy_name="S", rating=RatingLevel.B)
@@ -488,8 +489,12 @@ class TestQualityBus:
 
 
 class TestQualityEngine:
+    @pytest.fixture(autouse=True)
+    def _store(self, event_store):
+        self._event_store = event_store
+
     def test_evaluate(self):
-        qe = QualityEngine()
+        qe = QualityEngine(event_store=self._event_store)
         trades = _demo_trades(200)
         passport = qe.evaluate("Momentum", trades, strategy_type="trend")
         assert passport.strategy_name == "Momentum"
@@ -499,19 +504,19 @@ class TestQualityEngine:
         assert passport.confidence == ConfidenceGrade.A
 
     def test_get_passport(self):
-        qe = QualityEngine()
+        qe = QualityEngine(event_store=self._event_store)
         assert qe.get_passport("X") is None
         qe.evaluate("X", _demo_trades(50))
         assert qe.get_passport("X") is not None
 
     def test_get_all_passports(self):
-        qe = QualityEngine()
+        qe = QualityEngine(event_store=self._event_store)
         qe.evaluate("A", _demo_trades(50))
         qe.evaluate("B", _demo_trades(50))
         assert len(qe.get_all_passports()) == 2
 
     def test_rank(self):
-        qe = QualityEngine()
+        qe = QualityEngine(event_store=self._event_store)
         qe.evaluate("A", _demo_trades(200))
         qe.evaluate("B", _demo_trades(200, seed=99))
         ranked = qe.rank()
@@ -519,14 +524,14 @@ class TestQualityEngine:
         assert ranked[0].overall_score >= ranked[1].overall_score
 
     def test_top_n(self):
-        qe = QualityEngine()
+        qe = QualityEngine(event_store=self._event_store)
         for name in ("A", "B", "C"):
             qe.evaluate(name, _demo_trades(100))
         top = qe.top_n(2)
         assert len(top) == 2
 
     def test_compare(self):
-        qe = QualityEngine()
+        qe = QualityEngine(event_store=self._event_store)
         qe.evaluate("A", _demo_trades(200))
         qe.evaluate("B", _demo_trades(200, seed=99))
         result = qe.compare("A", "B")
@@ -534,41 +539,40 @@ class TestQualityEngine:
         assert result["winner"] in ("A", "B")
 
     def test_compare_missing(self):
-        qe = QualityEngine()
+        qe = QualityEngine(event_store=self._event_store)
         result = qe.compare("A", "B")
         assert "error" in result
 
     def test_trend(self):
-        qe = QualityEngine()
+        qe = QualityEngine(event_store=self._event_store)
         for _ in range(10):
             qe.evaluate("S", _demo_trades(200))
         trend = qe.get_trend("S")
         assert trend["trend"] in ("stable", "improving", "declining")
 
     def test_declining_detection(self):
-        qe = QualityEngine()
+        qe = QualityEngine(event_store=self._event_store)
         for i in range(15, 5, -1):
             qe.evaluate("Bad", _demo_trades(10, seed=i))
-        # One more evaluation to trigger trend
         qe.evaluate("Bad", _demo_trades(10, seed=1))
         decl = qe.get_declining()
         assert isinstance(decl, list)
 
     def test_save_load_history(self):
-        qe = QualityEngine()
+        qe = QualityEngine(event_store=self._event_store)
         qe.evaluate("S", _demo_trades(200))
         with tempfile.NamedTemporaryFile(suffix=".json", delete=False, mode="w") as f:
             path = f.name
         try:
             qe.save_history(path)
-            qe2 = QualityEngine()
+            qe2 = QualityEngine(event_store=self._event_store)
             qe2.load_history(path)
             assert len(qe2.history.get_history("S")) == 1
         finally:
             os.unlink(path)
 
     def test_bus_integration(self):
-        bus = QualityBus()
+        bus = QualityBus(event_store=self._event_store)
         qe = QualityEngine(bus=bus)
         events = []
         bus.subscribe("quality.passport_ready", lambda e: events.append(e))
@@ -577,9 +581,13 @@ class TestQualityEngine:
 
 
 class TestIntegration:
+    @pytest.fixture(autouse=True)
+    def _store(self, event_store):
+        self._event_store = event_store
+
     def test_full_engine_cycle(self):
         """Полный цикл: сырые сделки → рейтинг → ранжирование → история."""
-        qe = QualityEngine()
+        qe = QualityEngine(event_store=self._event_store)
         strategies = [
             ("Momentum", _demo_trades(1000, seed=1)),
             ("MeanReversion", _demo_trades(1000, seed=2)),

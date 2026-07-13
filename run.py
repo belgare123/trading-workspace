@@ -1,5 +1,5 @@
 """
-Crypto Screener v2 — официальная точка входа.
+Trading Workspace Platform — официальная точка входа.
 
 Usage:
     python run.py
@@ -8,11 +8,6 @@ Usage:
     bootstrap() → register all components
     start()     → start all services
     run()       → main loop until SIGINT/SIGTERM
-
-Roadmap удаления bootstrap.py:
-    v0.11.x — bootstrap.py работает с DeprecationWarning
-    v0.12.x — предупреждение усиливается (лог + stdout)
-    v1.0.0  — bootstrap.py удаляется
 """
 
 import asyncio

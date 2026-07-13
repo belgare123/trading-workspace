@@ -3,8 +3,8 @@ DI Container с поддержкой интерфейсов (Protocol), пров
 и авто-внедрения зависимостей (inject).
 
 Container — сердце системы. Все компоненты (движки, сервисы, хранилища)
-регистрируются здесь по интерфейсу, а стратегии получают зависимости
-через конструктор.
+регистрируются здесь по интерфейсу или строковому имени, а стратегии получают
+зависимости через конструктор.
 
 Usage:
     container = Container()
@@ -14,7 +14,7 @@ Usage:
     # resolve по интерфейсу
     fe = container.resolve(IFeatureEngine)
 
-    # или по строковому имени (legacy)
+    # или по строковому имени
     store = container.get("feature_store")
 
     # авто-внедрение
@@ -115,7 +115,7 @@ class Container:
     def __init__(self):
         # interface_type -> Provider
         self._registry: dict[type, Provider] = {}
-        # name -> instance (legacy compatibility)
+        # name -> instance
         self._components: dict[str, Any] = {}
         # Фоновые задачи
         self._ticker_tasks: list[Any] = []
@@ -132,7 +132,6 @@ class Container:
         *,
         provider: Provider[T] | None = None,
         factory: Callable[[], T] | None = None,
-        name: str | None = None,
     ) -> None:
         """Зарегистрировать компонент.
 
@@ -141,7 +140,6 @@ class Container:
             instance: Экземпляр (создаёт SingletonProvider).
             provider: Кастомный провайдер.
             factory: Фабрика (создаёт FactoryProvider).
-            name: Дополнительное строковое имя (legacy compat).
 
         Пример:
             container.register(IFeatureEngine, engine)
@@ -152,8 +150,6 @@ class Container:
             self._registry[interface] = provider
         elif instance is not None:
             self._registry[interface] = SingletonProvider(instance)
-            if name is not None:
-                self._components[name] = instance
         elif factory is not None:
             self._registry[interface] = LazySingletonProvider(factory)
         else:
@@ -162,11 +158,11 @@ class Container:
             )
 
     def register_instance(self, name: str, instance: Any) -> None:
-        """Legacy: регистрация по строковому имени."""
+        """Регистрация по строковому имени."""
         self._components[name] = instance
 
     def set(self, name: str, instance: Any) -> None:
-        """Alias for register_instance() — обратная совместимость с v0.x."""
+        """Alias for register_instance()."""
         self._components[name] = instance
 
     # ── Получение ──
@@ -192,17 +188,11 @@ class Container:
         return provider.get()
 
     def get(self, name: str, default: Any = None) -> Any:
-        """Legacy: получить компонент по строковому имени.
-
-        Deprecated: используйте resolve(Interface) вместо get(name).
-        """
+        """Получить компонент по строковому имени."""
         return self._components.get(name, default)
 
     def require(self, name: str) -> Any:
-        """Legacy: получить компонент по имени или raise.
-
-        Deprecated: используйте resolve(Interface).
-        """
+        """Получить компонент по имени или raise."""
         val = self._components.get(name)
         if val is None:
             raise KeyError(
@@ -236,7 +226,7 @@ class Container:
             # Если тип str/int/float/bool — пропускаем
             elif param_type in (str, int, float, bool):
                 continue
-            # Ищем в legacy components по имени
+            # Ищем в named components по имени
             elif param_name in self._components:
                 kwargs[param_name] = self._components[param_name]
         return cls(**kwargs)
