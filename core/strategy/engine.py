@@ -321,6 +321,7 @@ class StrategyEngine:
             config=self._config,
             build_context=self._build_context,
             set_started=lambda v: setattr(self, '_started', v),
+            discover_fn=self._registry_service.discover_plugins,
             logger_override=self._logger,
         )
 
@@ -377,15 +378,16 @@ class StrategyEngine:
     def get(self, name: str) -> BaseStrategy | None:
         return self._strategies.get(name)
 
-    # ── Discovery (old) ──
+    # ── Discovery ──
 
     async def discover(self) -> list[PluginInfo]:
-        """Обнаружить все стратегии в filesystem.
+        """Обнаружить все стратегии через единый Discovery Engine.
 
-        Returns:
-            Список обнаруженных плагинов.
+        Делегирует StrategyRegistry.discover_plugins().
+        Возвращает список PluginInfo для обратной совместимости.
         """
-        self._plugins = await self._loader.discover()
+        records = await self._registry_service.discover_plugins()
+        self._plugins = [PluginInfo.from_plugin_record(r) for r in records]
         return self._plugins
 
     # ── Registry delegation ──

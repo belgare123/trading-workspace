@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any, Awaitable, Callable
 
 from core.strategy.base import BaseStrategy
 from core.strategy.context import (
@@ -61,6 +61,7 @@ class StrategyLifecycle:
         config: Any,
         build_context: Callable[[BaseStrategy], StrategyContext],
         set_started: Callable[[bool], None],
+        discover_fn: Callable[[], Awaitable[list[Any]]] | None = None,
         logger_override: logging.Logger | None = None,
     ) -> None:
         self._strategies = strategies
@@ -69,6 +70,7 @@ class StrategyLifecycle:
         self._config = config
         self._build_context = build_context
         self._set_started = set_started
+        self._discover_fn = discover_fn
         self._logger = logger_override or logging.getLogger("strategy.lifecycle")
 
     # ── Load ─────────────────────────────────────────────────────
@@ -77,7 +79,7 @@ class StrategyLifecycle:
         """Загрузить все обнаруженные стратегии.
 
         Шаги:
-          1. discover() — найти все manifest.yaml
+          1. discover() — через единый Discovery Engine (или PluginLoader)
           2. Для каждого: импортировать модуль, создать экземпляр
 
         Returns:
@@ -85,9 +87,17 @@ class StrategyLifecycle:
         """
         plugins = self._plugins
         if not plugins:
-            plugins = await self._loader.discover()
-            self._plugins.clear()
-            self._plugins.extend(plugins)
+            if self._discover_fn:
+                records = await self._discover_fn()
+                self._plugins.clear()
+                self._plugins.extend(
+                    PluginInfo.from_plugin_record(r) for r in records
+                )
+            else:
+                plugins = await self._loader.discover()
+                self._plugins.clear()
+                self._plugins.extend(plugins)
+            plugins = self._plugins
 
         for info in plugins:
             if info.descriptor.name in self._strategies:

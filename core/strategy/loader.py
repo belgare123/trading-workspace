@@ -16,13 +16,16 @@ import importlib
 import inspect
 import logging
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from core.api import CORE_API_VERSION
 from core.strategy.base import BaseStrategy
 from core.strategy.descriptor import ManifestLoader, StrategyDescriptor
+
+if TYPE_CHECKING:
+    from core.strategy.plugin_registry import PluginRecord
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -45,6 +48,18 @@ class PluginInfo:
     manifest_path: str
     strategy_dir: str
     module_path: str | None = None
+
+    @classmethod
+    def from_plugin_record(cls, record: PluginRecord) -> PluginInfo:
+        """Создать PluginInfo из PluginRecord (единый Discovery)."""
+        discovery = record.discovery
+        descriptor = ManifestLoader.from_file(discovery.manifest_path)
+        return cls(
+            descriptor=descriptor,
+            manifest_path=discovery.manifest_path,
+            strategy_dir=discovery.strategy_dir,
+            module_path=discovery.module_path,
+        )
 
 
 # ═══════════════════════════════════════════════════════════════════
