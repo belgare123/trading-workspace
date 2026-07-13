@@ -1,110 +1,186 @@
-# Phase 15.1 — Stabilization Release
-# v0.15.x → RC1 → RC2 → v1.0.0 Roadmap
+# v1.0 Roadmap — Platform Stabilization
 
 **Project:** Trading Workspace Platform
-**Current version:** v0.15.0 (Phase 15 Marketplace ✅)
-**Target:** v1.0.0 Production Release
+**Current:** v0.15.0 | **Target:** v1.0.0
+**Status:** ✅ Feature Freeze — no new functional phases until v1.0
 
 ---
 
-## v0.15.x (Phase 15.1 — Stabilization) ← **WE ARE HERE**
+## Состояние проекта
 
-Phase 15.1 fixes, audits, docs, and examples for the Phase 15 Marketplace Platform.
+Проект прошёл 15 фаз функционального строительства. Фундамент платформы практически завершён:
 
-| Item | Status | Description |
-|------|--------|-------------|
-| Architecture Audit | ✅ | `docs/architecture-audit-report.md` — 7 findings |
-| Performance Profiling | ✅ | `core/profiler.py` + `docs/performance-report.md` |
-| Documentation | ✅ | 6 guides in `docs/` (Architecture, Developer, Plugin, API, Extension, Diagrams) |
-| Demo Examples | ✅ | 6 demos in `examples/` (basic, advanced, marketplace, decision, replay, learning) |
-| Version bump | ✅ | `core.__version__` → 0.15.0 |
-| Built-in Profiler | ✅ | `core/profiler.py` — decorator + context manager + stats |
+| Компонент | Статус | Health |
+|-----------|--------|--------|
+| DI + Application Runtime | ✅ | 8/10 |
+| Service Runtime | ✅ | 8/10 |
+| Strategy SDK | ✅ | 8/10 |
+| Plugin Platform | ✅ | 9/10 |
+| **Strategy Engine** | 🔴 **God-object** | **3/10** |
+| Decision Engine | ✅ | 9/10 |
+| Opportunity Lifecycle | ✅ | 9/10 |
+| Replay Framework | ✅ | 9/10 |
+| Quality / Analytics | ✅ | 9/10 |
+| Portfolio | ✅ | 9/10 |
+| Learning | ✅ | 8/10 |
+| Marketplace | ✅ | 9/10 |
+| Workspace | ✅ | 8/10 |
 
----
-
-## v0.15.1 → RC1 (Phase 15.2 — Stabilization Part 2)
-
-Critical path to RC1 — fixing the 7 audit findings.
-
-### 🔴 P0 — Must fix before RC1
-
-| ID | Finding | Effort | Description |
-|----|---------|--------|-------------|
-| AUD-1 | **Hybrid DI** | 3d | `core/di/container.py` (150+ registrations) + 150+ `get_*()` singletons. Pick one pattern (prefer DI container) |
-| AUD-2 | **V1/V2 ConsensusEngine** | 1d | `core/consensus/engine.py` (V1) vs `core/decision/consensus.py` (V2). Deprecate V1, forward imports to V2 |
-| AUD-3 | **V1/V2 SignalEngine** | 1d | `core/signal/engine.py` (V1) vs `core/decision/engines/signal.py` (V2). Same treatment |
-| AUD-4 | **V1/V2 MarketReplay** | 1d | `core/market_replay.py` (V1, undocumented) vs `core/replay/engine.py` (V2). Remove V1 |
-
-### 🟠 P1 — Should fix before RC1
-
-| ID | Finding | Effort | Description |
-|----|---------|--------|-------------|
-| AUD-5 | **Legacy top-level dirs** | 2d | `events/`, `context/`, `storage/`, `scanner/`, `utils/`, `strategies/` — V1 modules still imported. Audit each, migrate or deprecate |
-| AUD-6 | **Test coverage gaps** | 2d | `test_features.py` missing; `core/features/` has 0 tests; add smoke tests for each engine |
-| AUD-7 | **Duplicate SDKs** | 1d | `screener_sdk/` vs `core/strategy/plugin_api.py` — converge or remove |
-
-### 🟡 P2 — Nice to have for RC1
-
-| Item | Effort | Description |
-|------|--------|-------------|
-| Profiler CI test | 0.5d | Test `@profile` decorator doesn't break sync/async calls |
-| Performance regression gate | 1d | Benchmark in CI — fail if decision engine > 1ms/call |
-| Changelog | 0.5d | Auto-generate from git log since v0.14.0 |
+**Вывод:** Единственный критический architectural debt — `core/strategy/engine.py`. Всё остальное ядро стабильно. Проект сопоставим по архитектуре с QuantConnect, NinjaTrader, Freqtrade — но уникален сочетанием Decision Engine + Opportunity Lifecycle + Deterministic Replay + Plugin Marketplace + Learning Pipeline в одной платформе.
 
 ---
 
-## RC1 (v0.16.0)
+## 🔴 P0 — До v1.0 обязательно
 
-**Entry criteria:**
-1. ✅ All P0 fixed
-2. ✅ All P1 fixed
-3. ✅ 861+ tests pass (existing + new)
-4. ✅ CI pipeline green (lint, test, benchmark)
+### 1. Разбить `core/strategy/engine.py` (god-object, 1107 строк, 7+ ответственностей)
 
-**Release checklist:**
-- [ ] Git tag `v0.16.0-rc1`
-- [ ] Build wheel: `python -m build`
-- [ ] Test install from wheel: `pip install dist/*.whl`
-- [ ] Run full test suite on clean install
-- [ ] Quick demo run: `python examples/basic_strategy/run.py`
-- [ ] Write RC1 release notes
+Текущая структура — один файл с discovery, loading, manifest validation, sandbox, registration, runtime, health, metrics, mock objects.
+
+**Целевая структура:**
+
+```
+core/strategy/
+├── engine.py        # Тонкий фасад (~150 строк)
+├── loader.py        # Загрузка стратегий (парсинг manifest.yaml, импорт)
+├── registry.py      # Реестр загруженных стратегий
+├── runner.py        # execute / analyze — pipeline execution
+├── scheduler.py     # Запуск по расписанию (cron-like)
+├── discovery.py     # Поиск стратегий (через Marketplace Registry)
+├── lifecycle.py     # start / stop / reload
+└── manager.py       # Оркестрация
+```
+
+**Критерий готовности:** `engine.py` < 200 строк, ни один модуль > 300 строк.
+
+### 2. Единый Discovery через Marketplace Registry
+
+Сейчас `StrategyEngine.discover()` и `Marketplace.PackageIndexBuilder.build_index()` независимо сканируют `strategies/*/manifest.yaml`.
+
+**Целевая архитектура:**
+
+```
+Marketplace
+  ↓ Registry — единый реестр пакетов
+  ↓ Discovery (паттерн Strategy)
+  ↓ StrategyEngine — получает готовый список
+```
+
+**Критерий готовности:** `StrategyEngine` не вызывает `discover()` — только `registry.list_strategies()`.
+
+### 3. Удалить V1 legacy полностью
+
+Цель: **legacy = 0**. Не депрекейтить, не оставлять compat bridge.
+
+| Модуль | Что сделать |
+|--------|------------|
+| `core/consensus/` (V1, ~500 LOC) | Убедиться что V2 (`core/decision/consensus.py`) покрывает всех консьюмеров, удалить V1 |
+| `core/market_replay.py` (V1, 282 LOC) | То же — проверить консьюмеров, удалить |
+| `core/signal/` (V1 naming) | Переименовать import alias, убрать двойственность |
+| `{exchanges` artifact | Уже удалён ✅ |
+| `bot/`, `dashboard/` (dead dirs) | Уже удалены ✅ |
+
+**Критерий готовности:** `git grep "from core.consensus\|from core.market_replay\|SignalEngineV1"` → 0 matches.
 
 ---
 
-## RC2 (v0.17.0)
+## 🟠 P1 — До v1.0 желательно
 
-**Entry criteria:**
-1. ✅ RC1 released and tested for 1 week
-2. ✅ Bugs found during RC1 fixed
-3. ✅ Cloud Platform (Phase 15.5) optionally included if ready
-4. ✅ All `screener_sdk` → `trading_workspace_sdk` migration done
+### 4. Capability Graph
 
-**Release checklist:**
-- [ ] Git tag `v0.17.0-rc2`
-- [ ] Regression test: compare RC2 performance vs RC1
-- [ ] User acceptance testing — run demo on real markets
-- [ ] Final API review — any breaking changes since v0.14.0?
-- [ ] Write RC2 release notes
-- [ ] One-week soak test
+Сейчас: `Strategy → FeatureEngine` (линейный pipeline).
+
+Цель:
+```
+Strategy
+  ↓ Capability Resolver (какие признаки нужны?)
+  ↓ Capability Graph (DAG зависимостей)
+  ↓ Feature Calculators
+```
+
+Что даёт:
+- Автоматически считаются только нужные признаки
+- Стратегии становятся декларативными (декларируют capability, не фичи)
+- Появляется lazy execution + кэш + параллелизм
+- FeatureEngine перестаёт вычислять всё подряд
+
+### 5. Event Store (Event Sourcing)
+
+Сейчас события живут в разных местах: `EventBus`, `ReplayBus`, `Lifecycle.events`, `Quality.journal`.
+
+Цель:
+```
+Decision Event
+  │
+Lifecycle Event ─→ Event Store ←── Replay
+  │                               (Replay = EventStore Reader)
+Quality Event
+  │
+Learning Event
+```
+
+Что даёт:
+- Replay перестаёт быть отдельной системой — становится `EventStore.read()`
+- Полная traceability: любое решение можно воспроизвести
+- Lifecycle, Quality, Learning — все пишут в один store
+- Deterministic Replay из коробки (timestamp-based)
 
 ---
 
-## v1.0.0
+## 🟡 P2 — После v1.0
 
-**Entry criteria:**
-1. ✅ RC2 stable for 2+ weeks
-2. ✅ No P0/P1 bugs open
-3. ✅ Cloud Platform (Phase 15.5) stable
-4. ✅ Documentation complete and reviewed
-5. ✅ Demo examples all verified
-6. ✅ Performance targets met (decision < 1ms, memory < 200MB)
+### Multi-Exchange
+- Bybit, Binance, OKX, Deribit, Hyperliquid
+- Только после стабилизации ядра — иначе tech debt вырастет экспоненциально
 
-**Release checklist:**
-- [ ] Git tag `v1.0.0`
-- [ ] Release on GitHub
-- [ ] Publish wheel to PyPI (or internal registry)
-- [ ] Publish `trading-workspace-sdk` to PyPI
-- [ ] Update README with stable badge
-- [ ] Write changelog: what changed since v0.14.0
-- [ ] Announcement (internal / community)
-- [ ] Start Phase 16 (Cloud Platform)
+### Cloud Platform (Phase 15.5)
+- Marketplace Cloud
+- Managed strategies
+- Отложено — сначала промышленное качество локальной платформы
+
+### AI / ML
+- Новые ML-модели
+- AI-генерация стратегий
+- Не сейчас — будет проще после чистого ядра
+
+### Мобильное приложение
+- Не сейчас
+
+---
+
+## Что НЕ входит в v1.0
+
+❌ Новые ML-модели
+❌ Новые стратегии
+❌ Marketplace Cloud
+❌ Multi-Exchange
+❌ Мобильное приложение
+❌ AI-генерация стратегий
+
+---
+
+## RC Process
+
+### RC1 (v0.16.0-rc1)
+**Entry:** P0 задачи завершены
+- [ ] StrategyEngine decomposed
+- [ ] Single Discovery via Marketplace Registry
+- [ ] legacy = 0 (V1 modules removed)
+
+**Also:**
+- [ ] DI cleanup (remove dead interface-based registry)
+- [ ] `tests/test_features.py`
+- [ ] `tests/test_di.py`
+- [ ] Full test suite green
+
+### RC2 (v0.17.0-rc2)
+**Entry:** RC1 стабилен 1+ недели
+- [ ] P1 задачи завершены (Capability Graph, Event Store)
+- [ ] Регрессия производительности < 5%
+- [ ] UAT пройден
+
+### v1.0.0
+**Entry:** RC2 стабилен 2+ недели
+- [ ] Feature complete per this roadmap
+- [ ] Docs updated
+- [ ] Performance targets met
+- [ ] Release notes written
