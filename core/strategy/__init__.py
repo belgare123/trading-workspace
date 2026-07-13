@@ -77,14 +77,18 @@ from core.strategy.base import (
     StrategyMetrics,
     StrategyBenchmark,
 )
-from core.strategy.engine import (
-    EngineConfig,
+from core.strategy.config import EngineConfig
+from core.strategy.mocks import (
     MockExchangeAPI,
     MockFeatureAPI,
     MockMarketAPI,
     MockStateAPI,
+)
+from core.strategy.loader import (
     PluginInfo,
     PluginLoader,
+)
+from core.strategy.engine import (
     StrategyEngine,
 )
 from core.strategy.protocol import IStrategy
