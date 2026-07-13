@@ -307,6 +307,23 @@ class StrategyEngine:
         # ── Scheduler ──
         self._scheduler = self._build_scheduler()
 
+        # ── Lifecycle ──
+        self._lifecycle = self._build_lifecycle()
+
+    def _build_lifecycle(self) -> Any:
+        """Создать StrategyLifecycle."""
+        from core.strategy.lifecycle_ext import StrategyLifecycle as Lifecycle
+
+        return Lifecycle(
+            strategies=self._strategies,
+            plugins=self._plugins,
+            loader=self._loader,
+            config=self._config,
+            build_context=self._build_context,
+            set_started=lambda v: setattr(self, '_started', v),
+            logger_override=self._logger,
+        )
+
     def _build_scheduler(self) -> Any:
         """Создать StrategyScheduler."""
         from core.strategy.scheduler import StrategyScheduler as Scheduler
@@ -437,46 +454,9 @@ class StrategyEngine:
     async def load_all(self) -> dict[str, BaseStrategy]:
         """Загрузить все обнаруженные стратегии.
 
-        Шаги:
-          1. discover() — найти все manifest.yaml
-          2. Для каждого: импортировать модуль, создать экземпляр
-
-        Returns:
-            dict[name → BaseStrategy]
+        Делегирует StrategyLifecycle.
         """
-        if not self._plugins:
-            await self.discover()
-
-        for info in self._plugins:
-            if info.descriptor.name in self._strategies:
-                self._logger.warning(
-                    f"Duplicate strategy: {info.descriptor.name}, skipping"
-                )
-                continue
-
-            try:
-                strategy_class = self._loader.import_strategy(info)
-                strategy = strategy_class(
-                    name=info.descriptor.name,
-                    manifest_path=info.manifest_path,
-                )
-                # Apply default config
-                if self._config.default_config:
-                    cfg = StrategyConfig.from_dict(
-                        self._config.default_config
-                    )
-                    strategy._config = cfg  # noqa: SLF001
-
-                self._strategies[info.descriptor.name] = strategy
-                self._logger.info(
-                    f"Loaded: {info.descriptor.name} v{info.descriptor.version}"
-                )
-            except Exception as e:
-                self._logger.error(
-                    f"Failed to load {info.descriptor.name}: {e}"
-                )
-
-        return self._strategies
+        return await self._lifecycle.load_all()
 
     # ── Pipeline: Initialize ──────────────────────────────────────
 
@@ -522,51 +502,18 @@ class StrategyEngine:
     async def initialize_all(self) -> None:
         """Инициализировать все загруженные стратегии.
 
-        Для каждой стратегии:
-          1. Строит StrategyContext
-          2. Вызывает initialize(ctx)
-          3. Если warmup_on_start — вызывает warmup()
+        Делегирует StrategyLifecycle.
         """
-        for name, strategy in self._strategies.items():
-            if strategy.state not in (
-                StrategyState.DISCOVERED.value,
-                StrategyState.INSTALLED.value,
-            ):
-                continue
-
-            try:
-                ctx = self._build_context(strategy)
-                await strategy.initialize(ctx)
-                self._logger.info(f"Initialized: {name}")
-
-                if self._config.warmup_on_start:
-                    await strategy.warmup()
-            except Exception as e:
-                self._logger.error(
-                    f"Failed to initialize {name}: {e}",
-                    exc_info=True,
-                )
+        await self._lifecycle.initialize_all()
 
     # ── Pipeline: Start ──────────────────────────────────────────
 
     async def start_all(self) -> None:
         """Запустить все инициализированные стратегии.
 
-        Вызывает start() на каждой стратегии.
+        Делегирует StrategyLifecycle.
         """
-        for name, strategy in self._strategies.items():
-            if strategy.state != StrategyState.INITIALIZED.value:
-                continue
-            try:
-                await strategy.start()
-                self._logger.info(f"Started: {name}")
-            except Exception as e:
-                self._logger.error(f"Failed to start {name}: {e}")
-
-        self._started = True
-        self._logger.info(
-            f"StrategyEngine: {self.count} strategies running"
-        )
+        await self._lifecycle.start_all()
 
     # ── Pipeline: Analyze ────────────────────────────────────────
 
@@ -586,32 +533,16 @@ class StrategyEngine:
     async def stop_all(self) -> None:
         """Остановить все стратегии.
 
-        Обратный порядок (LIFO — стопорим последние загруженные первыми).
+        Делегирует StrategyLifecycle.
         """
-        for name in reversed(list(self._strategies.keys())):
-            strategy = self._strategies[name]
-            try:
-                await strategy.stop()
-                self._logger.info(f"Stopped: {name}")
-            except Exception as e:
-                self._logger.error(f"Failed to stop {name}: {e}")
-
-        self._started = False
-        self._logger.info("All strategies stopped")
+        await self._lifecycle.stop_all()
 
     async def shutdown_all(self) -> None:
-        """Полное завершение всех стратегий (shutdown + выгрузка)."""
-        for name in reversed(list(self._strategies.keys())):
-            strategy = self._strategies[name]
-            try:
-                await strategy.shutdown()
-            except Exception as e:
-                self._logger.error(f"Failed to shutdown {name}: {e}")
+        """Полное завершение всех стратегий (shutdown + выгрузка).
 
-        self._strategies.clear()
-        self._plugins.clear()
-        self._started = False
-        self._logger.info("All strategies shutdown complete")
+        Делегирует StrategyLifecycle.
+        """
+        await self._lifecycle.shutdown_all()
 
     # ── Pipeline: Tick ───────────────────────────────────────────
 
@@ -683,13 +614,6 @@ class StrategyEngine:
     ) -> None:
         """Полный пайплайн: Load → Initialize → Start.
 
-        Args:
-            strategies_dir: Опциональный путь к стратегиям (переопределяет config).
+        Делегирует StrategyLifecycle.
         """
-        if strategies_dir:
-            self._config.strategies_dir = strategies_dir
-            self._loader = PluginLoader(strategies_dir)
-
-        await self.load_all()
-        await self.initialize_all()
-        await self.start_all()
+        await self._lifecycle.run_pipeline(strategies_dir=strategies_dir)
