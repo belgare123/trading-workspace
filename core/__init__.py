@@ -58,7 +58,7 @@ from core.services import IService, ServiceRuntime
 
 from core.di import Container
 
-__version__ = "0.15.0"
+__version__ = "0.16.0"
 
 __all__ = [
     # Legacy API

@@ -2,7 +2,7 @@
 
 **Modular algorithmic trading platform** — real-time market data pipeline, pluggable strategies, decision engine, portfolio management, ML learning engine, marketplace ecosystem, and full workspace UI.
 
-> **v0.15.0** — Phase 15: Marketplace Platform.
+> **v0.16.0-rc1** — Release Candidate Cycle.
 
 [![Python](https://img.shields.io/badge/python-3.11-blue)](https://python.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green)](LICENSE)
