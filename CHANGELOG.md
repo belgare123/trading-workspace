@@ -1,5 +1,59 @@
 # Changelog
 
+## [1.0.0] — 2026-07-14
+
+### Trading Platform v1.0 — Initial Stable Release
+
+After 16 pre-release cycles, the platform reaches its first stable milestone:
+Core stabilized, Workspace complete, API frozen.
+
+#### 🏗️ Platform (core)
+
+- **Event Store** (P1): SQLite-backed persisted event journal, replay, trace graph
+- **Aggregate Streams** (P0.5): versioned event streams with snapshot/restore
+- **PluginRegistry**: unified plugin system, capability DAG, strategy lifecycle
+- **Replay Engine**: deterministic timeline, recorder, breakpoint debugging
+- **Decision Engine**: consensus-based opportunity lifecycle
+- **Learning Engine**: regime classification, ML inference pipeline
+- **Marketplace**: package registry, dependency resolution, CLI
+- **API Freeze**: all 4 public domains frozen (`core`, `workspace`, `screener_sdk`, `marketplace`)
+
+#### 🖥️ Workspace UI (React 19 + Vite + Tailwind v4)
+
+- **Scanner**: live market data, pair filtering, momentum/volume indicators
+- **Inspector**: real-time signal graph, strategy state, trace visualization
+- **Replay Studio**: timeline scrubber, event replay, step-through debug
+- **Strategy Monitor**: active strategies, position tracking, P&L
+- **Plugin Store**: install/update/remove marketplace packages from UI
+- **Learning Hub**: ML training dashboard, regime chart, anomaly feed
+- **System Monitor**: resource usage, event throughput, live process tree
+
+#### Workspace Architecture
+
+- **Design System**: typography, color tokens, spacing, component library
+- **Notifications**: toast stack, badge counter, history, categories
+- **Realtime Runtime**: WebSocket-driven stream channels, auto-reconnect
+- **Timeline**: global event timeline, real-time feed, filter by channel
+- **Command Palette**: keyboard-driven commands, fuzzy search, history
+- **Federated Search**: cross-domain search (strategies, plugins, events, docs)
+- **Layout System**: multi-panel, layout switcher, saved layouts, responsive
+- **Loading UX**: skeleton screens, async boundaries, error recovery
+- **Feature Flags**: typed toggle system with localStorage overrides
+- **Telemetry Hooks**: no-op analytics emitter, 12 typed event points
+- **Workspace SDK**: plugin API — `registerCommand`, `registerSearchAdapter`, `registerPanel`, `pushTimelineEvent`
+
+#### 📦 Engineering
+
+- **953+ tests** across all modules
+- **Performance Baseline**: 5 metrics (event append, batch, replay, aggregate, trace)
+- **Long-running stress**: 12h concurrency, 1M+ events, WAL checkpoint
+- **API audit**: 228 files, 3 cross-domain violations fixed
+- **Import audit**: zero circular imports
+- **Documentation**: 7 guides + API reference + sequence diagrams + examples
+- **License**: MIT
+
+---
+
 ## [0.16.0-rc1] — 2026-07-14
 
 ### Release Candidate Cycle — начало

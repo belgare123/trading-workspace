@@ -351,7 +351,7 @@ class BacktestRunner:
         self.end_ts = end_ts
 
         self.mock_store = MockFeatureStore()
-        self.context_engine = ContextEngine(feature_engine=None)
+        self.context_engine = ContextEngine(feature_store=self.mock_store)
         self.consensus_engine = ConsensusEngine(shadow=True)
         self.risk_engine = RiskEngine(shadow=True)
         self.ome = OME(shadow=True, capital=capital, risk_pct=risk_pct)

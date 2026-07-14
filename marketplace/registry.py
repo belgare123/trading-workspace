@@ -266,8 +266,18 @@ class RegistryClient:
                 install_count=723,
                 created_at=now - 86400 * 45,
                 updated_at=now - 86400 * 8,
-                latest_version="1.2.0",
+                latest_version="2.0.0",  # bumped for demo
                 versions={
+                    "2.0.0": PackageVersion(
+                        version="2.0.0",
+                        published_at=now - 86400 * 1,
+                        download_url="https://marketplace.trading-workspace.dev/packages/order-block-core/2.0.0.tar.gz",
+                        sha256="a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2",
+                        channel=UpdateChannel.STABLE,
+                        min_core_version="0.14.0",
+                        dependencies={"numpy": ">=1.20.0"},
+                        size_bytes=112000,
+                    ),
                     "1.2.0": PackageVersion(
                         version="1.2.0",
                         published_at=now - 86400 * 8,

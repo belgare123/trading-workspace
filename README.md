@@ -3,8 +3,10 @@
 **Modular algorithmic trading platform** — real-time market data pipeline, pluggable strategies, decision engine, portfolio management, ML learning engine, marketplace ecosystem, and workspace UI.
 
 [![Python](https://img.shields.io/badge/python-3.11-blue)]()
+[![Version](https://img.shields.io/badge/v1.0.0--stable-brightgreen)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 [![Tests](https://img.shields.io/badge/tests-953%20passed-brightgreen)](tests/)
+[![API](https://img.shields.io/badge/API-frozen-blueviolet)]()
 
 ---
 
@@ -40,24 +42,17 @@ python -m workspace.main
 ## Architecture
 
 ```
-Workspace (FastAPI + Jinja2)
-    │
-    ▼
-Application Layer (DI, Services, Bootstrap)
-    │
-    ▼
-Engine Layer
-├── Strategy    — PluginLoader, PluginRegistry, StrategyEngine
-├── Decision    — ConsensusEngine, Opportunity lifecycle
-├── Lifecycle   — Order management, positions
-├── Replay      — Timeline, ReplayEngine, Recorder
-├── Event Store — SQLite-backed event journal, TraceGraph
-├── Learning    — ML models, training, inference
-├── Marketplace — Package registry, dependency resolution
-└── Portfolio   — P&L, risk, allocation
-    │
-    ▼
-Infrastructure (SQLite, Event Bus, optional Redis)
+                Trading Platform
+
+                     Runtime
+                        │
+        ┌───────────────┼───────────────┐
+        │               │               │
+    Workspace      Trading Lab     Marketplace
+        │               │               │
+        └───────────────┼───────────────┘
+                        │
+                   Event Store
 ```
 
 Full architecture: [`ARCHITECTURE.md`](ARCHITECTURE.md)
@@ -140,12 +135,10 @@ See [`SUPPORT.md`](SUPPORT.md) for full compatibility and release lifecycle.
 
 ## Roadmap
 
-| Version | Focus |
-|---------|-------|
-| **v1.0** | Core stabilized, API frozen, 953+ tests, docs complete |
-| v1.1 | Workspace UI 2.0 (React + TypeScript + Tailwind) |
-| v1.2 | Multi-Exchange Runtime (Binance, Bybit, OKX) |
-| v1.3 | Cloud Platform (sync, backup, remote replay) |
-| v2.0 | Simulation Lab + Ecosystem |
+| Generation | Focus |
+|------------|-------|
+| **v1.0** ✅ | **Trading Platform — Initial Stable Release** (Core stabilized, API frozen, Workspace complete, 953+ tests) |
+| Gen 2 🔄 | **Runtime API** — Workspace becomes a client of the Runtime; Multi-Exchange adapters; Marketplace cloud |
+| Gen 3 | **Simulation Lab** — Monte Carlo, walk-forward, distributed compute, portfolio simulation |
 
 Full roadmap: [`docs/release-roadmap.md`](docs/release-roadmap.md)
