@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.16.0-rc1] — 2026-07-14
+
+### Release Candidate Cycle — начало
+v0.16.x — RC Cycle перед v1.0. API Freeze, Performance Baseline, документация, демо.
+
+#### Added
+- **API Freeze**: public API frozen для `core`, `workspace`, `screener_sdk`, `marketplace`
+- **Performance Baseline**: скрипт `scripts/performance_baseline.py`, baseline JSON в `docs/`
+- **Event Store Guide**: `docs/event-store-guide.md` — полное описание Event Store API
+- **Trace Demo**: `examples/trace_demo/run.py` — построение TraceGraph из chain событий
+- **Marketplace Demo**: обновлён с корректными моделями Package/PackageVersion
+
+#### Changed
+- **release-roadmap.md**: переписан под новый план (RC Cycle → v1.0 → Multi-Exchange → Cloud → Ecosystem → Simulation Lab)
+- **README.md**: v0.15.0 → v0.16.0-rc1
+- **core.__version__**: 0.15.0 → 0.16.0
+- **pyproject.toml**: 0.15.0 → 0.16.0
+
+---
+
 ## [0.15.0] — 2026-07-14
 
 ### Stabilisation Phase — Complete
