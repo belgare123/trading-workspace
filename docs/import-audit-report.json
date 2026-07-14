@@ -1,0 +1,61 @@
+{
+  "tool": "import_audit",
+  "python": "C:\\Users\\NoName\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\python.exe",
+  "timestamp": 1784005935.4157357,
+  "modules": [
+    {
+      "module": "core",
+      "total_ms": 0,
+      "lines": 347,
+      "cumulative": "import time:      2093 |     160802 | core"
+    },
+    {
+      "module": "marketplace",
+      "total_ms": 0,
+      "lines": 120,
+      "cumulative": "import time:       740 |      32851 | marketplace"
+    },
+    {
+      "module": "screener_sdk",
+      "total_ms": 0,
+      "lines": 350,
+      "cumulative": "import time:       375 |     159542 | screener_sdk"
+    },
+    {
+      "module": "core.event_store",
+      "total_ms": 0,
+      "lines": 348,
+      "cumulative": "import time:        49 |     157203 | core.event_store"
+    },
+    {
+      "module": "core.event_store.models",
+      "total_ms": 0,
+      "lines": 349,
+      "cumulative": "import time:        63 |     159012 | core.event_store.models"
+    },
+    {
+      "module": "core.replay",
+      "total_ms": 0,
+      "lines": 348,
+      "cumulative": "import time:        53 |     156130 | core.replay"
+    },
+    {
+      "module": "marketplace.models",
+      "total_ms": 0,
+      "lines": 121,
+      "cumulative": "import time:        66 |      33238 | marketplace.models"
+    },
+    {
+      "module": "marketplace.registry",
+      "total_ms": 0,
+      "lines": 121,
+      "cumulative": "import time:        59 |      32974 | marketplace.registry"
+    },
+    {
+      "module": "workspace.main",
+      "total_ms": 0,
+      "lines": 606,
+      "cumulative": "import time:        61 |     430710 | workspace.main"
+    }
+  ]
+}

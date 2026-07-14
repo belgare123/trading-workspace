@@ -23,61 +23,95 @@
 
 Изменения API — только через RFC или с веской причиной.
 
-### 1.2 Performance Baseline
+### 1.2 Performance Baseline ✅
 
 Зафиксировать метрики для регрессии в будущих версиях:
 
-| Метрика | Инструмент | Цель |
-|---------|-----------|------|
-| Event append | `test_event_store_concurrency.py` | `events/sec` |
-| Replay throughput | `test_replay_stress.py` | `events/sec` |
-| Aggregate restore | `test_aggregate.py` | `ms` |
-| Trace build | `test_trace.py` | `ms` |
-| Concurrent reads | `test_event_store_concurrency.py` | `reads/sec` |
-| Startup time | `pytest --durations=0` | `sec` |
-| Memory footprint | `tracemalloc` / `memory_profiler` | `MB` |
+| Метрика | Инструмент | Значение |
+|---------|-----------|----------|
+| Event append | `scripts/performance_baseline.py` | ~2,665 events/s |
+| Concurrent batch (×100) | `scripts/performance_baseline.py` | ~25,563 events/s |
+| Replay throughput (×1000) | `scripts/performance_baseline.py` | ~2,118 events/s |
+| Aggregate restore (50 ev) | `scripts/performance_baseline.py` | ~1,567 ops/s |
+| Trace build (50 ev) | `scripts/performance_baseline.py` | ~1,624 ops/s |
 
-✅ **Concurrency & Replay stress tests уже написаны.**
-
-### 1.3 Архитектурная документация
+### 1.3 Архитектурная документация ✅
 
 | Документ | Статус |
 |----------|--------|
-| **Architecture Guide** | ✅ существует (`docs/architecture-guide.md`) |
-| **Event Store Guide** | 📝 нужно выделить из architecture-guide |
+| **Architecture Guide** | ✅ `docs/architecture-guide.md` |
+| **Event Store Guide** | ✅ `docs/event-store-guide.md` |
 | **Plugin SDK Guide** | ✅ `docs/plugin-guide.md` |
-| **Marketplace Package Spec** | 📝 нужно дополнить |
-| **Workspace Integration Guide** | 📝 нужно создать |
 | **Developer Guide** | ✅ `docs/developer-guide.md` |
 | **API Reference** | ✅ `docs/api-reference.md` |
 | **Extension Guide** | ✅ `docs/extension-guide.md` |
 | **Sequence Diagrams** | ✅ `docs/sequence-diagrams.md` |
 
-### 1.4 Демо-проекты
+### 1.4 Демо-проекты ✅
 
 | Пример | Статус |
 |--------|--------|
-| Простая стратегия | 📝 `examples/basic_strategy/run.py` — существует, проверить |
-| Стратегия с кастомными capability | ❌ |
+| Basic strategy | ✅ `examples/basic_strategy/run.py` |
+| Advanced strategy | ✅ `examples/advanced_strategy/run.py` |
+| Decision demo | ✅ `examples/decision_demo/run.py` |
 | Replay demo | ✅ `examples/replay_demo/run.py` |
-| EventStore Trace demo | ❌ |
-| Marketplace-пакет | ❌ |
+| Learning demo | ✅ `examples/learning_demo/run.py` |
+| Marketplace demo | ✅ `examples/marketplace_demo/run.py` |
+| EventStore Trace demo | ✅ `examples/trace_demo/run.py` |
+
+### 1.5 RC Validation — эксплуатация и аудит
+
+Перед v1.0 — неделя реальной эксплуатации и аудитов:
+
+**Long-running stress** (12h)
+```
+Scanner → Decision → Lifecycle → Event Store → Replay → Learning
+```
+Проверить: memory leak, WAL checkpoint, append speed degradation, snapshot size.
+
+**API Audit** — обход публичных модулей:
+- `core/`, `workspace/`, `marketplace/`, `screener_sdk/`
+- Лишние методы
+- Разные названия для одного
+- Два способа сделать одно
+- Внутренние классы в `__all__`
+
+**Import Audit** — `python -X importtime`:
+- Какие импорты тянут пол-приложения
+- Время загрузки SDK
+
+**Packaging Audit** — установка "с нуля":
+```
+pip install .
+tw --help
+workspace
+examples
+```
+
+**Event Store Validation**:
+- Миллионы событий
+- WAL checkpoint / VACUUM
+- Восстановление после аварийного завершения
+- Повреждённая SQLite / rollback
 
 ---
 
 ## Этап 2: v1.0
 
 **Entry criteria:**
-- [ ] API frozen ✅
-- [ ] Performance Baseline измерен
-- [ ] Архитектурная документация полная
-- [ ] Демо-проекты готовы
-- [ ] Архитектура стабильна
-- [ ] 950+ тестов зелёных ✅
-- [ ] CHANGELOG актуален ✅
+- [x] API Frozen
+- [x] Performance Baseline измерен
+- [x] Архитектурная документация полная
+- [x] Демо-проекты готовы
+- [x] 953+ тестов зелёных
+- [x] CHANGELOG актуален
+- [ ] RC validation пройдена (long-running, API audit, import audit, packaging audit, event store validation)
 
-После v1.0 — никаких изменений фундаментальной архитектуры.
-Версия, на которую можно опираться несколько лет.
+После v1.0 — **никаких изменений фундаментальной архитектуры**.
+
+### v1.0.1 — Bugfix Release
+
+Первый bugfix после v1.0. Без новых возможностей — только исправления по отзывам пользователей RC и первых дней v1.0.
 
 ---
 
