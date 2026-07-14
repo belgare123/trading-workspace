@@ -1,0 +1,13 @@
+{
+  "version": "0.16.0-rc1",
+  "events_total": 10000,
+  "write_speed_ev_s": 2489,
+  "db_size_mb": 2.9,
+  "db_size_after_vacuum_mb": 2.9,
+  "read_1000_speed_ev_s": 2107926,
+  "vacuum_time_s": 0.02,
+  "reopen_read_time_s": 0.002,
+  "aggregate_restore_count": 100,
+  "aggregate_restore_time_s": 0.001,
+  "trace_time_s": 0.0
+}
