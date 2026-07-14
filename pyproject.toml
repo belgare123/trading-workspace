@@ -1,6 +1,6 @@
 [project]
 name = "trading-workspace"
-version = "0.14.0"
+version = "0.15.0"
 description = "Modular algorithmic trading platform — real-time market data, decision engine, ML learning, workspace UI"
 readme = "README.md"
 license = { text = "MIT" }

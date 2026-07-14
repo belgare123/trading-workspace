@@ -386,6 +386,10 @@ class AggregateRepository:
             )"""
         )
         conn.execute(
+            """CREATE INDEX IF NOT EXISTS idx_snapshots_ts
+               ON event_store_snapshots(timestamp)"""
+        )
+        conn.execute(
             """INSERT OR REPLACE INTO event_store_snapshots
                (aggregate_type, aggregate_id, version, state, timestamp, metadata)
                VALUES (?, ?, ?, ?, ?, ?)""",
@@ -421,6 +425,10 @@ class AggregateRepository:
                 PRIMARY KEY (aggregate_type, aggregate_id)
             )"""
         )
+        conn.execute(
+            """CREATE INDEX IF NOT EXISTS idx_snapshots_ts
+               ON event_store_snapshots(timestamp)"""
+        )
         cur = conn.execute(
             """SELECT * FROM event_store_snapshots
                WHERE aggregate_type = ? AND aggregate_id = ?""",
@@ -455,6 +463,33 @@ class AggregateRepository:
             (aggregate_type, aggregate_id),
         )
         return cur.rowcount > 0
+
+    async def cleanup_snapshots(
+        self,
+        max_age_days: float = 30.0,
+    ) -> dict[str, int]:
+        """Очистить устаревшие снимки.
+
+        Схема snapshot — 1 запись на агрегат (PRIMARY KEY + INSERT OR REPLACE),
+        поэтому удаление по количеству не применяется.
+
+        Args:
+            max_age_days: Снимки старше этого удаляются (по timestamp).
+
+        Returns:
+            Словарь со счётчиками: deleted.
+        """
+        conn = self._store.repo._ensure_conn()
+        now = __import__("time").time()
+        cutoff = now - max_age_days * 86400
+        cur = conn.execute(
+            """DELETE FROM event_store_snapshots
+               WHERE timestamp < ?""",
+            (cutoff,),
+        )
+        deleted = cur.rowcount
+        conn.commit()
+        return {"deleted": deleted}
 
     # ── Восстановление (Snapshot + Events) ──
 

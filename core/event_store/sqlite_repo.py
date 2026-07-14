@@ -99,6 +99,8 @@ class SQLiteEventRepository:
                 ON events(correlation_id);
             CREATE INDEX IF NOT EXISTS idx_events_ts
                 ON events(timestamp);
+            CREATE INDEX IF NOT EXISTS idx_events_agg_ver
+                ON events(aggregate, aggregate_id, aggregate_version);
         """)
         conn.commit()
 
@@ -153,7 +155,8 @@ class SQLiteEventRepository:
         CREATE INDEX IF NOT EXISTS idx_events_aggregate ON events(aggregate, aggregate_id);
         CREATE INDEX IF NOT EXISTS idx_events_topic ON events(topic);
         CREATE INDEX IF NOT EXISTS idx_events_corr ON events(correlation_id);
-        CREATE INDEX IF NOT EXISTS idx_events_ts ON events(timestamp);""")
+        CREATE INDEX IF NOT EXISTS idx_events_ts ON events(timestamp);
+CREATE INDEX IF NOT EXISTS idx_events_agg_ver ON events(aggregate, aggregate_id, aggregate_version);""")
         self._conn.commit()
 
     def _do_insert(self, db: sqlite3.Connection, event: StoredEvent) -> StoredEvent:
