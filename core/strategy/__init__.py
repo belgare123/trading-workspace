@@ -78,12 +78,7 @@ from core.strategy.base import (
     StrategyBenchmark,
 )
 from core.strategy.config import EngineConfig
-from core.strategy.mocks import (
-    MockExchangeAPI,
-    MockFeatureAPI,
-    MockMarketAPI,
-    MockStateAPI,
-)
+# Mocks доступны через from core.strategy.mocks import ...
 from core.strategy.loader import (
     PluginInfo,
     PluginLoader,
@@ -209,10 +204,6 @@ __all__ = [
     "EngineConfig",
     "PluginLoader",
     "PluginInfo",
-    "MockFeatureAPI",
-    "MockMarketAPI",
-    "MockStateAPI",
-    "MockExchangeAPI",
     # Context
     "StrategyContext",
     "StrategyConfig",

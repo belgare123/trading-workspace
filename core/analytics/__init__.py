@@ -43,8 +43,7 @@ from core.analytics.models import (
 )
 from core.analytics.profile import ProfileBuilder
 from core.analytics.regime import RegimeDetector
-from core.analytics.session import SessionType as SessionTypeAlias
-from core.analytics.volatility import VolatilityAnalyzer, VolatilityState as VolState
+from core.analytics.volatility import VolatilityAnalyzer
 
 __all__ = [
     # Models

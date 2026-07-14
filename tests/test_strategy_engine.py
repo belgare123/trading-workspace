@@ -10,10 +10,6 @@ import pytest
 from core.strategy import (
     BaseStrategy,
     EngineConfig,
-    MockExchangeAPI,
-    MockFeatureAPI,
-    MockMarketAPI,
-    MockStateAPI,
     PluginInfo,
     PluginLoader,
     Signal,
@@ -23,6 +19,12 @@ from core.strategy import (
     StrategyEngine,
     ManifestLoader,
     StrategyCategory,
+)
+from core.strategy.mocks import (
+    MockExchangeAPI,
+    MockFeatureAPI,
+    MockMarketAPI,
+    MockStateAPI,
 )
 
 
