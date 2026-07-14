@@ -6,7 +6,7 @@
 
 [![Python](https://img.shields.io/badge/python-3.11-blue)](https://python.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-861%20passed-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/tests-953%20passed-brightgreen)](tests/)
 
 ---
 
@@ -85,7 +85,8 @@ python workspace/main.py
 | 12 | Learning (ML/AI) | ✅ |
 | 13–14 | Workspace Platform (FastAPI + 10 apps) | ✅ |
 | **15** | **Marketplace Platform (12 components)** | **✅** |
-| 15.1 | Stabilization (audit, perf, docs, examples) | 🔄 |
+| 15.1 | Stabilization (audit, stress, docs) | ✅ |
+| — | v0.15.0 Released | 🏁 |
 
 ## Project Structure
 
