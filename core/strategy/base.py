@@ -24,7 +24,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-from core.app.phases import Phase
+from core.di import Phase
 from core.strategy.context import StrategyConfig, StrategyContext
 from core.strategy.descriptor import ManifestLoader, StrategyDescriptor, Permission
 from core.strategy.lifecycle import (

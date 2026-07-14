@@ -29,7 +29,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Optional
 
-from core.app.phases import Phase
+from core.di import Phase
 from core.strategy.base import BaseStrategy
 from core.strategy.config import EngineConfig
 from core.strategy.context import (

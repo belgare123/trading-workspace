@@ -15,7 +15,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
-from core.app.phases import Phase
+from core.di import Phase
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
