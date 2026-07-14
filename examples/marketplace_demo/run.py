@@ -1,139 +1,94 @@
+#!/usr/bin/env python
+"""Marketplace Package Demo — создание и управление пакетом стратегии.
+
+Демонстрирует:
+  - Работу с PackageManager (local registry)
+  - Модель Package
+
+Run:
+    python examples/marketplace_demo/run.py
 """
-Marketplace Demo — установка, публикация и управление плагинами через CLI.
-
-Как запустить:
-    cd examples/marketplace_demo
-    python run.py
-"""
-
-from __future__ import annotations
-
+import os
 import sys
+import tempfile
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-# Создаём демо-плагин прямо в памяти
-DEMO_PLUGIN_CODE = '''"""
-Demo Plugin — пример плагина для Marketplace.
-"""
-from __future__ import annotations
-from typing import Any
-from screener_sdk import BasePlugin, PluginManifest
+from marketplace import PackageManager
+from marketplace.models import (
+    Package,
+    PackageVersion,
+    TrustLevel,
+    UpdateChannel,
+)
 
 
-class DemoAnalyzer(BasePlugin):
-    """Plugin that adds custom signal analysis."""
-
-    @property
-    def name(self) -> str:
-        return "demo-analyzer"
-
-    @property
-    def version(self) -> str:
-        return "1.0.0"
-
-    async def initialize(self) -> None:
-        pass
-
-    async def analyze(self, symbol: str, features: dict[str, Any]) -> dict[str, float]:
-        extra_confidence = features.get("rsi.14", 50) / 100 * 0.1
-        return {"extra_confidence": extra_confidence, "adjustment": "rsi_based"}
-
-    async def shutdown(self) -> None:
-        pass
-'''
-
-
-async def main():
+def main():
     print("=" * 55)
-    print("Marketplace Demo — Plugin Lifecycle")
+    print("  Marketplace Package Demo")
     print("=" * 55)
 
-    print()
-    print("1️⃣  Plugin Packaging")
-    print("-" * 35)
-    print("   tw package create demo-analyzer \\")
-    print("       --version 1.0.0 \\")
-    print("       --author \"Trading Workspace\" \\")
-    print("       --type analyzer")
-    print()
+    # 1. Create a package object
+    print("\n1. Creating Package model...")
 
-    print("2️⃣  Plugin Installation")
-    print("-" * 35)
-    print("   tw install demo-analyzer")
-    print("   # or from local path:")
-    print("   tw install ./examples/marketplace_demo/plugin.pkg")
-    print()
-
-    print("3️⃣  Plugin Listing")
-    print("-" * 35)
-    print("   tw list")
-    print("   # Sample output:")
-    print("   #   demo-analyzer    1.0.0  analyzer    enabled")
-    print("   #   rsi-strategy     2.1.0  strategy    enabled")
-    print()
-
-    print("4️⃣  Dependency Resolution")
-    print("-" * 35)
-    print("   tw resolve demo-analyzer")
-    print("   # Shows dependency graph")
-    print()
-
-    print("5️⃣  Trust & Signatures")
-    print("-" * 35)
-    print("   tw trust demo-analyzer --level verified")
-    print("   tw check demo-analyzer --integrity")
-    print()
-
-    print("6️⃣  Plugin Update")
-    print("-" * 35)
-    print("   tw update demo-analyzer --version 1.1.0")
-    print()
-
-    print("7️⃣  Plugin Removal")
-    print("-" * 35)
-    print("   tw remove demo-analyzer")
-    print()
-
-    print("8️⃣  Channels")
-    print("-" * 35)
-    print("   tw channels add community https://hub.example.com")
-    print("   tw search --channel community --type strategy")
-    print()
-
-    print("=" * 55)
-    print("✅ Marketplace CLI is fully operational")
-    print("=" * 55)
-    print()
-    print("Available commands:")
-    cmds = [
-        ("install",  "Install a plugin"),
-        ("remove",   "Remove a plugin"),
-        ("update",   "Update a plugin"),
-        ("list",     "List installed plugins"),
-        ("search",   "Search in marketplace"),
-        ("info",     "Show plugin details"),
-        ("resolve",  "Resolve dependencies"),
-        ("compare",  "Compare two plugins"),
-        ("channels", "Manage channels"),
-        ("check",    "Check integrity"),
-        ("trust",    "Manage trust levels"),
-    ]
-    for cmd, desc in cmds:
-        print(f"   tw {cmd:<12s}  {desc}")
-
-    # Verify the CLI actually works
-    import subprocess
-    result = subprocess.run(
-        [sys.executable, "-m", "workspace.cli.marketplace_cli", "list"],
-        capture_output=True, text=True, cwd=str(Path(__file__).resolve().parents[2]),
+    version = PackageVersion(
+        version="1.0.0",
+        published_at=time.time(),
+        download_url="https://marketplace.example.com/packages/demo-sma-crossover-1.0.0.tar.gz",
+        sha256="abc123def456" * 4,
+        size_bytes=1024,
+        channel=UpdateChannel.STABLE,
+        requires_capabilities=["candle", "sma"],
+        min_core_version="0.15.0",
+        dependencies={"screener-sdk": ">=0.15.0"},
     )
-    print()
-    print("   tw list →", result.stdout.strip() if result.returncode == 0 else "(CLI loaded)")
-    print()
+    print(f"   ✓ Version created: {version.version}")
+
+    pkg = Package(
+        name="demo-sma-crossover",
+        display_name="SMA Crossover Demo",
+        description="Simple SMA crossover strategy — demo package",
+        author="demo",
+        package_type="strategy",
+        tags=["sma", "crossover", "demo"],
+        trust_level=TrustLevel.COMMUNITY,
+        versions={"1.0.0": version},
+        latest_version="1.0.0",
+    )
+    print(f"   ✓ Created: {pkg.name} (latest: v{pkg.latest_version})")
+    print(f"   ✓ Trust: {pkg.trust_level.value}")
+    print(f"   ✓ Requires capabilities: {version.requires_capabilities}")
+
+    # 2. Simulate install via PackageManager
+    print("\n2. Simulating package manager operations...")
+    pkg_dir = Path(tempfile.mkdtemp(prefix="demo_plugins_"))
+
+    mgr = PackageManager(plugins_dir=str(pkg_dir))
+    print(f"   ✓ PackageManager initialized")
+    print(f"   ✓ Plugins dir: {pkg_dir}")
+
+    # List packages
+    installed = mgr.list_installed()
+    print(f"   ✓ Installed packages: {len(installed)}")
+
+    # 4. Package info display
+    print("\n3. Package info:")
+    print(f"   • Name:         {pkg.name}")
+    print(f"   • Display:      {pkg.display_name}")
+    print(f"   • Description:  {pkg.description}")
+    print(f"   • Author:       {pkg.author}")
+    print(f"   • Version:      {pkg.latest_version}")
+    print(f"   • Requires:     {version.requires_capabilities}")
+    print(f"   • Trust level:  {pkg.trust_level.value}")
+    print(f"   • Channel:      {version.channel.value}")
+
+    # Cleanup
+    import shutil
+    shutil.rmtree(pkg_dir)
+    print(f"\n✅ Marketplace demo complete")
 
 
 if __name__ == "__main__":
-    import asyncio
-    asyncio.run(main())
+    main()
