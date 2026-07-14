@@ -1,9 +1,9 @@
 [project]
 name = "trading-workspace"
-version = "0.16.0"
+version = "1.0.0"
 description = "Modular algorithmic trading platform — real-time market data, decision engine, ML learning, workspace UI"
 readme = "README.md"
-license = { text = "MIT" }
+license = "MIT"
 requires-python = ">=3.11"
 authors = [
     { name = "belgare123", email = "thejeremii@gmail.com" },
@@ -27,6 +27,10 @@ tw = "marketplace.cli:main"
 [project.urls]
 Homepage = "https://github.com/belgare123/trading-workspace"
 Repository = "https://github.com/belgare123/trading-workspace"
+
+[tool.setuptools.packages.find]
+include = ["core*", "marketplace*", "workspace*", "screener_sdk*", "exchanges*"]
+exclude = ["tests*", "scripts*", "examples*", "docs*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

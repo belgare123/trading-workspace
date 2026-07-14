@@ -37,6 +37,11 @@ deploy_key.pem
 *.pem
 *.tar
 
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
 # Generated data
 *.parquet
 backtest_*.csv
