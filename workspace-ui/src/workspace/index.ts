@@ -1,0 +1,128 @@
+/**
+ * index.ts — Workspace module barrel
+ *
+ * Layout Engine, Panel Runtime, and Dock Manager exports.
+ * PanelContainer is intentionally re-exported twice (type + component)
+ * but TypeScript handles this gracefully.
+ *
+ * @since 3.2.0
+ */
+
+export type {
+  LayoutId,
+  PanelId,
+  WidgetRef,
+  PanelPosition,
+  TabSpec,
+  Panel,
+  PanelContainer as PanelContainerType,
+} from './layout'
+
+export {
+  LAYOUT_VERSION,
+  PERSISTENCE_VERSION,
+  createWorkspaceLayout,
+  createPanel,
+  cloneWorkspaceLayout,
+  clonePanel,
+  getPanelById,
+  addPanel,
+  removePanel,
+  updatePanelPosition,
+  reorderPanels,
+  LayoutEngine,
+  layoutEngine,
+  LayoutRegistry,
+  layoutRegistry,
+  serializeState,
+  deserializeState,
+  persistState,
+  loadPersistedState,
+  exportLayout,
+  importLayout,
+  createDefaultPersistenceState,
+  validateLayout,
+} from './layout'
+
+export type {
+  SplitDirection,
+  LayoutChangeHandler,
+  ValidationIssue,
+  ValidationResult,
+} from './layout'
+
+// ── Panels ──
+
+export type {
+  PanelDefinition,
+  PanelContext,
+  PanelActions,
+  PanelActionId,
+  Size,
+} from './panels'
+
+export {
+  PanelRegistry,
+  panelRegistry,
+  PanelRuntime,
+  PanelContextProvider,
+  usePanelRuntime,
+  PanelHost,
+  PanelContainer,
+  PanelToolbar,
+  PanelTabs,
+  PANEL_ACTIONS,
+  getDefaultPanelActions,
+} from './panels'
+
+export type {
+  PanelContainerProps,
+  PanelToolbarProps,
+  PanelToolbarActions,
+  PanelTabsProps,
+  PanelActionMeta,
+  PanelRuntimeOptions,
+} from './panels'
+
+// ── Docking ──
+
+export type {
+  DockZone,
+  DockTarget,
+  DockDragState,
+  DockOperationType,
+  DockOperation,
+} from './docking'
+
+export {
+  DOCK_EVENTS,
+  EMPTY_DRAG_STATE,
+  PointerTracker,
+  hitTest,
+  computePanelBounds,
+  calculateZoneRect,
+  snapPosition,
+  DropResolver,
+  OperationHistory,
+  DockController,
+  DockContextProvider,
+  useDockController,
+  DockManager,
+  DockOverlay,
+  DockPreview,
+  DockZones,
+  DragGhost,
+} from './docking'
+
+export type {
+  PointerState,
+  PointerTrackerOptions,
+  HitTestOptions,
+  PanelBounds,
+  ZoneRect,
+  SnapAlignment,
+  DropResolution,
+  OperationHistoryOptions,
+  DockControllerOptions,
+  DockControllerState,
+} from './docking'

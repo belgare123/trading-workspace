@@ -7,7 +7,7 @@
  * @since 3.2.2
  */
 
-import type { PanelId, Panel, PanelState } from '../layout/types'
+import type { Panel, PanelState } from '../layout/types'
 import type { ReactNode } from 'react'
 
 // ── Size ──
