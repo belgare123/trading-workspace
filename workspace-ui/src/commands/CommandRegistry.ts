@@ -1,44 +1,30 @@
 import Fuse from 'fuse.js'
+import { Registry } from '../runtime/Registry'
 import type { Command, CommandLogEntry } from './types'
 
 // ── Registry ───────────────────────────────────────────────────────
 
-export class CommandRegistry {
-  private commands = new Map<string, Command>()
+export class CommandRegistry extends Registry<Command> {
   private fuse: Fuse<Command> | null = null
   private history: CommandLogEntry[] = []
   private historyLimit = 20
   private historyListeners = new Set<(h: CommandLogEntry[]) => void>()
 
-  // ── Registration ─────────────────────────────────────────────────
-
   register(command: Command): void {
-    if (this.commands.has(command.id)) {
-      console.warn(`[CommandRegistry] Overwriting command "${command.id}"`)
-    }
-    this.commands.set(command.id, command)
+    super.register(command)
     this.rebuildIndex()
   }
 
-  unregister(id: string): void {
-    this.commands.delete(id)
+  unregister(id: string): boolean {
+    const result = super.unregister(id)
     this.rebuildIndex()
-  }
-
-  // ── Accessors ────────────────────────────────────────────────────
-
-  get(id: string): Command | undefined {
-    return this.commands.get(id)
-  }
-
-  getAll(): Command[] {
-    return Array.from(this.commands.values())
+    return result
   }
 
   // ── Execute ──────────────────────────────────────────────────────
 
   async execute(id: string, params?: Record<string, unknown>): Promise<void> {
-    const cmd = this.commands.get(id)
+    const cmd = this.get(id)
     if (!cmd) {
       console.warn(`[CommandRegistry] Unknown command: "${id}"`)
       return
@@ -91,7 +77,6 @@ export class CommandRegistry {
 
   // ── Internal ─────────────────────────────────────────────────────
 
-
   private addToHistory(entry: CommandLogEntry): void {
     // Deduplicate consecutive runs
     const last = this.history[0]
@@ -105,7 +90,6 @@ export class CommandRegistry {
     }
     this.notifyHistory()
   }
-
 
   private notifyHistory(): void {
     const snapshot = [...this.history]

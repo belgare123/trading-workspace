@@ -1,4 +1,8 @@
 export { WidgetRegistry } from './WidgetRegistry';
+export { Registry } from './Registry';
+export type { Identifiable } from './Registry';
+export { PlatformBootstrap } from './PlatformBootstrap';
+export type { PlatformStartupReport } from './PlatformBootstrap';
 export { RuntimeProvider, useRuntime, useContainer, useEventBus, useService } from './RuntimeContext';
 export { useLayoutEngine } from './LayoutEngine';
 export { PanelRenderer, LayoutRenderer } from './PanelRenderer';

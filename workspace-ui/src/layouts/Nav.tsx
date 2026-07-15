@@ -1,27 +1,23 @@
-import { LayoutDashboard, Search, Target, BrainCircuit, Play, SearchCheck, Cpu, Puzzle, BookOpen, Monitor } from 'lucide-react'
+import { ScreenRegistry } from '../runtime/dashboard/screen/ScreenRegistry'
 import { useStore } from '../store'
 import { Telemetry } from '../telemetry'
+import { useMemo } from 'react'
 
-const NAV_ITEMS = [
-  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { id: 'scanner', label: 'Scanner', icon: Search },
-  { id: 'opportunities', label: 'Opportunities', icon: Target },
-  { id: 'strategies', label: 'Strategies', icon: BrainCircuit },
-  { id: 'replay', label: 'Replay Studio', icon: Play },
-  { id: 'inspector', label: 'Inspector', icon: SearchCheck },
-  { id: 'runtime', label: 'Runtime', icon: Cpu },
-  { id: 'plugins', label: 'Plugin Store', icon: Puzzle },
-  { id: 'learning', label: 'Learning', icon: BookOpen },
-  { id: 'system', label: 'System', icon: Monitor },
-]
-
+/**
+ * Nav — sidebar navigation.
+ *
+ * Reads ALL registered screens from ScreenRegistry.
+ * No hardcoded items. Register a screen → it appears here.
+ */
 export function Nav() {
   const activeView = useStore((s) => s.activeView)
   const setActiveView = useStore((s) => s.setActiveView)
 
+  const items = useMemo(() => ScreenRegistry.all(), [])
+
   return (
     <nav className="sidebar" role="navigation" aria-label="Main navigation">
-      {NAV_ITEMS.map((item) => {
+      {items.map((item: { id: string; icon: React.ComponentType<{ size?: number; strokeWidth?: number }>; title: string }) => {
         const Icon = item.icon
         return (
           <button
@@ -31,9 +27,9 @@ export function Nav() {
               setActiveView(item.id)
             }}
             className={`sidebar-btn${activeView === item.id ? ' active' : ''}`}
-            aria-label={item.label}
+            aria-label={item.title}
             aria-current={activeView === item.id ? 'page' : undefined}
-            title={item.label}
+            title={item.title}
           >
             <Icon size={18} strokeWidth={1.5} />
           </button>

@@ -1,3 +1,14 @@
+/**
+ * @deprecated DashboardPage is replaced by DashboardShell + ScreenRegistry.
+ *
+ * Since Sprint 3.1.2.5, all workspace views are routed through:
+ *   Nav → ScreenRegistry → DashboardShell → PresetRegistry → WidgetRegistry
+ *
+ * This component is kept as a reference but is no longer used by the app.
+ * Remove once all migration edge-cases are validated.
+ *
+ * Last active import: WorkspaceView.tsx (case 'dashboard', removed in 3.1.2.5)
+ */
 import { ChartWidget } from './widgets/ChartWidget';
 import { OrderBookWidget } from './widgets/OrderBookWidget';
 import { Activity, BarChart3, CandlestickChart, Calendar, Database, Edit3, Gauge, Layers, Play, Radio, RefreshCw, Share2, TrendingUp, Zap } from 'lucide-react';

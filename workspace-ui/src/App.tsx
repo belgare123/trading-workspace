@@ -9,17 +9,39 @@ import { RealtimeProvider } from './realtime'
 import { CommandProvider } from './commands'
 import { SearchProvider, useSearch } from './search'
 import { LayoutProvider } from './layouts'
-import { registerBuiltInCommands } from './commands/builtin'
-import { registerAllSearchAdapters } from './search/registerAdapters'
+import { PlatformBootstrap } from './runtime/PlatformBootstrap'
+import {
+  WorkspaceFoundationModule,
+  OverviewModule,
+  MarketsModule,
+  SignalsModule,
+  PortfolioModule,
+  StrategiesModule,
+  ReplayModule,
+  LearningModule,
+} from './runtime/modules'
 import { useCommands } from './commands/CommandProvider'
 import { useStore } from './store'
 import { useFeatureFlag } from './featureFlags'
 
 const queryClient = new QueryClient()
 
-// Register built-in commands and search adapters once
-registerBuiltInCommands()
-registerAllSearchAdapters()
+// ── Platform boot — single entry point ─────────────────────────────
+
+const bootReport = PlatformBootstrap.initialize([
+  WorkspaceFoundationModule,
+  OverviewModule,
+  MarketsModule,
+  SignalsModule,
+  PortfolioModule,
+  StrategiesModule,
+  ReplayModule,
+  LearningModule,
+])
+
+if (import.meta.env.DEV && bootReport.validations.errors > 0) {
+  console.warn(`[Platform] ⚠ ${bootReport.validations.errors} validation error(s)`)
+}
 
 // ── Global keyboard shortcut handler ───────────────────────────────
 
@@ -29,7 +51,6 @@ function GlobalKeyHandler() {
   const hotkeysEnabled = useFeatureFlag('workspace.hotkeys')
   const paletteEnabled = useFeatureFlag('workspace.commandPalette')
   const searchEnabled = useFeatureFlag('workspace.search')
-  const timelineEnabled = useFeatureFlag('workspace.timeline')
 
   useEffect(() => {
     if (!hotkeysEnabled) return
@@ -50,7 +71,7 @@ function GlobalKeyHandler() {
         return
       }
 
-      // Ctrl+[1-7] → navigation shortcuts
+      // Ctrl+[1-8] → navigation shortcuts
       if ((e.ctrlKey || e.metaKey) && e.key >= '1' && e.key <= '8') {
         e.preventDefault()
         const viewMap: Record<string, string> = {
@@ -67,49 +88,38 @@ function GlobalKeyHandler() {
         if (view) {
           useStore.getState().setActiveView(view)
         }
-        return
-      }
-
-      // Ctrl+L → toggle timeline
-      if (timelineEnabled && (e.ctrlKey || e.metaKey) && e.key === 'l') {
-        e.preventDefault()
-        useStore.getState().toggleTimeline()
-        return
       }
     }
 
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [togglePalette, search, hotkeysEnabled, paletteEnabled, searchEnabled, timelineEnabled])
+  }, [hotkeysEnabled, paletteEnabled, searchEnabled, togglePalette, search])
 
   return null
 }
 
-// ── App ────────────────────────────────────────────────────────────
+// ── App shell ──────────────────────────────────────────────────────
 
 export default function App() {
-  const paletteEnabled = useFeatureFlag('workspace.commandPalette')
-  const searchEnabled = useFeatureFlag('workspace.search')
-
   return (
     <QueryClientProvider client={queryClient}>
-      <RealtimeProvider>
-        <CommandProvider>
-          <SearchProvider>
-            <LayoutProvider>
-              <NotificationProvider>
+      <NotificationProvider>
+        <RealtimeProvider>
+          <CommandProvider>
+            <SearchProvider>
+              <LayoutProvider>
                 <GlobalKeyHandler />
                 <AppLayout>
                   <WorkspaceView />
                 </AppLayout>
+                <CommandPalette />
+                <GlobalSearch />
                 <ToastContainer />
-                {paletteEnabled && <CommandPalette />}
-                {searchEnabled && <GlobalSearch />}
-              </NotificationProvider>
-            </LayoutProvider>
-          </SearchProvider>
-        </CommandProvider>
-      </RealtimeProvider>
+              </LayoutProvider>
+            </SearchProvider>
+          </CommandProvider>
+        </RealtimeProvider>
+      </NotificationProvider>
     </QueryClientProvider>
   )
 }

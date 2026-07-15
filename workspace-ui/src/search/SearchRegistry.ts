@@ -1,33 +1,24 @@
 import Fuse from 'fuse.js'
+import { Registry } from '../runtime/Registry'
 import type { SearchProvider, SearchResult } from './types'
 
 type SearchListener = (results: SearchResult[], query: string) => void
 
-export class SearchRegistry {
-  private providers = new Map<string, SearchProvider>()
+export class SearchRegistry extends Registry<SearchProvider> {
   private listeners = new Set<SearchListener>()
 
-  // ── Registration ─────────────────────────────────────────────────
-
   register(provider: SearchProvider): void {
-    if (this.providers.has(provider.id)) {
-      console.warn(`[SearchRegistry] Overwriting provider "${provider.id}"`)
-    }
-    this.providers.set(provider.id, provider)
+    super.register(provider)
     // Trigger reindex if available
     provider.reindex?.()
   }
 
-  unregister(id: string): void {
-    this.providers.delete(id)
-  }
-
   getProvider(id: string): SearchProvider | undefined {
-    return this.providers.get(id)
+    return this.get(id)
   }
 
   getAllProviders(): SearchProvider[] {
-    return Array.from(this.providers.values())
+    return this.getAll()
   }
 
   // ── Search ───────────────────────────────────────────────────────
@@ -38,7 +29,7 @@ export class SearchRegistry {
     const trimmed = query.trim()
     const promises: Promise<SearchResult[]>[] = []
 
-    for (const provider of this.providers.values()) {
+    for (const provider of this.items.values()) {
       try {
         const result = provider.search(trimmed)
         if (result instanceof Promise) {
@@ -56,14 +47,14 @@ export class SearchRegistry {
 
     // Flatten, score, sort
     const flat: SearchResult[] = []
+    const providers = Array.from(this.items.values())
     for (let i = 0; i < results.length; i++) {
-      const providerId = Array.from(this.providers.keys())[i]
-      const provider = this.providers.get(providerId)
+      const provider = providers[i]
       const priority = provider?.priority ?? 10
 
       for (const r of results[i]) {
         r.score = this.computeScore(trimmed, r, priority)
-        r.domain = providerId
+        r.domain = provider.id
         flat.push(r)
       }
     }
