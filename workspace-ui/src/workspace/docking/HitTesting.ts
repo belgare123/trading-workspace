@@ -3,10 +3,12 @@
  *
  * Strategy:
  *   1. For each panel, calculate pixel bounds from normalized positions
- *   2. Check if pointer is inside the panel
- *   3. If inside, determine zone by proximity to edges:
- *      - Left/right/top/bottom edge (within 15%) → split zone
- *      - Center → tab docking
+ *   2. Check if pointer is inside the panel (reverse z-order: last = topmost)
+ *   3. If inside, determine zone by EXPLICIT priority:
+ *        Left > Right > Top > Bottom > Center
+ *      No ambiguity — first matching edge wins.
+ *   4. For very small panels (< 150px), a minimum pixel threshold is applied
+ *      so edge zones remain usable.
  *
  * @since 3.2.3
  */
@@ -17,6 +19,8 @@ import type { DockTarget, DockZone } from './types'
 export interface HitTestOptions {
   /** Edge zone threshold ratio (default 0.15 = 15%) */
   edgeThreshold?: number
+  /** Minimum pixel threshold for edge zones on small panels (default 20) */
+  minPixelThreshold?: number
 }
 
 /** Computed panel bounds in pixels */
@@ -43,11 +47,11 @@ export function computePanelBounds(panels: Panel[], containerWidth: number, cont
   }))
 }
 
-
 /**
  * Hit test: given pointer position and panel bounds, determine the dock target.
  *
- * Returns the deepest hit — checks all panels in reverse z-order (last = top).
+ * Checks panels in reverse z-order (last = topmost). Returns the first
+ * matching panel and zone, or null if no panel is hit.
  */
 export function hitTest(
   pointerX: number,
@@ -56,27 +60,21 @@ export function hitTest(
   opts?: HitTestOptions,
 ): DockTarget | null {
   const threshold = opts?.edgeThreshold ?? 0.15
-  const panelPadding = 4 // px tolerance around panel edges
+  const minPx = opts?.minPixelThreshold ?? 20
 
   // Check from top to bottom (last panels overlap first)
   for (let i = bounds.length - 1; i >= 0; i--) {
     const b = bounds[i]
-    const expanded = {
-      left: b.left - panelPadding,
-      top: b.top - panelPadding,
-      right: b.right + panelPadding,
-      bottom: b.bottom + panelPadding,
-    }
 
-    if (pointerX < expanded.left || pointerX > expanded.right || pointerY < expanded.top || pointerY > expanded.bottom) {
+    if (pointerX < b.left || pointerX > b.right || pointerY < b.top || pointerY > b.bottom) {
       continue
     }
 
-    // Determine zone
+    // Determine zone with EXPLICIT priority
     const relX = (pointerX - b.left) / b.width
     const relY = (pointerY - b.top) / b.height
 
-    const zone = determineZone(relX, relY, threshold)
+    const zone = determineZone(relX, relY, threshold, b.width, b.height, minPx)
     return { panelId: b.id, zone }
   }
 
@@ -86,33 +84,39 @@ export function hitTest(
 /**
  * Determine dock zone from relative position within a panel.
  *
- * Edge zones (left/right/top/bottom):
- *   ┌─────┬───────────┬─────┐
- *   │ top │   top     │ top │
- *   ├─────┤           ├─────┤
- *   │left │  center   │right│
- *   ├─────┤           ├─────┤
- *   │bot  │   bot     │ bot │
- *   └─────┴───────────┴─────┘
+ * EXPLICIT priority (first match wins):
+ *   1. Left   — cursor is within left edge threshold
+ *   2. Right  — cursor is within right edge threshold
+ *   3. Top    — cursor is within top edge threshold
+ *   4. Bottom — cursor is within bottom edge threshold
+ *   5. Center — tab docking
+ *
+ * Edge threshold is the larger of (ratio * dimension) and minPixelThreshold,
+ * so tiny panels still have usable edge zones.
  */
-function determineZone(relX: number, relY: number, threshold: number): DockZone {
-  const nearLeft = relX <= threshold
-  const nearRight = relX >= 1 - threshold
-  const nearTop = relY <= threshold
-  const nearBottom = relY >= 1 - threshold
+function determineZone(
+  relX: number,
+  relY: number,
+  ratioThreshold: number,
+  panelWidth: number,
+  panelHeight: number,
+  minPx: number,
+): DockZone {
+  // Use relative values (normalized) for comparison.
+  // For small panels, the threshold is the larger of ratio-based and
+  // minimum-pixel-based so edge zones remain usable on tiny panels.
+  const relThreshold = Math.max(ratioThreshold, minPx / Math.min(panelWidth, panelHeight))
 
-  // Corners — favor horizontal split
-  if (nearTop && nearLeft) return relX < relY ? 'left' : 'top'
-  if (nearTop && nearRight) return (1 - relX) < relY ? 'right' : 'top'
-  if (nearBottom && nearLeft) return relX < (1 - relY) ? 'left' : 'bottom'
-  if (nearBottom && nearRight) return (1 - relX) < (1 - relY) ? 'right' : 'bottom'
+  // ── EXPLICIT PRIORITY: Left → Right → Top → Bottom → Center ──
+  // Each zone is checked independently. First match wins.
+  // This eliminates ambiguity — corners and overlapping zones are resolved
+  // purely by priority order.
 
-  // Edge zones
-  if (nearLeft) return 'left'
-  if (nearRight) return 'right'
-  if (nearTop) return 'top'
-  if (nearBottom) return 'bottom'
+  if (relX <= relThreshold) return 'left'
+  if (relX >= 1 - relThreshold) return 'right'
+  if (relY <= relThreshold) return 'top'
+  if (relY >= 1 - relThreshold) return 'bottom'
 
-  // Center — tab docking
+  // No edge hit → tab docking
   return 'center'
 }

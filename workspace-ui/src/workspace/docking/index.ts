@@ -7,9 +7,17 @@
 export type {
   DockZone,
   DockTarget,
+  DockState,
   DockDragState,
-  DockOperationType,
-  DockOperation,
+  LayoutCommand,
+  SplitCommand,
+  DockCommand,
+  FloatCommand,
+  CloseCommand,
+  MoveCommand,
+  CommandResult,
+  Operation,
+  OperationType,
 } from './types'
 
 export {
@@ -48,10 +56,7 @@ export type {
 
 export {
   DropResolver,
-} from './DropResolver'
-
-export type {
-  DropResolution,
+  clonePanels,
 } from './DropResolver'
 
 export {

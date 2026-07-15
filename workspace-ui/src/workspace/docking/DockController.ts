@@ -1,11 +1,16 @@
 /**
  * DockController — orchestrator for drag-and-drop docking
  *
- * Ties together:
- *   PointerTracker → HitTesting → DockPreview → DropResolver → LayoutEngine → PanelRuntime
+ * Finite state machine with explicit transitions:
+ *   Idle → Pressed → Dragging → HoveringTarget → Dropping → Idle
+ *                ↘                    ↙
+ *              Cancelled → Idle
  *
- * PUBLISHES dock events to EventBus (when available)
- * RECORDS operations to OperationHistory
+ * Ties together:
+ *   PointerTracker → HitTesting → DropResolver → LayoutEngine → PanelRuntime
+ *
+ * Publishes dock events to EventBus (when available)
+ * Records operations to OperationHistory with before/after snapshots
  *
  * Imports LayoutEngine but does NOT extend or modify it.
  * All interactions through existing LayoutEngine API.
@@ -15,16 +20,17 @@
 
 import type { LayoutEngine } from '../layout/LayoutEngine'
 import type { EventBus } from '../../runtime/EventBus'
+import type { Panel } from '../layout/types'
 import { PointerTracker } from './PointerTracker'
 import type { PointerState } from './PointerTracker'
 import { hitTest, computePanelBounds } from './HitTesting'
 import type { PanelBounds } from './HitTesting'
 import { calculateZoneRect } from './SnapEngine'
 import type { ZoneRect } from './SnapEngine'
-import { DropResolver } from './DropResolver'
+import { DropResolver, clonePanels } from './DropResolver'
 import { OperationHistory } from './OperationHistory'
 import { DOCK_EVENTS, EMPTY_DRAG_STATE } from './types'
-import type { DockDragState } from './types'
+import type { DockDragState, DockState } from './types'
 
 export interface DockControllerOptions {
   engine: LayoutEngine
@@ -34,6 +40,8 @@ export interface DockControllerOptions {
 }
 
 export interface DockControllerState {
+  /** Current machine state */
+  machineState: DockState
   dragState: DockDragState
   zoneRect: ZoneRect | null
   panelBounds: PanelBounds[]
@@ -48,11 +56,16 @@ export class DockController {
   private source: string
   private _onStateChange?: (state: DockControllerState) => void
 
+  // Machine state
+  private _machineState: DockState = 'idle'
+
   // Internal state
   private _dragState: DockDragState = { ...EMPTY_DRAG_STATE }
   private _zoneRect: ZoneRect | null = null
   private _panelBounds: PanelBounds[] = []
   private containerRect: DOMRect | null = null
+  /** Snapshot of panels captured when drag started (for history) */
+  private _beforePanels: Panel[] = []
 
   constructor(opts: DockControllerOptions) {
     this.engine = opts.engine
@@ -86,11 +99,17 @@ export class DockController {
   /** Detach from container */
   detach(): void {
     this.pointerTracker.detach()
+    this.transitionTo('idle', 'detach')
   }
 
   /** Current drag state (read-only) */
   get dragState(): DockDragState {
     return { ...this._dragState }
+  }
+
+  /** Current machine state */
+  get machineState(): DockState {
+    return this._machineState
   }
 
   /** Update container rect for hit testing */
@@ -103,25 +122,46 @@ export class DockController {
     )
   }
 
+  // ── State Machine ──
+
+  private transitionTo(next: DockState, reason: string): void {
+    const prev = this._machineState
+    this._machineState = next
+
+    this.emitEvent(DOCK_EVENTS.STATE_CHANGED, {
+      from: prev,
+      to: next,
+      reason,
+    })
+  }
+
   // ── Private: Pointer handlers ──
 
   private handlePointerDown = (state: PointerState): void => {
-    // Find which panel is being clicked
     if (!this.containerRect) return
-    const target = hitTest(state.startX - this.containerRect.left, state.startY - this.containerRect.top, this._panelBounds)
+
+    const target = hitTest(
+      state.startX - this.containerRect.left,
+      state.startY - this.containerRect.top,
+      this._panelBounds,
+    )
     if (!target) return
 
-    // Store the source panel id (but don't start drag yet)
     this._dragState.sourcePanelId = target.panelId
     this._dragState.offset = {
       x: state.startX - this.containerRect.left,
       y: state.startY - this.containerRect.top,
     }
+
+    this.transitionTo('pressed', `pointer down on ${target.panelId}`)
     this.notifyState()
   }
 
   private handleDragStart = (state: PointerState): void => {
     if (!this._dragState.sourcePanelId) return
+
+    // Capture before-snapshot for history
+    this._beforePanels = clonePanels(this.engine.current.panels)
 
     this._dragState.active = true
     this._dragState.ghostPosition = {
@@ -129,12 +169,12 @@ export class DockController {
       y: state.currentY,
     }
 
+    this.transitionTo('dragging', 'drag threshold exceeded')
     this.emitEvent(DOCK_EVENTS.DRAG_START, {
       panelId: this._dragState.sourcePanelId,
       position: { x: state.currentX, y: state.currentY },
     })
 
-    this.history.record('move', this._dragState.sourcePanelId, 'Drag started')
     this.notifyState()
   }
 
@@ -165,6 +205,13 @@ export class DockController {
 
       this._dragState.currentTarget = target
 
+      // Transition to hovering-target if we have a valid target
+      if (target && this._machineState === 'dragging') {
+        this.transitionTo('hovering-target', `hit ${target.panelId} ${target.zone}`)
+      } else if (!target && this._machineState === 'hovering-target') {
+        this.transitionTo('dragging', 'left target area')
+      }
+
       // Update zone rect for preview
       if (target) {
         const panelBound = this._panelBounds.find(b => b.id === target.panelId)
@@ -191,39 +238,67 @@ export class DockController {
     const sourcePanelId = this._dragState.sourcePanelId
     const target = this._dragState.currentTarget
 
-    if (sourcePanelId && target) {
-      // Find the source panel
+    if (sourcePanelId && target && this._machineState === 'hovering-target') {
+      this.transitionTo('dropping', `drop on ${target.panelId} ${target.zone}`)
+
       const sourcePanel = this.engine.current.panels.find(p => p.id === sourcePanelId)
       if (sourcePanel) {
-        // Don't dock a panel onto itself
-        if (target.panelId !== sourcePanelId || target.zone === 'center') {
-          const resolution = this.dropResolver.resolve(target, sourcePanel)
+        // Don't allow self-dock (same panel, non-center zone)
+        const isSelfDock = target.panelId === sourcePanelId && target.zone !== 'center'
+        if (!isSelfDock) {
+          // 1. Generate command (pure)
+          const command = this.dropResolver.resolve(target, sourcePanel)
 
-          if (resolution.success) {
-            this.emitEvent(DOCK_EVENTS.DRAG_DROP, {
-              sourcePanelId,
-              target,
-              resolution,
-            })
+          if (command) {
+            // 2. Execute command on LayoutEngine
+            const resolution = this.dropResolver.execute(command)
 
-            this.emitEvent(DOCK_EVENTS.LAYOUT_CHANGED, {
-              operation: resolution.operation,
-              description: resolution.description,
-            })
+            if (resolution.success) {
+              // 3. Record with before/after snapshots
+              const afterPanels = clonePanels(this.engine.current.panels)
+              this.history.record(
+                resolution.operation as any,
+                command,
+                this._beforePanels,
+                afterPanels,
+                resolution.description,
+              )
 
-            this.history.record(
-              resolution.operation as any,
-              sourcePanelId,
-              resolution.description,
-            )
+              // 4. Emit events
+              this.emitEvent(DOCK_EVENTS.DRAG_DROP, {
+                sourcePanelId,
+                target,
+                command,
+                resolution,
+              })
+
+              this.emitEvent(DOCK_EVENTS.LAYOUT_CHANGED, {
+                operation: resolution.operation,
+                command,
+                description: resolution.description,
+              })
+            } else {
+              this.emitEvent(DOCK_EVENTS.DRAG_DROP, {
+                sourcePanelId,
+                target,
+                command,
+                resolution,
+                error: 'Command execution failed',
+              })
+            }
           }
         }
       }
+    } else if (sourcePanelId && this._machineState === 'dragging') {
+      // Dragging ended without hitting a target — cancelled
+      this.transitionTo('cancelled', 'no valid target')
     }
 
     // Reset state
     this._dragState = { ...EMPTY_DRAG_STATE }
     this._zoneRect = null
+    this._beforePanels = []
+    this.transitionTo('idle', 'drag ended')
 
     this.notifyState()
   }
@@ -243,6 +318,7 @@ export class DockController {
 
   private notifyState(): void {
     this._onStateChange?.({
+      machineState: this._machineState,
       dragState: this._dragState,
       zoneRect: this._zoneRect,
       panelBounds: this._panelBounds,

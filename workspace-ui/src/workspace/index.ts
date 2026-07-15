@@ -89,9 +89,17 @@ export type {
 export type {
   DockZone,
   DockTarget,
+  DockState,
   DockDragState,
-  DockOperationType,
-  DockOperation,
+  LayoutCommand,
+  SplitCommand,
+  DockCommand,
+  FloatCommand,
+  CloseCommand,
+  MoveCommand,
+  CommandResult,
+  Operation,
+  OperationType,
 } from './docking'
 
 export {
@@ -103,6 +111,7 @@ export {
   calculateZoneRect,
   snapPosition,
   DropResolver,
+  clonePanels,
   OperationHistory,
   DockController,
   DockContextProvider,
@@ -121,7 +130,6 @@ export type {
   PanelBounds,
   ZoneRect,
   SnapAlignment,
-  DropResolution,
   OperationHistoryOptions,
   DockControllerOptions,
   DockControllerState,
