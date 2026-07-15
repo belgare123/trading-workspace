@@ -70,6 +70,29 @@ export interface SystemMetric {
   status: 'ok' | 'warn' | 'error'
 }
 
+export interface SystemMetrics {
+  runtime: number
+  pnl: number
+  signals: number
+  events: number
+  cpu: number
+  memory: number
+  ws_clients: number
+  connected: boolean
+}
+
+export interface ComponentStatus {
+  name: string
+  status: 'healthy' | 'degraded' | 'critical'
+  value: string
+}
+
+export interface HealthData {
+  overall_score: number
+  status: 'healthy' | 'degraded' | 'critical'
+  components: ComponentStatus[]
+}
+
 // WebSocket message types
 export type WsMessage =
   | { type: 'scanner_update'; data: ScannerItem[] }

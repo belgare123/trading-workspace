@@ -1,0 +1,19 @@
+{
+  "id": "my-plugin",
+  "name": "My Plugin",
+  "version": "1.0.0",
+  "description": "Description of your plugin",
+  "author": "Your Name",
+  "icon": "puzzle",
+  "permissions": [
+    "widget.write",
+    "command.execute",
+    "search.index"
+  ],
+  "dependencies": {
+    "runtime": ">=2.0.0"
+  },
+  "widgets": ["my-widget"],
+  "commands": ["my-plugin.command"],
+  "searchAdapters": ["my-search"]
+}

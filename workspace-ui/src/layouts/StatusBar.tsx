@@ -1,53 +1,44 @@
-import { useStore } from '../store'
+import type { ReactNode } from 'react'
+import { StatusBadge } from '../components/StatusBadge'
+import type { RuntimeStatus } from '../widgets/types'
+import { Wifi, Cpu, HardDrive, Server } from 'lucide-react'
 
-export function StatusBar() {
-  const metrics = useStore((s) => s.metrics)
-  const replay = useStore((s) => s.replay)
-  const timelineOpen = useStore((s) => s.timelineOpen)
+export interface StatusBarProps {
+  left?: ReactNode
+  center?: ReactNode
+  right?: ReactNode
+  status?: RuntimeStatus
+}
 
+export function StatusBar({ left, center, right, status = 'running' }: StatusBarProps) {
   return (
-    <footer className="h-7 flex items-center justify-between px-4 bg-status-bg border-t border-border text-xs text-surface-600" role="contentinfo" aria-label="Status bar">
-      <div className="flex items-center gap-4" aria-live="polite">
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            useStore.getState().toggleTimeline()
-          }}
-          style={{
-            background: timelineOpen ? 'var(--c-accent)' : 'transparent',
-            color: timelineOpen ? '#fff' : '#5b6a7a',
-            border: `1px solid ${timelineOpen ? 'var(--c-accent)' : '#2c2e33'}`,
-            borderRadius: 3,
-            padding: '1px 6px',
-            fontSize: 10,
-            cursor: 'pointer',
-            lineHeight: '16px',
-          }}
-          title="Toggle Timeline"
-          aria-label={timelineOpen ? 'Close timeline panel' : 'Open timeline panel'}
-          aria-expanded={timelineOpen}
-        >
-          Timeline
-        </button>
-        <span className="flex items-center gap-1">
-          <span className="w-1.5 h-1.5 rounded-full bg-accent-green" />
-          Connected
-        </span>
-        {metrics.slice(0, 3).map((m) => (
-          <span key={m.name}>
-            {m.name}: {m.value}
-            {m.unit}
-          </span>
-        ))}
-      </div>
-
-      <div className="flex items-center gap-4">
-        {replay.status !== 'idle' && (
-          <span className="text-accent-cyan">
-            {replay.status === 'playing' ? '▶' : '⏸'} {replay.speed}x
-          </span>
+    <footer className="statusbar" role="status" aria-label="Application status">
+      <div className="statusbar-left">
+        {left || (
+          <>
+            <StatusBadge status={status} pulse />
+            <span className="sep" />
+            <Wifi size={12} strokeWidth={2} style={{ color: 'var(--success)' }} />
+            <span style={{ color: 'var(--success)' }}>Connected</span>
+            <span className="sep" />
+            <Server size={12} strokeWidth={1.5} style={{ color: 'var(--text-muted)' }} />
+            <span>Backend OK</span>
+          </>
         )}
-        <span className="text-surface-600">v1.0.0</span>
+      </div>
+      {center && <div style={{ flex: 1, textAlign: 'center', fontSize: 11, color: 'var(--text-muted)' }}>{center}</div>}
+      <div className="statusbar-right">
+        {right || (
+          <>
+            <Cpu size={12} strokeWidth={1.5} />
+            <span>CPU 2%</span>
+            <span className="sep" />
+            <HardDrive size={12} strokeWidth={1.5} />
+            <span>MEM 1.2G</span>
+            <span className="sep" />
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10 }}>v1.0.0</span>
+          </>
+        )}
       </div>
     </footer>
   )

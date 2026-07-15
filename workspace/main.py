@@ -712,13 +712,60 @@ def create_app() -> FastAPI:
                 "Spread": 0.0003,
                 "Liquidity": "High",
             },
-            "decision_chain": [
-                f"Trend analysis: BULL (EMA>200, +3.2%)",
-                "RSI: 62.3 (bullish, no divergence)",
-                "Volume: 1.42x avg (confirms trend)",
-                "Volatility: Expansion (ATR ratio 1.62)",
-                "Decision: LONG with 78% confidence",
-            ],
+        }
+
+    # ── Chart API ───────────────────────────────────────────────────
+
+    @app.get("/api/v1/chart")
+    async def chart_data(symbol: str = "BTCUSDT", interval: str = "1h", limit: int = 50):
+        """Return OHLCV candle data for Chart widget."""
+        import math, random
+        now = time.time()
+        base_price = 66210 if symbol == "BTCUSDT" else (3450 if symbol == "ETHUSDT" else 143)
+        candles = []
+        for i in range(limit):
+            ts = now - (limit - i) * 3600
+            o = base_price + random.uniform(-200, 200)
+            h = o + random.uniform(10, 300)
+            l = o - random.uniform(10, 300)
+            c = (o + h + l) / 3 + random.uniform(-50, 50)
+            c = max(l, min(h, c))
+            v = random.uniform(100, 5000)
+            candles.append({
+                "time": ts,
+                "open": round(o, 2),
+                "high": round(h, 2),
+                "low": round(l, 2),
+                "close": round(c, 2),
+                "volume": round(v, 2),
+            })
+            base_price = c
+        return {"symbol": symbol, "interval": interval, "candles": candles}
+
+    # ── Order Book API ──────────────────────────────────────────────
+
+    @app.get("/api/v1/orderbook")
+    async def orderbook_data(symbol: str = "BTCUSDT", depth: int = 15):
+        """Return bid/ask orderbook snapshot."""
+        import random
+        base_price = 66210 if symbol == "BTCUSDT" else (3450 if symbol == "ETHUSDT" else 143)
+        spread = base_price * 0.0005
+        bids, asks = [], []
+        total_bid, total_ask = 0, 0
+        for i in range(depth):
+            bid_p = base_price - spread * (i + 1) - random.uniform(0, spread * 0.5)
+            ask_p = base_price + spread * (i + 1) + random.uniform(0, spread * 0.5)
+            bid_s = random.uniform(0.5, 15)
+            ask_s = random.uniform(0.5, 15)
+            total_bid += bid_s
+            total_ask += ask_s
+            bids.append({"price": round(bid_p, 2), "size": round(bid_s, 4), "total": round(total_bid, 4)})
+            asks.append({"price": round(ask_p, 2), "size": round(ask_s, 4), "total": round(total_ask, 4)})
+        return {
+            "symbol": symbol,
+            "spread": round(spread, 2),
+            "bids": bids,
+            "asks": asks,
         }
 
     @app.get("/api/v1/trace/{symbol}")

@@ -1,26 +1,31 @@
-/**
- * Workspace Design System — theme entry point.
- *
- * Usage:
- *   import { colors, spacing, radius } from '../theme'
- *
- * CSS custom properties are generated from these tokens in index.css.
- */
+// Theme barrel — single import for all theme tokens
+export { colors } from './colors';
+export type { ColorKey } from './colors';
 
-export { colors } from './colors'
-export type { ThemeColors } from './colors'
+export { spacing } from './spacing';
 
-export { spacing } from './spacing'
-export type { Spacing } from './spacing'
+export { radius } from './radius';
+export type { RadiusKey } from './radius';
 
-export { radius } from './radius'
-export type { Radius } from './radius'
+export { motion, duration, easing } from './motion';
+export type { MotionKey, EasingKey, DurationKey } from './motion';
 
-export { shadows } from './shadows'
+export { typography, fontFamily, fontSize, fontWeight, lineHeight, letterSpacing, textStyles } from './typography';
+export type { TypographyKey } from './typography';
 
-export { typography } from './typography'
+export { glass, glassStyle } from './glass';
 
-export { motion } from './motion'
+export { shadows } from './shadows';
+export type { ShadowKey } from './shadows';
 
-export { zindex } from './zindex'
-export type { ZIndex } from './zindex'
+export { glow, glowRadial } from './glow';
+export type { GlowKey } from './glow';
+
+export { gradients } from './gradients';
+export type { GradientKey } from './gradients';
+
+export { iconNames } from './icons';
+export type { IconName } from './icons';
+
+export { ThemeProvider, useTheme } from './ThemeProvider';
+export type { Theme, ThemeMode } from './ThemeProvider';

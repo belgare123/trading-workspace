@@ -1,0 +1,13 @@
+{
+  "name": "@trading-workspace/runtime-kernel",
+  "version": "2.0.0",
+  "description": "Trading Workspace Runtime Kernel — modular event-driven platform",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "type-check": "tsc -b --noEmit",
+    "build": "vite build"
+  },
+  "keywords": ["trading", "runtime", "kernel", "event-bus", "plugins"],
+  "license": "UNLICENSED"
+}

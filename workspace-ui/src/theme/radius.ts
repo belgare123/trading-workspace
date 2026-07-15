@@ -1,11 +1,13 @@
 export const radius = {
-  none: 0,
-  sm: 4,
-  md: 6,
-  lg: 8,
-  xl: 10,
-  '2xl': 12,
-  full: 9999,
-} as const
+  none: '0px',
+  sm: '4px',
+  md: '6px',
+  lg: '8px',
+  xl: '10px',
+  '2xl': '12px',
+  '3xl': '16px',
+  '4xl': '20px',
+  full: '9999px',
+} as const;
 
-export type Radius = keyof typeof radius
+export type RadiusKey = keyof typeof radius;

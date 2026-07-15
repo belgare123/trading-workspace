@@ -51,7 +51,7 @@ function GlobalKeyHandler() {
       }
 
       // Ctrl+[1-7] → navigation shortcuts
-      if ((e.ctrlKey || e.metaKey) && e.key >= '1' && e.key <= '7') {
+      if ((e.ctrlKey || e.metaKey) && e.key >= '1' && e.key <= '8') {
         e.preventDefault()
         const viewMap: Record<string, string> = {
           '1': 'scanner',
@@ -61,6 +61,7 @@ function GlobalKeyHandler() {
           '5': 'plugins',
           '6': 'learning',
           '7': 'system',
+          '8': 'runtime',
         }
         const view = viewMap[e.key]
         if (view) {

@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Premium · Trading Workspace</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:wght@600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg-deep: #05070a;
+    --bg-surface: #0b0e14;
+    --bg-elevated: #111620;
+    --bg-card: #151c28;
+    --bg-card-hover: #1a2232;
+    --border-subtle: rgba(255,255,255,0.04);
+    --border: rgba(255,255,255,0.06);
+    --border-accent: rgba(255,255,255,0.1);
+
+    --text-primary: #f0f2f5;
+    --text-secondary: #949aa8;
+    --text-tertiary: #5c6372;
+    --text-muted: #3d4350;
+
+    --accent-green: #2ebd7a;
+    --accent-green-glow: rgba(46,189,122,0.15);
+    --accent-red: #e4566a;
+    --accent-red-glow: rgba(228,86,106,0.12);
+    --accent-blue: #557df2;
+    --accent-blue-glow: rgba(85,125,242,0.12);
+    --accent-gold: #d4a847;
+    --accent-gold-glow: rgba(212,168,71,0.12);
+
+    --gradient-accent: linear-gradient(135deg, #557df2, #2ebd7a);
+    --gradient-card: linear-gradient(180deg, rgba(255,255,255,0.03) 0%, transparent 100%);
+
+    --shadow-card: 0 2px 20px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.03);
+    --shadow-elevated: 0 8px 40px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.04);
+
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 16px;
+
+    --font: 'Inter', system-ui, sans-serif;
+    --font-display: 'Playfair Display', serif;
+    --mono: 'JetBrains Mono', monospace;
+  }
+
+  html { font-size: 13px; background: var(--bg-deep); }
+  body {
+    font-family: var(--font);
+    color: var(--text-primary);
+    height: 100vh; width: 100vw; overflow: hidden;
+    display: flex; flex-direction: column;
+    background: var(--bg-deep);
+  }
+
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 2px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.1); }
+
+  /* ── Header ── */
+  .header {
+    height: 60px;
+    display: flex; align-items: center;
+    padding: 0 24px; gap: 24px;
+    flex-shrink: 0;
+    background: rgba(5,7,10,0.9);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border-subtle);
+    z-index: 10;
+  }
+
+  .logo {
+    display: flex; align-items: center; gap: 12px;
+    font-size: .9rem; font-weight: 800;
+    letter-spacing: .8px;
+    color: var(--text-primary);
+  }
+  .logo-mark {
+    width: 24px; height: 24px;
+    border-radius: var(--radius-sm);
+    background: var(--gradient-accent);
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 4px 12px rgba(85,125,242,0.25);
+    font-size: .7rem; color: #fff; font-weight: 800;
+  }
+
+  .search-wrap {
+    flex: 1; max-width: 300px; position: relative;
+  }
+  .search-wrap input {
+    width: 100%;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 8px 14px 8px 36px;
+    color: var(--text-primary);
+    font-family: var(--font);
+    font-size: .8rem;
+    outline: none;
+    transition: all .25s;
+  }
+  .search-wrap input:focus { border-color: var(--accent-blue); box-shadow: 0 0 0 3px var(--accent-blue-glow); }
+  .search-wrap input::placeholder { color: var(--text-muted); }
+  .search-wrap svg {
+    position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+    width: 14px; height: 14px; color: var(--text-tertiary);
+  }
+
+  .stats { display: flex; gap: 8px; }
+  .stat {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 14px; border-radius: var(--radius-md);
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    font-size: .78rem; color: var(--text-secondary);
+    transition: all .2s;
+  }
+  .stat:hover { border-color: var(--border-accent); }
+  .stat .num { color: var(--text-primary); font-weight: 600; }
+  .stat-indicator {
+    width: 6px; height: 6px; border-radius: 50%;
+    position: relative;
+  }
+  .stat-indicator.green { background: var(--accent-green); }
+  .stat-indicator.green::after {
+    content: ''; position: absolute; inset: -3px;
+    border-radius: 50%; background: var(--accent-green-glow);
+    animation: breathe 2.5s infinite;
+  }
+  .stat-indicator.blue { background: var(--accent-blue); }
+  .stat-indicator.blue::after {
+    content: ''; position: absolute; inset: -3px;
+    border-radius: 50%; background: var(--accent-blue-glow);
+    animation: breathe 2.5s infinite;
+  }
+  .stat-indicator.gold { background: var(--accent-gold); }
+  .stat-indicator.gold::after {
+    content: ''; position: absolute; inset: -3px;
+    border-radius: 50%; background: var(--accent-gold-glow);
+    animation: breathe 2.5s infinite;
+  }
+  @keyframes breathe {
+    0%, 100% { transform: scale(1); opacity: .4; }
+    50% { transform: scale(1.5); opacity: .1; }
+  }
+
+  .right-actions { display: flex; align-items: center; gap: 14px; margin-left: auto; }
+  .notif-btn {
+    width: 34px; height: 34px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: var(--radius-md);
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    cursor: pointer; position: relative;
+    transition: all .2s;
+  }
+  .notif-btn:hover { border-color: var(--border-accent); }
+  .notif-btn svg { width: 16px; height: 16px; color: var(--text-secondary); }
+  .notif-badge {
+    position: absolute; top: -4px; right: -4px;
+    width: 17px; height: 17px; border-radius: 50%;
+    background: var(--accent-red); color: #fff;
+    font-size: .6rem; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 2px 8px var(--accent-red-glow);
+  }
+  .clock {
+    font-family: var(--mono);
+    font-size: .78rem;
+    color: var(--text-tertiary);
+    letter-spacing: .3px;
+    padding: 6px 12px;
+    background: var(--bg-surface);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
+  }
+  .avatar {
+    width: 34px; height: 34px;
+    border-radius: var(--radius-md);
+    background: var(--gradient-accent);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: .75rem; color: #fff;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(85,125,242,0.2);
+    transition: all .25s;
+  }
+  .avatar:hover { box-shadow: 0 4px 20px rgba(85,125,242,0.35); transform: translateY(-1px); }
+
+  /* ── Body ── */
+  .body-wrap { display: flex; flex: 1; overflow: hidden; }
+
+  .sidebar {
+    width: 200px; flex-shrink: 0;
+    padding: 16px 10px;
+    border-right: 1px solid var(--border-subtle);
+    background: transparent;
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .s-label {
+    font-size: .6rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 1.5px; color: var(--text-muted);
+    padding: 10px 12px 6px;
+  }
+  .s-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px; border-radius: var(--radius-md);
+    color: var(--text-secondary); cursor: pointer;
+    font-size: .8rem; font-weight: 500; text-decoration: none;
+    transition: all .2s; position: relative;
+  }
+  .s-item:hover { background: var(--bg-surface); color: var(--text-primary); }
+  .s-item.active {
+    background: linear-gradient(90deg, rgba(85,125,242,0.08), transparent);
+    color: var(--accent-blue);
+    font-weight: 600;
+  }
+  .s-item.active::before {
+    content: '';
+    position: absolute; left: 0; top: 6px; bottom: 6px; width: 2px;
+    background: var(--accent-blue); border-radius: 1px;
+  }
+  .s-item svg { width: 15px; height: 15px; opacity: .5; }
+  .s-item.active svg { opacity: 1; }
+
+  .s-divider { height: 1px; margin: 8px 12px; background: var(--border-subtle); }
+
+  .main { flex: 1; padding: 20px 24px; overflow-y: auto; display: flex; flex-direction: column; gap: 20px; }
+
+  .chart-row { display: flex; gap: 20px; }
+
+  .chart-card {
+    flex: 1; border-radius: var(--radius-lg); padding: 20px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-card);
+    transition: all .25s;
+  }
+  .chart-card:hover { box-shadow: var(--shadow-elevated); }
+  .chart-hdr { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
+  .chart-info { }
+  .chart-pair { font-weight: 600; font-size: .85rem; color: var(--text-secondary); }
+  .chart-price {
+    font-family: var(--mono); font-size: 1.8rem; font-weight: 700;
+    letter-spacing: -1px; margin-top: 2px;
+    background: linear-gradient(135deg, var(--accent-green), #6ddba5);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .chart-change { font-size: .82rem; color: var(--accent-green); margin-top: 2px; }
+  .chart-tf { display: flex; gap: 4px; }
+  .chart-tf button {
+    background: none; border: none; color: var(--text-muted);
+    padding: 4px 10px; border-radius: var(--radius-sm);
+    cursor: pointer; font-family: var(--font); font-size: .72rem; font-weight: 500;
+    transition: all .2s;
+  }
+  .chart-tf button:hover { background: var(--bg-surface); color: var(--text-secondary); }
+  .chart-tf button.active {
+    background: var(--accent-blue-glow); color: var(--accent-blue);
+  }
+  .chart-cw { position: relative; height: 240px; width: 100%; }
+  .chart-cw canvas { width: 100%; height: 100%; }
+
+  .pie-card {
+    width: 240px; flex-shrink: 0;
+    border-radius: var(--radius-lg); padding: 20px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-card);
+    display: flex; flex-direction: column;
+    transition: all .25s;
+  }
+  .pie-card:hover { box-shadow: var(--shadow-elevated); }
+  .pie-title { font-weight: 600; font-size: .82rem; color: var(--text-secondary); margin-bottom: 12px; }
+  .pie-cw { position: relative; width: 130px; height: 130px; margin: 0 auto 12px; }
+  .pie-cw canvas { width: 100%; height: 100%; }
+  .pie-ctr { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; }
+  .pie-ctr .big { font-weight: 700; font-size: 1.5rem; background: linear-gradient(135deg, var(--accent-blue), var(--accent-green)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .pie-ctr .small { font-size: .65rem; color: var(--text-muted); }
+  .pie-leg { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+  .pie-leg-item { display: flex; align-items: center; gap: 5px; font-size: .7rem; color: var(--text-tertiary); }
+  .pie-leg-dot { width: 5px; height: 5px; border-radius: 50%; }
+
+  .signals-card {
+    border-radius: var(--radius-lg); overflow: hidden;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-card);
+    transition: all .25s;
+  }
+  .signals-card:hover { box-shadow: var(--shadow-elevated); }
+  .signals-hdr {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--gradient-card);
+  }
+  .signals-hdr h3 { font-size: .85rem; font-weight: 600; color: var(--text-primary); }
+  .signals-filt { display: flex; gap: 6px; }
+  .signals-filt button {
+    background: none; border: 1px solid transparent;
+    color: var(--text-tertiary); padding: 4px 12px; border-radius: var(--radius-sm);
+    cursor: pointer; font-family: var(--font); font-size: .72rem; font-weight: 500;
+    transition: all .2s;
+  }
+  .signals-filt button:hover { border-color: var(--border); color: var(--text-secondary); }
+  .signals-filt button.active {
+    border-color: var(--accent-blue);
+    color: var(--accent-blue);
+    background: var(--accent-blue-glow);
+  }
+
+  .tbl { width: 100%; border-collapse: collapse; }
+  .tbl th {
+    text-align: left; padding: 10px 20px;
+    font-size: .65rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .8px; color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+  }
+  .tbl td { padding: 11px 20px; font-size: .8rem; border-bottom: 1px solid var(--border-subtle); vertical-align: middle; }
+  .tbl tr:last-child td { border-bottom: none; }
+  .tbl tr { transition: background .15s; }
+  .tbl tr:hover td { background: var(--bg-card-hover); }
+  .sym { font-family: var(--mono); font-weight: 600; cursor: pointer; }
+  .sym.active { color: var(--accent-blue); }
+  .dir { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: var(--radius-sm); font-weight: 600; font-size: .7rem; }
+  .dir-long { background: var(--accent-green-glow); color: var(--accent-green); }
+  .dir-short { background: var(--accent-red-glow); color: var(--accent-red); }
+  .bar { height: 4px; border-radius: 3px; background: var(--bg-surface); width: 65px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 3px; transition: width .5s; }
+  .bar-grn { background: linear-gradient(90deg, var(--accent-green), #6ddba5); }
+  .bar-ylw { background: linear-gradient(90deg, var(--accent-gold), #edd48a); }
+  .tag { display: inline-block; font-size: .62rem; padding: 2px 8px; border-radius: 4px; background: var(--bg-surface); color: var(--text-tertiary); margin-right: 3px; font-weight: 500; }
+
+  .inspector {
+    width: 310px; flex-shrink: 0;
+    border-left: 1px solid var(--border-subtle);
+    background: transparent;
+    overflow-y: auto;
+  }
+  .insp-hdr {
+    padding: 16px 18px;
+    border-bottom: 1px solid var(--border-subtle);
+    font-weight: 700; font-size: .8rem; letter-spacing: .5px;
+    color: var(--accent-blue);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .insp-hdr svg { width: 14px; height: 14px; }
+  .insp-sec { padding: 16px 18px; border-bottom: 1px solid var(--border-subtle); }
+  .insp-sec-title {
+    font-size: .62rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 1px; color: var(--text-muted); margin-bottom: 10px;
+  }
+  .insp-row { display: flex; justify-content: space-between; padding: 5px 0; font-size: .78rem; }
+  .insp-row .lbl { color: var(--text-tertiary); }
+  .insp-row .val { font-weight: 500; color: var(--text-primary); }
+  .insp-tag { padding: 1px 8px; border-radius: 4px; font-size: .7rem; font-weight: 600; }
+  .tag-blue { background: var(--accent-blue-glow); color: var(--accent-blue); }
+  .tag-grn { background: var(--accent-green-glow); color: var(--accent-green); }
+
+  .evt-flow { display: flex; flex-direction: column; gap: 2px; }
+  .evt-item { display: flex; align-items: center; gap: 10px; padding: 5px 0; position: relative; }
+  .evt-item::before { content: ''; position: absolute; left: 7px; top: 22px; bottom: -7px; width: 1.5px; background: var(--border); }
+  .evt-item:last-child::before { display: none; }
+  .evt-dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--border); background: var(--bg-surface); flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+  .evt-dot.done { border-color: var(--accent-green); background: var(--accent-green-glow); }
+  .evt-dot.done::after { content: '✓'; font-size: .45rem; color: var(--accent-green); font-weight: 700; }
+  .evt-dot.live { border-color: var(--accent-blue); background: var(--accent-blue-glow); animation: pulse-premium 2s infinite; }
+  .evt-dot.live::after { content: '●'; font-size: .4rem; color: var(--accent-blue); }
+  @keyframes pulse-premium {
+    0%, 100% { box-shadow: 0 0 0 0 var(--accent-blue-glow); }
+    50% { box-shadow: 0 0 14px 4px var(--accent-blue-glow); }
+  }
+  .evt-info .t { font-size: .78rem; }
+  .evt-info .tm { font-size: .62rem; color: var(--text-muted); }
+
+  .decs { display: flex; flex-direction: column; gap: 6px; }
+  .dec { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: var(--radius-md); background: var(--bg-surface); border: 1px solid var(--border); font-size: .78rem; transition: all .15s; }
+  .dec:hover { border-color: var(--border-accent); }
+  .dec-type { font-weight: 700; font-size: .68rem; padding: 2px 8px; border-radius: 4px; }
+  .dec-buy { background: var(--accent-green-glow); color: var(--accent-green); }
+  .dec-sell { background: var(--accent-red-glow); color: var(--accent-red); }
+  .dec-pair { font-family: var(--mono); flex: 1; }
+  .dec-time { color: var(--text-tertiary); font-size: .68rem; }
+
+  .footer {
+    height: 48px; flex-shrink: 0;
+    border-top: 1px solid var(--border-subtle);
+    background: rgba(5,7,10,0.8);
+    backdrop-filter: blur(12px);
+    display: flex; align-items: center; padding: 0 24px; gap: 28px;
+  }
+  .f-item { display: flex; align-items: center; gap: 8px; font-size: .72rem; color: var(--text-tertiary); }
+  .f-item .lbl { color: var(--text-muted); font-weight: 500; }
+  .f-item .v { color: var(--text-primary); font-weight: 600; }
+  .f-bar { width: 40px; height: 3px; border-radius: 2px; background: var(--bg-surface); overflow: hidden; }
+  .f-fill { height: 100%; border-radius: 2px; }
+  .f-grn { background: linear-gradient(90deg, var(--accent-green), #6ddba5); }
+  .f-ylw { background: linear-gradient(90deg, var(--accent-gold), #edd48a); }
+
+  @media (max-width: 1100px) { .inspector { display: none; } }
+  @media (max-width: 800px) { .sidebar { display: none; } .pie-card { display: none; } }
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="logo"><span class="logo-mark">T</span> TRADING WORKSPACE</div>
+  <div class="search-wrap">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.3-4.3"/></svg>
+    <input type="text" placeholder="Search pairs, strategies, events…">
+  </div>
+  <div class="stats">
+    <div class="stat"><span class="stat-indicator green"></span> Services <span class="num">18/18</span></div>
+    <div class="stat"><span class="stat-indicator blue"></span> Plugins <span class="num">42</span></div>
+    <div class="stat"><span class="stat-indicator gold"></span> Event Store <span class="num">12.4M</span></div>
+  </div>
+  <div class="right-actions">
+    <div class="notif-btn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+      <span class="notif-badge">12</span>
+    </div>
+    <div class="clock" id="clock">09:42:31 UTC+3</div>
+    <div class="avatar">AW</div>
+  </div>
+</header>
+
+<div class="body-wrap">
+  <nav class="sidebar">
+    <div class="s-label">Navigation</div>
+    <a class="s-item active" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>Analysis</a>
+    <a class="s-item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>Portfolio</a>
+    <a class="s-item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06A1.65 1.65 0 0015 19.4a1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>System</a>
+    <a class="s-item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>Tools</a>
+    <div class="s-divider"></div>
+    <a class="s-item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>Settings</a>
+    <a class="s-item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>Documentation</a>
+  </nav>
+
+  <main class="main">
+    <div class="chart-row">
+      <div class="chart-card">
+        <div class="chart-hdr">
+          <div class="chart-info">
+            <div class="chart-pair">BTC/USDT</div>
+            <div class="chart-price">$66,482.31</div>
+            <div class="chart-change">+$1,624.82 <span style="opacity:.5">(+2.51%)</span> · 24h vol $28.4B</div>
+          </div>
+          <div class="chart-tf">
+            <button>1m</button><button>5m</button><button>15m</button><button>1h</button><button class="active">4h</button><button>1d</button><button>1w</button>
+          </div>
+        </div>
+        <div class="chart-cw"><canvas id="priceChart"></canvas></div>
+      </div>
+      <div class="pie-card">
+        <div class="pie-title">Active Opportunities</div>
+        <div class="pie-cw"><canvas id="pieChart" width="260" height="260"></canvas><div class="pie-ctr"><span class="big">12</span><span class="small">active</span></div></div>
+        <div class="pie-leg">
+          <span class="pie-leg-item"><span class="pie-leg-dot" style="background:#2ebd7a"></span>Momentum (5)</span>
+          <span class="pie-leg-item"><span class="pie-leg-dot" style="background:#557df2"></span>Breakout (3)</span>
+          <span class="pie-leg-item"><span class="pie-leg-dot" style="background:#9b6fd8"></span>Reversal (2)</span>
+          <span class="pie-leg-item"><span class="pie-leg-dot" style="background:#d4a847"></span>Mean Rev (2)</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="signals-card">
+      <div class="signals-hdr">
+        <h3>Live Signals</h3>
+        <div class="signals-filt">
+          <button class="active">All</button><button>Long</button><button>Short</button><button>High Confidence</button>
+        </div>
+      </div>
+      <table class="tbl">
+        <thead><tr><th>Symbol</th><th>Direction</th><th>Confidence</th><th>Entry</th><th>Target</th><th>Stop</th><th>Tags</th></tr></thead>
+        <tbody>
+          <tr><td><span class="sym active">BTCUSDT</span></td><td><span class="dir dir-long">▲ Long</span></td><td><div class="bar"><div class="bar-fill bar-grn" style="width:92%"></div></div> 92</td><td>$66,210</td><td>$68,400</td><td style="color:var(--accent-red)">$65,100</td><td><span class="tag">Momentum</span><span class="tag">Volume</span></td></tr>
+          <tr><td><span class="sym">ETHUSDT</span></td><td><span class="dir dir-long">▲ Long</span></td><td><div class="bar"><div class="bar-fill bar-grn" style="width:85%"></div></div> 85</td><td>$3,450</td><td>$3,620</td><td style="color:var(--accent-red)">$3,380</td><td><span class="tag">Breakout</span><span class="tag">Volume</span></td></tr>
+          <tr><td><span class="sym">SOLUSDT</span></td><td><span class="dir dir-short">▼ Short</span></td><td><div class="bar"><div class="bar-fill bar-ylw" style="width:71%"></div></div> 71</td><td>$143.00</td><td>$136.50</td><td style="color:var(--accent-red)">$146.80</td><td><span class="tag">Reversal</span><span class="tag">RSI</span></td></tr>
+          <tr><td><span class="sym">BNBUSDT</span></td><td><span class="dir dir-long">▲ Long</span></td><td><div class="bar"><div class="bar-fill bar-grn" style="width:78%"></div></div> 78</td><td>$577.38</td><td>$595.00</td><td style="color:var(--accent-red)">$568.50</td><td><span class="tag">Momentum</span></td></tr>
+          <tr><td><span class="sym">XRPUSDT</span></td><td><span class="dir dir-short">▼ Short</span></td><td><div class="bar"><div class="bar-fill bar-ylw" style="width:64%"></div></div> 64</td><td>$0.612</td><td>$0.585</td><td style="color:var(--accent-red)">$0.625</td><td><span class="tag">Resistance</span><span class="tag">Low Vol</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+
+  <aside class="inspector">
+    <div class="insp-hdr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg> INSPECTOR</div>
+    <div class="insp-sec">
+      <div class="insp-sec-title">Signal Details</div>
+      <div class="insp-row"><span class="lbl">ID</span><span class="val" style="font-family:var(--mono);font-size:.72rem">SIG-2026-0714-0892</span></div>
+      <div class="insp-row"><span class="lbl">Type</span><span><span class="insp-tag tag-blue">Strategy</span></span></div>
+      <div class="insp-row"><span class="lbl">Market</span><span class="val">BTC/USDT</span></div>
+      <div class="insp-row"><span class="lbl">Timeframe</span><span class="val">4h</span></div>
+      <div class="insp-row"><span class="lbl">Created</span><span class="val">09:38:12</span></div>
+      <div class="insp-row"><span class="lbl">Uptime</span><span class="val">4m 19s</span></div>
+      <div class="insp-row"><span class="lbl" style="color:var(--accent-green)">Performance (24h)</span><span class="val" style="color:var(--accent-green);font-weight:700">+12.4%</span></div>
+    </div>
+    <div class="insp-sec">
+      <div class="insp-sec-title">Recent Decisions</div>
+      <div class="decs">
+        <div class="dec"><span class="dec-type dec-buy">BUY</span><span class="dec-pair">BTCUSDT</span><span class="dec-time">09:38:12</span></div>
+        <div class="dec"><span class="dec-type dec-sell">SELL</span><span class="dec-pair">SOLUSDT</span><span class="dec-time">09:31:05</span></div>
+        <div class="dec"><span class="dec-type dec-buy">BUY</span><span class="dec-pair">ETHUSDT</span><span class="dec-time">09:22:44</span></div>
+        <div class="dec"><span class="dec-type dec-sell">SELL</span><span class="dec-pair">XRPUSDT</span><span class="dec-time">09:15:30</span></div>
+      </div>
+    </div>
+    <div class="insp-sec">
+      <div class="insp-sec-title">Event Flow</div>
+      <div class="evt-flow">
+        <div class="evt-item"><div class="evt-dot done"></div><div class="evt-info"><div class="t">Strategy Signal</div><div class="tm">09:38:12</div></div></div>
+        <div class="evt-item"><div class="evt-dot done"></div><div class="evt-info"><div class="t">Decision Created</div><div class="tm">09:38:13</div></div></div>
+        <div class="evt-item"><div class="evt-dot done"></div><div class="evt-info"><div class="t">Opportunity Created</div><div class="tm">09:38:14</div></div></div>
+        <div class="evt-item"><div class="evt-dot live"></div><div class="evt-info"><div class="t">Opportunity Activated</div><div class="tm">09:38:16</div></div></div>
+        <div class="evt-item"><div class="evt-dot"></div><div class="evt-info"><div class="t" style="color:var(--text-tertiary)">Trade Executed</div><div class="tm">—</div></div></div>
+        <div class="evt-item"><div class="evt-dot"></div><div class="evt-info"><div class="t" style="color:var(--text-tertiary)">Trade Closed</div><div class="tm">—</div></div></div>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<footer class="footer">
+  <div class="f-item"><span class="lbl">Services</span><div class="f-bar"><div class="f-fill f-grn" style="width:100%"></div></div><span class="v">100%</span></div>
+  <div class="f-item"><span class="lbl">Plugins</span><div class="f-bar"><div class="f-fill f-grn" style="width:92%"></div></div><span class="v">92%</span></div>
+  <div class="f-item"><span class="lbl">Event Store</span><div class="f-bar"><div class="f-fill f-grn" style="width:100%"></div></div><span class="v">100%</span></div>
+  <div class="f-item"><span class="lbl">Replay Engine</span><div class="f-bar"><div class="f-fill f-grn" style="width:100%"></div></div><span class="v">100%</span></div>
+  <div class="f-item"><span class="lbl">Marketplace</span><div class="f-bar"><div class="f-fill f-grn" style="width:98%"></div></div><span class="v">98%</span></div>
+  <div class="f-item"><span class="lbl">Database</span><div class="f-bar"><div class="f-fill f-grn" style="width:100%"></div></div><span class="v">100%</span></div>
+</footer>
+
+<script>
+(function(){const c=document.getElementById('priceChart');const r=c.parentElement.getBoundingClientRect();const d=window.devicePixelRatio||1;const w=r.width,h=r.height;c.width=w*d;c.height=h*d;c.style.width=w+'px';c.style.height=h+'px';const cx=c.getContext('2d');cx.scale(d,d);const pts=120;const data=[];let p=66000;for(let i=0;i<pts;i++){p+=(Math.random()-0.48)*140;data.push(p);}const pd={t:10,b:20,l:10,r:10};const pw=w-pd.l-pd.r,ph=h-pd.t-pd.b;const mn=Math.min(...data)-250,mx=Math.max(...data)+250;const x=i=>pd.l+(i/(pts-1))*pw;const y=v=>pd.t+(1-(v-mn)/(mx-mn))*ph;const g=cx.createLinearGradient(0,pd.t,0,h-pd.b);g.addColorStop(0,'rgba(46,189,122,0.12)');g.addColorStop(1,'rgba(46,189,122,0)');cx.beginPath();cx.moveTo(x(0),y(data[0]));for(let i=1;i<pts;i++)cx.lineTo(x(i),y(data[i]));cx.lineTo(x(pts-1),h-pd.b);cx.lineTo(x(0),h-pd.b);cx.closePath();cx.fillStyle=g;cx.fill();cx.shadowColor='rgba(46,189,122,0.08)';cx.shadowBlur=4;cx.beginPath();cx.moveTo(x(0),y(data[0]));for(let i=1;i<pts;i++)cx.lineTo(x(i),y(data[i]));cx.strokeStyle='#2ebd7a';cx.lineWidth=2.5;cx.stroke();cx.shadowBlur=0;cx.strokeStyle='rgba(255,255,255,0.02)';cx.lineWidth=1;cx.setLineDash([6,6]);for(let i=0;i<4;i++){const yy=pd.t+(i/3)*ph;cx.beginPath();cx.moveTo(pd.l,yy);cx.lineTo(w-pd.r,yy);cx.stroke();}cx.setLineDash([]);})();
+(function(){const c=document.getElementById('pieChart');const d=window.devicePixelRatio||1;c.width=260*d;c.height=260*d;c.style.width='260px';c.style.height='260px';const cx=c.getContext('2d');cx.scale(d,d);const X=130,Y=130,R=120;const slices=[{v:5,c:'#2ebd7a'},{v:3,c:'#557df2'},{v:2,c:'#9b6fd8'},{v:2,c:'#d4a847'}];const tot=slices.reduce((s,x)=>s+x.v,0);let ang=-Math.PI/2;slices.forEach(s=>{const sl=(s.v/tot)*Math.PI*2;cx.beginPath();cx.moveTo(X,Y);cx.arc(X,Y,R,ang,ang+sl);cx.closePath();cx.fillStyle=s.c;cx.fill();ang+=sl;});cx.beginPath();cx.arc(X,Y,R*0.55,0,Math.PI*2);cx.fillStyle='#151c28';cx.fill();})();
+function upd(){const n=new Date();const h=String(n.getUTCHours()).padStart(2,'0');const m=String(n.getUTCMinutes()).padStart(2,'0');const s=String(n.getUTCSeconds()).padStart(2,'0');const e=document.getElementById('clock');if(e)e.textContent=h+':'+m+':'+s+' UTC+3';}setInterval(upd,1000);
+document.querySelectorAll('.signals-filt button').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('.signals-filt button').forEach(x=>x.classList.remove('active'));b.classList.add('active');}));
+document.querySelectorAll('.chart-tf button').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('.signals-filt button, .chart-tf button').length?0:0;document.querySelectorAll('.chart-tf button').forEach(x=>x.classList.remove('active'));b.classList.add('active');}));
+</script>
+</body>
+</html>

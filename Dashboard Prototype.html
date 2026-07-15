@@ -1,0 +1,1209 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trading Terminal — Dashboard Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* ============================================================
+     DESIGN TOKENS
+     ============================================================ */
+  :root {
+    --bg-deep: #09090B;
+    --bg-surface: #111317;
+    --bg-card: #181b22;
+    --bg-card-hover: #1e222d;
+    --bg-elevated: #1f232e;
+    --border-subtle: #272C36;
+    --border-card: #2a2f3a;
+    --border-hover: #3a4050;
+
+    --text-primary: #e8eaed;
+    --text-secondary: #9aa3b5;
+    --text-muted: #5b6a7a;
+    --text-accent: #5B8DEF;
+
+    --accent-blue: #5B8DEF;
+    --accent-blue-glow: rgba(91, 141, 239, 0.12);
+    --accent-blue-soft: rgba(91, 141, 239, 0.08);
+    --accent-green: #22c55e;
+    --accent-red: #ef4444;
+    --accent-orange: #f59e0b;
+    --accent-purple: #a78bfa;
+
+    --glass-bg: rgba(17, 19, 23, 0.72);
+    --glass-border: rgba(39, 44, 54, 0.5);
+    --glass-blur: 18px;
+
+    --sidebar-w: 72px;
+    --toolbar-h: 48px;
+    --radius-sm: 4px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --radius-xl: 16px;
+
+    --font-ui: 'Inter', -apple-system, system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+    --shadow-card: 0 1px 3px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2);
+    --shadow-elevated: 0 4px 12px rgba(0,0,0,0.4), 0 2px 4px rgba(0,0,0,0.3);
+    --shadow-glow: 0 0 20px rgba(91, 141, 239, 0.08);
+
+    --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-base: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-slow: 400ms cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-spring: 500ms cubic-bezier(0.34, 1.56, 0.64, 1);
+
+    --density: 1;
+    --spacing-sm: calc(4px * var(--density));
+    --spacing-md: calc(8px * var(--density));
+    --spacing-lg: calc(16px * var(--density));
+    --spacing-xl: calc(24px * var(--density));
+  }
+
+  /* Theme variants */
+  [data-theme="dark"] { --bg-deep: #09090B; --bg-surface: #111317; --bg-card: #181b22; --bg-card-hover: #1e222d; --text-primary: #e8eaed; --text-secondary: #9aa3b5; --accent-blue: #5B8DEF; }
+  [data-theme="midnight"] { --bg-deep: #0a0e1a; --bg-surface: #0f1424; --bg-card: #131a2e; --bg-card-hover: #1a2240; --text-primary: #e2e8f0; --text-secondary: #8ba1c4; --accent-blue: #60a5fa; }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    font-family: var(--font-ui);
+    background: var(--bg-deep);
+    color: var(--text-primary);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ============================================================
+     LAYOUT
+     ============================================================ */
+  .app { display: flex; height: 100vh; width: 100vw; }
+  .sidebar {
+    width: var(--sidebar-w);
+    background: var(--bg-surface);
+    border-right: 1px solid var(--border-subtle);
+    display: flex; flex-direction: column; align-items: center;
+    padding: 16px 0; gap: 12px; flex-shrink: 0;
+    z-index: 10;
+  }
+  .sidebar-logo {
+    width: 40px; height: 40px;
+    background: linear-gradient(135deg, var(--accent-blue), #8b5cf6);
+    border-radius: var(--radius-md);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 18px; color: #fff;
+    margin-bottom: 8px; cursor: pointer;
+    transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+  }
+  .sidebar-logo:hover { transform: scale(1.08); box-shadow: 0 0 20px rgba(91,141,239,0.3); }
+  .sidebar-icon {
+    width: 44px; height: 44px; border-radius: var(--radius-md);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; color: var(--text-muted); cursor: pointer;
+    transition: all var(--transition-fast); position: relative;
+  }
+  .sidebar-icon:hover { color: var(--text-primary); background: var(--bg-card-hover); }
+  .sidebar-icon.active { color: var(--accent-blue); background: var(--accent-blue-soft); }
+  .sidebar-icon.active::before {
+    content: ''; position: absolute; left: -16px; top: 50%; transform: translateY(-50%);
+    width: 3px; height: 20px; background: var(--accent-blue); border-radius: 0 3px 3px 0;
+  }
+
+  .main-area { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .toolbar {
+    height: var(--toolbar-h); background: var(--bg-surface);
+    border-bottom: 1px solid var(--border-subtle);
+    display: flex; align-items: center;
+    padding: 0 16px; gap: 8px; flex-shrink: 0;
+  }
+  .toolbar-breadcrumb { font-size: 13px; color: var(--text-muted); }
+  .toolbar-breadcrumb span { color: var(--text-secondary); }
+  .toolbar-spacer { flex: 1; }
+  .toolbar-btn {
+    height: 32px; padding: 0 12px; border-radius: var(--radius-sm);
+    border: 1px solid var(--border-subtle); background: transparent;
+    color: var(--text-secondary); font-size: 12px; font-family: var(--font-ui);
+    cursor: pointer; transition: all var(--transition-fast);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .toolbar-btn:hover { background: var(--bg-card-hover); color: var(--text-primary); border-color: var(--border-hover); }
+
+  .content { flex: 1; overflow: hidden; position: relative; }
+  .content-inner {
+    position: absolute; inset: 0; overflow: auto;
+    padding: var(--spacing-lg);
+  }
+
+  /* ============================================================
+     PRESET SWITCHER
+     ============================================================ */
+  .preset-bar {
+    display: flex; gap: 4px; background: var(--bg-card); padding: 3px;
+    border-radius: var(--radius-md); border: 1px solid var(--border-subtle);
+  }
+  .preset-btn {
+    padding: 6px 16px; border-radius: 6px; border: none;
+    background: transparent; color: var(--text-muted); font-size: 13px;
+    font-family: var(--font-ui); font-weight: 500; cursor: pointer;
+    transition: all var(--transition-fast); white-space: nowrap;
+  }
+  .preset-btn:hover { color: var(--text-secondary); background: var(--bg-card-hover); }
+  .preset-btn.active { background: var(--accent-blue); color: #fff; box-shadow: 0 0 12px var(--accent-blue-glow); }
+
+  /* ============================================================
+     DASHBOARD GRID
+     ============================================================ */
+  .dashboard-grid {
+    display: grid; gap: var(--spacing-md);
+    transition: grid-template-columns var(--transition-slow), grid-template-rows var(--transition-slow);
+  }
+  .grid-item {
+    position: relative;
+    transition: opacity 400ms ease, transform 400ms ease;
+    animation: cardIn 400ms ease both;
+  }
+  .grid-item.exiting { opacity: 0; transform: scale(0.96) translateY(-8px); pointer-events: none; }
+  .grid-item.entering { animation: cardIn 400ms ease both; }
+
+  @keyframes cardIn {
+    from { opacity: 0; transform: translateY(12px) scale(0.97); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  @keyframes cardOut {
+    from { opacity: 1; transform: translateY(0) scale(1); }
+    to { opacity: 0; transform: translateY(-12px) scale(0.97); }
+  }
+
+  /* ============================================================
+     WIDGET CARD
+     ============================================================ */
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-card);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-lg);
+    height: 100%;
+    display: flex; flex-direction: column;
+    transition: all var(--transition-base);
+    box-shadow: var(--shadow-card);
+    position: relative; overflow: hidden;
+  }
+  .card:hover {
+    background: var(--bg-card-hover);
+    border-color: var(--border-hover);
+    box-shadow: var(--shadow-elevated), var(--shadow-glow);
+    transform: translateY(-1px);
+  }
+  .card-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: var(--spacing-md); flex-shrink: 0;
+  }
+  .card-title {
+    font-size: 13px; font-weight: 600; color: var(--text-secondary);
+    letter-spacing: 0.02em; text-transform: uppercase;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .card-title .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    transition: background var(--transition-fast);
+  }
+  .card-title .dot.live { background: var(--accent-green); animation: pulseDot 2s ease-in-out infinite; }
+  .card-title .dot.paused { background: var(--accent-orange); }
+  .card-title .dot.error { background: var(--accent-red); }
+  @keyframes pulseDot {
+    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(34,197,94,0.4); }
+    50% { opacity: 0.7; box-shadow: 0 0 0 6px rgba(34,197,94,0); }
+  }
+  .card-badge {
+    font-size: 11px; padding: 2px 8px; border-radius: 10px;
+    background: var(--accent-blue-soft); color: var(--accent-blue);
+    font-weight: 500;
+  }
+  .card-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+
+  /* ============================================================
+     METRIC STRIP
+     ============================================================ */
+  .metric-strip { display: flex; gap: 0; height: 100%; align-items: stretch; }
+  .metric-item {
+    flex: 1; display: flex; flex-direction: column; justify-content: center;
+    padding: 0 var(--spacing-lg); position: relative;
+    transition: all var(--transition-fast);
+    border-radius: var(--radius-sm); cursor: default;
+  }
+  .metric-item:hover { background: var(--accent-blue-soft); }
+  .metric-item:not(:last-child)::after {
+    content: ''; position: absolute; right: 0; top: 20%; height: 60%;
+    width: 1px; background: var(--border-subtle);
+  }
+  .metric-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px; }
+  .metric-value { font-family: var(--font-mono); font-size: 22px; font-weight: 600; letter-spacing: -0.02em; }
+  .metric-value.up { color: var(--accent-green); }
+  .metric-value.down { color: var(--accent-red); }
+  .metric-change {
+    font-size: 11px; font-family: var(--font-mono); margin-top: 1px;
+    display: flex; align-items: center; gap: 4px;
+  }
+
+  /* ============================================================
+     CHART
+     ============================================================ */
+  .chart-container { flex: 1; display: flex; align-items: stretch; min-height: 0; }
+  .chart-container svg { width: 100%; height: 100%; }
+  .chart-tooltip {
+    position: absolute; pointer-events: none;
+    background: var(--glass-bg); backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--glass-border); border-radius: var(--radius-md);
+    padding: 8px 12px; font-family: var(--font-mono); font-size: 11px;
+    opacity: 0; transition: opacity var(--transition-fast);
+  }
+  .chart-tooltip.visible { opacity: 1; }
+
+  /* Candle hover effect */
+  .candle { cursor: pointer; }
+  .candle:hover .candle-body { filter: brightness(1.3); }
+  .candle:hover .candle-wick { stroke-width: 2; }
+
+  /* ============================================================
+     ORDERBOOK
+     ============================================================ */
+  .orderbook { display: flex; flex-direction: column; gap: 0; flex: 1; }
+  .ob-header {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px;
+    padding: 4px 0; margin-bottom: 4px;
+    font-size: 10px; color: var(--text-muted); text-transform: uppercase;
+    letter-spacing: 0.05em; border-bottom: 1px solid var(--border-subtle);
+    flex-shrink: 0;
+  }
+  .ob-asks, .ob-bids { display: flex; flex-direction: column; gap: 1px; }
+  .ob-asks { flex: 1; justify-content: flex-end; }
+  .ob-bids { flex: 1; }
+  .ob-row {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px;
+    padding: 2px 0; font-family: var(--font-mono); font-size: 11px;
+    border-radius: 2px; cursor: pointer; position: relative;
+    transition: all var(--transition-fast);
+  }
+  .ob-row:hover { background: var(--bg-elevated); }
+  .ob-row .price { text-align: right; position: relative; z-index: 1; }
+  .ob-row .size { text-align: center; position: relative; z-index: 1; }
+  .ob-row .total { text-align: right; position: relative; z-index: 1; }
+  .ob-row .depth-bar {
+    position: absolute; right: 0; top: 0; height: 100%;
+    opacity: 0.12; border-radius: 2px; transition: width var(--transition-base);
+  }
+  .ob-row.bid .price { color: var(--accent-green); }
+  .ob-row.ask .price { color: var(--accent-red); }
+  .ob-row.bid .depth-bar { background: var(--accent-green); }
+  .ob-row.ask .depth-bar { background: var(--accent-red); }
+
+  /* ============================================================
+     SIGNALS LIST
+     ============================================================ */
+  .signals-list { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+  .signal-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 10px; border-radius: var(--radius-sm);
+    border: 1px solid transparent; transition: all var(--transition-fast);
+    cursor: pointer;
+  }
+  .signal-item:hover { background: var(--bg-elevated); border-color: var(--border-subtle); transform: translateX(2px); }
+  .signal-icon {
+    width: 28px; height: 28px; border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; flex-shrink: 0;
+  }
+  .signal-item.buy .signal-icon { background: rgba(34,197,94,0.12); color: var(--accent-green); }
+  .signal-item.sell .signal-icon { background: rgba(239,68,68,0.12); color: var(--accent-red); }
+  .signal-item.info .signal-icon { background: var(--accent-blue-soft); color: var(--accent-blue); }
+  .signal-info { flex: 1; min-width: 0; }
+  .signal-label { font-size: 13px; font-weight: 500; }
+  .signal-desc { font-size: 11px; color: var(--text-muted); }
+  .signal-time { font-size: 11px; color: var(--text-muted); white-space: nowrap; font-family: var(--font-mono); }
+
+  /* ============================================================
+     EVENT FLOW
+     ============================================================ */
+  .event-flow { display: flex; flex-direction: column; gap: 3px; flex: 1; overflow: hidden; }
+  .event-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 4px 8px; border-radius: var(--radius-sm);
+    font-size: 11px; font-family: var(--font-mono);
+    transition: all var(--transition-fast); cursor: default;
+    animation: eventSlide 300ms ease both;
+  }
+  @keyframes eventSlide { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: translateX(0); } }
+  .event-item:hover { background: var(--bg-elevated); }
+  .event-type {
+    width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+    transition: transform var(--transition-fast);
+  }
+  .event-item:hover .event-type { transform: scale(1.5); }
+  .event-time { color: var(--text-muted); width: 52px; flex-shrink: 0; }
+  .event-label { color: var(--text-secondary); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .event-status { font-size: 10px; padding: 1px 6px; border-radius: 8px; }
+  .event-status.ok { background: rgba(34,197,94,0.12); color: var(--accent-green); }
+  .event-status.warn { background: rgba(245,158,11,0.12); color: var(--accent-orange); }
+
+  /* ============================================================
+     TABLE
+     ============================================================ */
+  .data-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .data-table th {
+    text-align: left; padding: 6px 8px; color: var(--text-muted);
+    font-weight: 500; font-size: 10px; text-transform: uppercase;
+    letter-spacing: 0.05em; border-bottom: 1px solid var(--border-subtle);
+  }
+  .data-table td { padding: 6px 8px; border-bottom: 1px solid rgba(39,44,54,0.3); font-family: var(--font-mono); font-size: 11px; }
+  .data-table tr { transition: background var(--transition-fast); cursor: default; }
+  .data-table tr:hover { background: var(--bg-elevated); }
+  .data-table tr:last-child td { border-bottom: none; }
+
+  /* ============================================================
+     STATUS & MISC
+     ============================================================ */
+  .status-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-sm); flex: 1; }
+  .status-cell {
+    display: flex; flex-direction: column; justify-content: center;
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-radius: var(--radius-sm); background: var(--bg-elevated);
+    transition: all var(--transition-fast); cursor: default;
+  }
+  .status-cell:hover { background: var(--bg-card-hover); }
+  .status-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+  .status-value { font-family: var(--font-mono); font-size: 13px; font-weight: 500; margin-top: 2px; }
+  .status-value.good { color: var(--accent-green); }
+  .status-value.warn { color: var(--accent-orange); }
+
+  .pnl-card { display: flex; flex-direction: column; justify-content: center; align-items: center; flex: 1; }
+  .pnl-value { font-family: var(--font-mono); font-size: 36px; font-weight: 700; letter-spacing: -0.03em; transition: color var(--transition-fast); }
+  .pnl-value.up { color: var(--accent-green); }
+  .pnl-value.down { color: var(--accent-red); }
+  .pnl-label { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+  .pnl-row { display: flex; gap: 24px; margin-top: 8px; }
+  .pnl-row-item { text-align: center; }
+  .pnl-row-item .val { font-family: var(--font-mono); font-size: 14px; font-weight: 600; }
+  .pnl-row-item .lbl { font-size: 10px; color: var(--text-muted); text-transform: uppercase; }
+
+  /* ============================================================
+     TWEAKS PANEL
+     ============================================================ */
+  .tweaks-toggle {
+    position: fixed; bottom: 20px; right: 20px; z-index: 100;
+    width: 44px; height: 44px; border-radius: 50%;
+    background: var(--glass-bg); backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--glass-border);
+    color: var(--text-secondary); font-size: 18px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all var(--transition-fast);
+    box-shadow: var(--shadow-elevated);
+  }
+  .tweaks-toggle:hover { transform: scale(1.1); color: var(--accent-blue); border-color: var(--accent-blue); }
+  .tweaks-panel {
+    position: fixed; bottom: 76px; right: 20px; z-index: 100;
+    width: 240px; background: var(--glass-bg); backdrop-filter: blur(24px);
+    border: 1px solid var(--glass-border); border-radius: var(--radius-xl);
+    padding: 20px; box-shadow: var(--shadow-elevated);
+    opacity: 0; transform: translateY(12px) scale(0.96);
+    pointer-events: none; transition: all var(--transition-fast);
+  }
+  .tweaks-panel.open { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
+  .tweaks-panel h4 { font-size: 13px; color: var(--text-secondary); margin-bottom: 16px; font-weight: 600; }
+  .tweak-group { margin-bottom: 16px; }
+  .tweak-group:last-child { margin-bottom: 0; }
+  .tweak-label { font-size: 11px; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .tweak-options { display: flex; gap: 4px; }
+  .tweak-opt {
+    flex: 1; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--border-subtle);
+    background: transparent; color: var(--text-muted); font-size: 11px;
+    font-family: var(--font-ui); cursor: pointer; text-align: center;
+    transition: all var(--transition-fast);
+  }
+  .tweak-opt:hover { border-color: var(--border-hover); color: var(--text-secondary); }
+  .tweak-opt.active { border-color: var(--accent-blue); background: var(--accent-blue-soft); color: var(--accent-blue); }
+
+  /* ============================================================
+     SCROLLBAR
+     ============================================================ */
+  .content-inner::-webkit-scrollbar { width: 6px; }
+  .content-inner::-webkit-scrollbar-track { background: transparent; }
+  .content-inner::-webkit-scrollbar-thumb { background: var(--border-subtle); border-radius: 3px; }
+  .content-inner::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+  /* ============================================================
+     LOADING & GLASS OVERLAY
+     ============================================================ */
+  .glass-overlay {
+    position: absolute; inset: 0;
+    background: linear-gradient(135deg, transparent 40%, var(--accent-blue-glow) 100%);
+    pointer-events: none; opacity: 0;
+    transition: opacity var(--transition-slow);
+  }
+  .card:hover .glass-overlay { opacity: 0.5; }
+
+  /* Dock handle */
+  .dock-handle {
+    position: absolute; top: 8px; right: 8px;
+    width: 20px; height: 20px; border-radius: 4px;
+    background: var(--border-subtle); opacity: 0;
+    cursor: grab; display: flex; align-items: center; justify-content: center;
+    font-size: 10px; color: var(--text-muted);
+    transition: opacity var(--transition-fast);
+    z-index: 5;
+  }
+  .card:hover .dock-handle { opacity: 0.6; }
+  .dock-handle:hover { opacity: 1 !important; background: var(--text-muted); color: var(--text-primary); }
+
+  /* resize handle */
+  .resize-handle {
+    position: absolute; bottom: 0; right: 0;
+    width: 12px; height: 12px; cursor: nwse-resize;
+    opacity: 0; transition: opacity var(--transition-fast);
+    z-index: 5;
+  }
+  .resize-handle::after {
+    content: ''; position: absolute; bottom: 3px; right: 3px;
+    width: 6px; height: 6px;
+    border-right: 2px solid var(--text-muted);
+    border-bottom: 2px solid var(--text-muted);
+  }
+  .card:hover .resize-handle { opacity: 0.4; }
+  .resize-handle:hover { opacity: 1 !important; }
+
+  /* Number transition animation */
+  .animate-number {
+    display: inline-block;
+    transition: all 0.3s ease;
+  }
+  .number-flip {
+    animation: numFlip 0.4s ease;
+  }
+  @keyframes numFlip {
+    0% { transform: translateY(-4px); opacity: 0; }
+    60% { opacity: 1; }
+    100% { transform: translateY(0); opacity: 1; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sidebar-logo">TW</div>
+    <div class="sidebar-icon active" title="Dashboard">📊</div>
+    <div class="sidebar-icon" title="Scanner">🔍</div>
+    <div class="sidebar-icon" title="Inspector">🔬</div>
+    <div class="sidebar-icon" title="Replay">⏪</div>
+    <div class="sidebar-icon" title="Strategies">⚙️</div>
+    <div class="sidebar-icon" title="Store">🧩</div>
+    <div class="sidebar-icon" title="System">📡</div>
+  </nav>
+
+  <!-- Main -->
+  <div class="main-area">
+    <header class="toolbar">
+      <div class="toolbar-breadcrumb"><span>Dashboard</span> / <span id="presetLabel">Overview</span></div>
+      <div class="toolbar-spacer"></div>
+      <div class="preset-bar" id="presetBar"></div>
+    </header>
+    <div class="content">
+      <div class="content-inner" id="dashboardContent">
+        <div class="dashboard-grid" id="dashboardGrid"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Tweaks -->
+<button class="tweaks-toggle" id="tweaksToggle" title="Design Tweaks">✦</button>
+<div class="tweaks-panel" id="tweaksPanel">
+  <h4>Design Tweaks</h4>
+  <div class="tweak-group">
+    <div class="tweak-label">Theme</div>
+    <div class="tweak-options">
+      <button class="tweak-opt active" data-theme-val="dark">Dark</button>
+      <button class="tweak-opt" data-theme-val="midnight">Midnight</button>
+    </div>
+  </div>
+  <div class="tweak-group">
+    <div class="tweak-label">Density</div>
+    <div class="tweak-options">
+      <button class="tweak-opt" data-density="0.8">Compact</button>
+      <button class="tweak-opt active" data-density="1">Normal</button>
+      <button class="tweak-opt" data-density="1.2">Comfort</button>
+    </div>
+  </div>
+  <div class="tweak-group">
+    <div class="tweak-label">Animation</div>
+    <div class="tweak-options">
+      <button class="tweak-opt" data-anim="off">Off</button>
+      <button class="tweak-opt active" data-anim="on">On</button>
+    </div>
+  </div>
+  <div class="tweak-group">
+    <div class="tweak-label">Layout Mode</div>
+    <div class="tweak-options">
+      <button class="tweak-opt" data-layout="grid">Grid</button>
+      <button class="tweak-opt" data-layout="freeform">Drag</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ================================================================
+// DATA
+// ================================================================
+const DATA = {
+  candles: (() => {
+    let p = 66320;
+    return Array.from({ length: 30 }, (_, i) => {
+      const open = p + (Math.random() - 0.5) * 80;
+      const close = open + (Math.random() - 0.5) * 120;
+      const high = Math.max(open, close) + Math.random() * 40;
+      const low = Math.min(open, close) - Math.random() * 40;
+      const volume = 800 + Math.random() * 1800;
+      p = close;
+      return { time: i, open: Math.round(open), high: Math.round(high), low: Math.round(low), close: Math.round(close), volume: Math.round(volume) };
+    });
+  })(),
+  orderbook: (() => {
+    const mid = 66350;
+    const bids = Array.from({ length: 12 }, (_, i) => {
+      const p = mid - (i + 1) * 18 + (Math.random() - 0.5) * 10;
+      return { price: Math.round(p * 100) / 100, size: Math.round((0.5 + Math.random() * 3) * 1000) / 1000 };
+    });
+    const asks = Array.from({ length: 12 }, (_, i) => {
+      const p = mid + (i + 1) * 18 + (Math.random() - 0.5) * 10;
+      return { price: Math.round(p * 100) / 100, size: Math.round((0.5 + Math.random() * 3) * 1000) / 1000 };
+    });
+    let bidTotal = 0; asks.forEach(o => o.total = (bidTotal += o.size));
+    let askTotal = 0; bids.forEach(o => o.total = (askTotal += o.size));
+    return { bids, asks, maxTotal: Math.max(bidTotal, askTotal) };
+  })(),
+  signals: [
+    { type: 'buy', label: 'Momentum Breakout', desc: 'BTC > EMA50 + 2σ', time: '14:32:07' },
+    { type: 'sell', label: 'RSI Divergence', desc: 'RSI 14 crossed below 70', time: '14:28:15' },
+    { type: 'info', label: 'Volatility Spike', desc: 'ATR 14 +45%', time: '14:22:03' },
+    { type: 'buy', label: 'Support Bounce', desc: 'Tested 65800 → reversal', time: '14:15:44' },
+    { type: 'info', label: 'Funding Rate Shift', desc: '0.008% → 0.003%', time: '14:08:22' },
+  ],
+  events: (() => {
+    const types = [
+      { label: 'Order Filled BTCUSDT 0.23', status: 'ok', dot: '#22c55e' },
+      { label: 'Strategy "Momentum" entry signal', status: 'ok', dot: '#5B8DEF' },
+      { label: 'Position closed ETHUSDT +2.14%', status: 'ok', dot: '#22c55e' },
+      { label: 'Price alert BTC > 66500', status: 'ok', dot: '#f59e0b' },
+      { label: 'Connection re-established', status: 'warn', dot: '#f59e0b' },
+      { label: 'Market data gap detected', status: 'warn', dot: '#ef4444' },
+    ];
+    let t = 14 * 3600 + 30 * 60;
+    return types.map((e, i) => ({ ...e, time: new Date(t * 1000 + i * 120 * 1000) }));
+  })(),
+  metrics: {
+    btc: { price: 66347.82, change: '+2.34%', dir: 'up' },
+    eth: { price: 3451.16, change: '-0.87%', dir: 'down' },
+    total: { label: 'VOL 24h', value: '$12.4B', change: '+18.2%', dir: 'up' },
+    dominance: { label: 'BTC DOM', value: '52.4%', change: '+0.8%', dir: 'up' },
+  },
+  portfolio: [
+    { pair: 'BTCUSDT', size: '2.45', entry: '64210', mark: '66348', pnl: '+5,238.10', pnlPct: '+3.33%', dir: 'up' },
+    { pair: 'ETHUSDT', size: '18.0', entry: '3480', mark: '3451', pnl: '-522.00', pnlPct: '-0.83%', dir: 'down' },
+    { pair: 'SOLUSDT', size: '45.0', entry: '148.20', mark: '152.40', pnl: '+189.00', pnlPct: '+2.83%', dir: 'up' },
+  ],
+  strategies: [
+    { name: 'Momentum', status: 'Active', signals: '3', pnl: '+4.12%', age: '12h' },
+    { name: 'Grid BTC', status: 'Active', signals: '8', pnl: '+1.87%', age: '6h' },
+    { name: 'Arbitrage', status: 'Idle', signals: '0', pnl: '—', age: '2d' },
+    { name: 'MeanRev ETH', status: 'Paused', signals: '1', pnl: '-0.24%', age: '4h' },
+  ],
+  workspaceStatus: {
+    connection: { status: 'good', val: 'Connected' },
+    uptime: { status: 'good', val: '47h 32m' },
+    latency: { status: 'good', val: '24ms' },
+    events: { status: 'good', val: '1,847/s' },
+    memory: { status: 'warn', val: '68%' },
+    agents: { status: 'good', val: '4/4 Active' },
+  },
+  pnl: { total: '+4,905.10', dir: 'up', daily: '+1,247.30', dailyDir: 'up', winRate: '67.3%', trades: '47' },
+};
+
+// ================================================================
+// PRESETS
+// ================================================================
+const PRESETS = [
+  {
+    name: 'default', label: 'Overview',
+    cols: '320px 1fr 420px', rows: '180px',
+    items: [
+      { id: 'metricStrip', row: 1, col: 1, w: 3, h: 1 },
+      { id: 'liveSignals', row: 2, col: 1, w: 1, h: 3 },
+      { id: 'eventFlow', row: 2, col: 3, w: 1, h: 3 },
+      { id: 'portfolio', row: 2, col: 2, w: 1, h: 2 },
+      { id: 'strategy', row: 4, col: 2, w: 1, h: 1 },
+      { id: 'health', row: 2, col: 2, w: 1, h: 2 },
+      { id: 'workspaceStatus', row: 5, col: 1, w: 3, h: 1 },
+    ],
+  },
+  {
+    name: 'trading', label: 'Trading',
+    cols: '1fr 380px', rows: '200px',
+    items: [
+      { id: 'metricStrip', row: 1, col: 1, w: 2, h: 1 },
+      { id: 'chart', row: 2, col: 1, w: 1, h: 4 },
+      { id: 'orderbook', row: 2, col: 2, w: 1, h: 4 },
+      { id: 'liveSignals', row: 6, col: 1, w: 1, h: 2 },
+      { id: 'pnl', row: 6, col: 2, w: 1, h: 1 },
+      { id: 'workspaceStatus', row: 7, col: 1, w: 2, h: 1 },
+    ],
+  },
+  {
+    name: 'signals-focus', label: 'Signals Focus',
+    cols: '1fr 360px', rows: '200px',
+    items: [
+      { id: 'metricStrip', row: 1, col: 1, w: 2, h: 1 },
+      { id: 'liveSignals', row: 2, col: 2, w: 1, h: 4 },
+      { id: 'eventFlow', row: 2, col: 1, w: 1, h: 2 },
+      { id: 'portfolio', row: 4, col: 1, w: 1, h: 1 },
+      { id: 'strategy', row: 5, col: 1, w: 1, h: 1 },
+      { id: 'workspaceStatus', row: 6, col: 1, w: 2, h: 1 },
+    ],
+  },
+  {
+    name: 'monitoring', label: 'Monitoring',
+    cols: '1fr 1fr 1fr', rows: '160px',
+    items: [
+      { id: 'metricStrip', row: 1, col: 1, w: 3, h: 1 },
+      { id: 'health', row: 2, col: 1, w: 1, h: 2 },
+      { id: 'eventFlow', row: 2, col: 2, w: 1, h: 2 },
+      { id: 'workspaceStatus', row: 2, col: 3, w: 1, h: 2 },
+      { id: 'strategy', row: 4, col: 1, w: 3, h: 1 },
+    ],
+  },
+  {
+    name: 'research', label: 'Research',
+    cols: '1fr 1fr 1fr', rows: '180px',
+    items: [
+      { id: 'metricStrip', row: 1, col: 1, w: 3, h: 1 },
+      { id: 'strategy', row: 2, col: 1, w: 1, h: 2 },
+      { id: 'eventFlow', row: 2, col: 2, w: 1, h: 2 },
+      { id: 'liveSignals', row: 2, col: 3, w: 1, h: 1 },
+      { id: 'portfolio', row: 3, col: 3, w: 1, h: 1 },
+      { id: 'workspaceStatus', row: 4, col: 1, w: 3, h: 1 },
+    ],
+  },
+];
+
+// ================================================================
+// WIDGET RENDERERS
+// ================================================================
+const WIDGETS = {
+  metricStrip: () => {
+    const m = DATA.metrics;
+    return Card({
+      title: 'Market Overview', dot: 'live',
+      body: `<div class="metric-strip">
+        <div class="metric-item">
+          <div class="metric-label">BTC/USDT</div>
+          <div class="metric-value ${m.btc.dir}">$${m.btc.price.toLocaleString()}</div>
+          <div class="metric-change ${m.btc.dir}">${m.btc.change}</div>
+        </div>
+        <div class="metric-item">
+          <div class="metric-label">ETH/USDT</div>
+          <div class="metric-value ${m.eth.dir}">$${m.eth.price.toLocaleString()}</div>
+          <div class="metric-change ${m.eth.dir}">${m.eth.change}</div>
+        </div>
+        <div class="metric-item">
+          <div class="metric-label">${m.total.label}</div>
+          <div class="metric-value ${m.total.dir}">${m.total.value}</div>
+          <div class="metric-change ${m.total.dir}">${m.total.change}</div>
+        </div>
+        <div class="metric-item">
+          <div class="metric-label">BTC DOM</div>
+          <div class="metric-value">${m.dominance.value}</div>
+          <div class="metric-change ${m.dominance.dir}">${m.dominance.change}</div>
+        </div>
+      </div>`
+    });
+  },
+
+  chart: () => {
+    const c = DATA.candles;
+    const w = 800, h = 300, pad = { t: 16, r: 16, b: 32, l: 56 };
+    const cw = (w - pad.l - pad.r) / c.length;
+    const prices = c.flatMap(x => [x.high, x.low]);
+    const minP = Math.min(...prices), maxP = Math.max(...prices), rangeP = maxP - minP || 1;
+    const volumes = c.map(x => x.volume);
+    const minV = Math.min(...volumes), maxV = Math.max(...volumes), rangeV = maxV - minV || 1;
+    const scaleP = v => pad.t + (1 - (v - minP) / rangeP) * (h - pad.t - pad.b);
+    const scaleV = v => h - pad.b - ((v - minV) / rangeV) * 40;
+    const gridLines = Array.from({ length: 6 }, (_, i) => {
+      const p = minP + rangeP * (i / 5);
+      return { y: scaleP(p), label: p.toLocaleString('en-US', { maximumFractionDigits: 0 }) };
+    });
+    const lastClose = c[c.length - 1].close;
+
+    return Card({
+      title: 'BTC/USDT · 1m', dot: 'live', badge: '30 candles',
+      body: `<div class="chart-container">
+        <svg viewBox="0 0 ${w} ${h}" style="max-height:280px">
+          <defs>
+            <linearGradient id="gridGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="var(--border-subtle)" stop-opacity="0.3"/>
+              <stop offset="100%" stop-color="var(--border-subtle)" stop-opacity="0.05"/>
+            </linearGradient>
+          </defs>
+          ${gridLines.map(({ y, label }) => `
+            <line x1="${pad.l}" y1="${y}" x2="${w - pad.r}" y2="${y}" stroke="var(--border-subtle)" stroke-width="1" opacity="0.3"/>
+            <text x="${pad.l - 6}" y="${y + 4}" text-anchor="end" fill="var(--text-muted)" font-size="10" font-family="var(--font-mono)">${label}</text>
+          `).join('')}
+          ${c.map((candle, i) => {
+            const x = pad.l + i * cw;
+            const isUp = candle.close >= candle.open;
+            const bodyTop = scaleP(Math.max(candle.open, candle.close));
+            const bodyBot = scaleP(Math.min(candle.open, candle.close));
+            const wickTop = scaleP(candle.high);
+            const wickBot = scaleP(candle.low);
+            const color = isUp ? 'var(--accent-green)' : 'var(--accent-red)';
+            return `<g class="candle" data-i="${i}">
+              <line class="candle-wick" x1="${x + cw * 0.2}" y1="${wickTop}" x2="${x + cw * 0.2}" y2="${wickBot}" stroke="${color}" stroke-width="1.5" stroke-linecap="round"/>
+              <rect class="candle-body" x="${x + cw * 0.05}" y="${bodyTop}" width="${cw * 0.3}" height="${Math.max(bodyBot - bodyTop, 1)}" fill="${color}" rx="1"/>
+            </g>`;
+          }).join('')}
+          <line x1="${pad.l}" y1="${scaleP(lastClose)}" x2="${w - pad.r}" y2="${scaleP(lastClose)}" stroke="var(--accent-blue)" stroke-width="1" stroke-dasharray="4 3" opacity="0.6"/>
+          <text x="${w - pad.r - 4}" y="${scaleP(lastClose) - 4}" text-anchor="end" fill="var(--accent-blue)" font-size="10" font-family="var(--font-mono)" opacity="0.8">${lastClose.toLocaleString()}</text>
+        </svg>
+      </div>`
+    });
+  },
+
+  orderbook: () => {
+    const ob = DATA.orderbook;
+    const maxT = ob.maxTotal;
+    const asksHtml = ob.asks.slice().reverse().map(o => `
+      <div class="ob-row ask">
+        <span class="price">${o.price.toFixed(2)}</span>
+        <span class="size">${o.size.toFixed(3)}</span>
+        <span class="total">${o.total.toFixed(3)}</span>
+        <div class="depth-bar" style="width:${(o.total / maxT * 100).toFixed(1)}%"></div>
+      </div>`
+    ).join('');
+    const bidsHtml = ob.bids.map(o => `
+      <div class="ob-row bid">
+        <span class="price">${o.price.toFixed(2)}</span>
+        <span class="size">${o.size.toFixed(3)}</span>
+        <span class="total">${o.total.toFixed(3)}</span>
+        <div class="depth-bar" style="width:${(o.total / maxT * 100).toFixed(1)}%"></div>
+      </div>`
+    ).join('');
+
+    return Card({
+      title: 'Order Book · BTC/USDT', dot: 'live',
+      body: `<div class="orderbook">
+        <div class="ob-header">
+          <span style="text-align:right">Price</span>
+          <span style="text-align:center">Size</span>
+          <span style="text-align:right">Total</span>
+        </div>
+        <div class="ob-asks">${asksHtml}</div>
+        <div class="ob-row" style="border-top:2px solid var(--border-subtle);border-bottom:2px solid var(--border-subtle);padding:4px 0;margin:2px 0;font-weight:600;grid-template-columns:1fr 1fr 1fr">
+          <span style="text-align:right;font-family:var(--font-mono);color:var(--accent-blue);font-size:13px">${(DATA.metrics.btc.price).toLocaleString()}</span>
+          <span style="text-align:center;font-size:10px;color:var(--text-muted)">SPREAD</span>
+          <span style="text-align:right;font-family:var(--font-mono);color:var(--text-muted);font-size:12px">0.12</span>
+        </div>
+        <div class="ob-bids">${bidsHtml}</div>
+      </div>`
+    });
+  },
+
+  liveSignals: () => {
+    return Card({
+      title: 'Live Signals', dot: 'live',
+      body: `<div class="signals-list">
+        ${DATA.signals.map(s => `
+          <div class="signal-item ${s.type}">
+            <div class="signal-icon">${s.type === 'buy' ? '▲' : s.type === 'sell' ? '▼' : '◆'}</div>
+            <div class="signal-info">
+              <div class="signal-label">${s.label}</div>
+              <div class="signal-desc">${s.desc}</div>
+            </div>
+            <div class="signal-time">${s.time}</div>
+          </div>`
+        ).join('')}
+      </div>`
+    });
+  },
+
+  eventFlow: () => {
+    const colors = { '#22c55e': 'ok', '#f59e0b': 'warn', '#ef4444': 'warn', '#5B8DEF': 'ok' };
+    return Card({
+      title: 'Event Flow', dot: 'live',
+      body: `<div class="event-flow">
+        ${DATA.events.slice(-8).reverse().map(e => `
+          <div class="event-item">
+            <div class="event-type" style="background:${e.dot}"></div>
+            <span class="event-time">${e.time.toLocaleTimeString('en-US', { hour12: false })}</span>
+            <span class="event-label">${e.label}</span>
+            <span class="event-status ${colors[e.dot] || 'ok'}">${e.status}</span>
+          </div>`
+        ).join('')}
+      </div>`
+    });
+  },
+
+  portfolio: () => {
+    return Card({
+      title: 'Portfolio', dot: 'live',
+      body: `<table class="data-table">
+        <thead><tr>
+          <th>Pair</th><th>Size</th><th>Entry</th><th>Mark</th><th>PnL</th>
+        </tr></thead>
+        <tbody>
+          ${DATA.portfolio.map(p => `
+            <tr>
+              <td style="font-weight:500">${p.pair}</td>
+              <td>${p.size}</td>
+              <td>$${p.entry}</td>
+              <td>$${p.mark}</td>
+              <td style="color:${p.dir === 'up' ? 'var(--accent-green)' : 'var(--accent-red)'}">${p.pnlPct}</td>
+            </tr>`
+          ).join('')}
+        </tbody>
+      </table>`
+    });
+  },
+
+  strategy: () => {
+    return Card({
+      title: 'Strategies', dot: 'live',
+      body: `<table class="data-table">
+        <thead><tr>
+          <th>Name</th><th>Status</th><th>Signals</th><th>PnL</th><th>Age</th>
+        </tr></thead>
+        <tbody>
+          ${DATA.strategies.map(s => `
+            <tr>
+              <td style="font-weight:500">${s.name}</td>
+              <td><span style="color:${s.status === 'Active' ? 'var(--accent-green)' : s.status === 'Paused' ? 'var(--accent-orange)' : 'var(--text-muted)'}">${s.status}</span></td>
+              <td>${s.signals}</td>
+              <td style="color:${s.pnl.startsWith('+') ? 'var(--accent-green)' : s.pnl.startsWith('-') ? 'var(--accent-red)' : 'var(--text-muted)'}">${s.pnl}</td>
+              <td>${s.age}</td>
+            </tr>`
+          ).join('')}
+        </tbody>
+      </table>`
+    });
+  },
+
+  health: () => {
+    return Card({
+      title: 'System Health', dot: 'live',
+      body: `<div class="status-grid">
+        ${Object.entries(DATA.workspaceStatus).map(([key, v]) => `
+          <div class="status-cell">
+            <div class="status-label">${key}</div>
+            <div class="status-value ${v.status}">${v.val}</div>
+          </div>`
+        ).join('')}
+      </div>`
+    });
+  },
+
+  pnl: () => {
+    const pnl = DATA.pnl;
+    return Card({
+      title: 'PnL Summary', dot: 'live',
+      body: `<div class="pnl-card">
+        <div class="pnl-value ${pnl.dir}">${pnl.total}</div>
+        <div class="pnl-label">Total PnL (USDT)</div>
+        <div class="pnl-row">
+          <div class="pnl-row-item">
+            <div class="val ${pnl.dailyDir}">${pnl.daily}</div>
+            <div class="lbl">24h PnL</div>
+          </div>
+          <div class="pnl-row-item">
+            <div class="val">${pnl.winRate}</div>
+            <div class="lbl">Win Rate</div>
+          </div>
+          <div class="pnl-row-item">
+            <div class="val">${pnl.trades}</div>
+            <div class="lbl">Trades</div>
+          </div>
+        </div>
+      </div>`
+    });
+  },
+
+  workspaceStatus: () => {
+    return Card({
+      title: 'Workspace Status', dot: 'live',
+      body: `<div class="status-grid">
+        ${Object.entries(DATA.workspaceStatus).map(([key, v]) => `
+          <div class="status-cell">
+            <div class="status-label">${key}</div>
+            <div class="status-value ${v.status}">${v.val}</div>
+          </div>`
+        ).join('')}
+      </div>`
+    });
+  },
+};
+
+// ================================================================
+// CARD WRAPPER
+// ================================================================
+function Card({ title, body, dot = 'live', badge = '' }) {
+  return `<div class="card">
+    <div class="glass-overlay"></div>
+    <div class="dock-handle" title="Drag to reorder">⋮⋮</div>
+    <div class="card-header">
+      <div class="card-title">
+        <span class="dot ${dot}"></span>
+        ${title}
+      </div>
+      ${badge ? `<span class="card-badge">${badge}</span>` : ''}
+    </div>
+    <div class="card-body">${body}</div>
+    <div class="resize-handle" title="Resize"></div>
+  </div>`;
+}
+
+// ================================================================
+// DASHBOARD ENGINE
+// ================================================================
+let currentPreset = PRESETS[0];
+let isAnimating = false;
+
+function renderPreset(preset, animate = true) {
+  if (isAnimating) return;
+  isAnimating = true;
+  currentPreset = preset;
+
+  // Update preset label
+  document.getElementById('presetLabel').textContent = preset.label;
+
+  // Update active button
+  document.querySelectorAll('.preset-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.preset === preset.name);
+  });
+
+  const grid = document.getElementById('dashboardGrid');
+  const animEnabled = document.documentElement.dataset.anim !== 'off';
+
+  // Exit animation
+  const existingItems = grid.querySelectorAll('.grid-item');
+  if (existingItems.length && animate && animEnabled) {
+    existingItems.forEach(el => el.classList.add('exiting'));
+    setTimeout(() => rebuildGrid(grid, preset, animEnabled), 250);
+  } else {
+    rebuildGrid(grid, preset, animEnabled);
+  }
+}
+
+function rebuildGrid(grid, preset, animEnabled) {
+  grid.innerHTML = '';
+  grid.style.gridTemplateColumns = preset.cols;
+  grid.style.gridTemplateRows = preset.rows;
+  grid.style.gap = 'var(--spacing-md)';
+
+  preset.items.forEach((item, idx) => {
+    const renderer = WIDGETS[item.id];
+    if (!renderer) return;
+    const el = document.createElement('div');
+    el.className = `grid-item${animEnabled ? ' entering' : ''}`;
+    el.style.gridRow = `${item.row} / span ${item.h}`;
+    el.style.gridColumn = `${item.col} / span ${item.w}`;
+    el.style.animationDelay = `${idx * 40}ms`;
+    el.innerHTML = renderer();
+    grid.appendChild(el);
+  });
+
+  // Remove entering class after animation
+  if (animEnabled) {
+    setTimeout(() => {
+      grid.querySelectorAll('.entering').forEach(el => el.classList.remove('entering'));
+    }, 500);
+  }
+
+  isAnimating = false;
+}
+
+// ================================================================
+// PRESET BAR
+// ================================================================
+function initPresetBar() {
+  const bar = document.getElementById('presetBar');
+  PRESETS.forEach(p => {
+    const btn = document.createElement('button');
+    btn.className = `preset-btn${p === currentPreset ? ' active' : ''}`;
+    btn.dataset.preset = p.name;
+    btn.textContent = p.label;
+    btn.addEventListener('click', () => {
+      if (p.name === currentPreset.name) return;
+      renderPreset(p, true);
+    });
+    bar.appendChild(btn);
+  });
+}
+
+// ================================================================
+// TWEAKS
+// ================================================================
+function initTweaks() {
+  const toggle = document.getElementById('tweaksToggle');
+  const panel = document.getElementById('tweaksPanel');
+  toggle.addEventListener('click', () => panel.classList.toggle('open'));
+
+  // Theme
+  document.querySelectorAll('[data-theme-val]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('[data-theme-val]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.documentElement.dataset.theme = btn.dataset.themeVal;
+    });
+  });
+
+  // Density
+  document.querySelectorAll('[data-density]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('[data-density]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.documentElement.style.setProperty('--density', btn.dataset.density);
+    });
+  });
+
+  // Animation
+  document.querySelectorAll('[data-anim]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('[data-anim]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.documentElement.dataset.anim = btn.dataset.anim;
+    });
+  });
+
+  // Layout
+  document.querySelectorAll('[data-layout]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('[data-layout]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const grid = document.getElementById('dashboardGrid');
+      if (btn.dataset.layout === 'freeform') {
+        grid.style.display = 'flex';
+        grid.style.flexWrap = 'wrap';
+        grid.style.gap = 'var(--spacing-md)';
+        grid.querySelectorAll('.grid-item').forEach(el => {
+          el.style.flex = '1 1 400px';
+          el.style.gridRow = '';
+          el.style.gridColumn = '';
+        });
+      } else {
+        grid.style.display = 'grid';
+        grid.style.flexWrap = '';
+        grid.querySelectorAll('.grid-item').forEach(el => {
+          el.style.flex = '';
+        });
+        renderPreset(currentPreset, false);
+      }
+    });
+  });
+
+  // Close panel on outside click
+  document.addEventListener('click', (e) => {
+    if (!panel.contains(e.target) && e.target !== toggle && !toggle.contains(e.target)) {
+      panel.classList.remove('open');
+    }
+  });
+}
+
+// ================================================================
+// SIMULATED DATA UPDATES
+// ================================================================
+function simulateTicker() {
+  // Update BTC price slightly
+  const m = DATA.metrics;
+  const drift = (Math.random() - 0.5) * 12;
+  m.btc.price = Math.round((m.btc.price + drift) * 100) / 100;
+  m.btc.dir = drift >= 0 ? 'up' : 'down';
+
+  // Update ETH
+  const ethDrift = (Math.random() - 0.5) * 6;
+  m.eth.price = Math.round((m.eth.price + ethDrift) * 100) / 100;
+  m.eth.dir = ethDrift >= 0 ? 'up' : 'down';
+
+  // Re-render metric strip if visible
+  const grid = document.getElementById('dashboardGrid');
+  const metricCard = grid.querySelector('.grid-item:first-child .card-body');
+  if (metricCard) {
+    const strip = metricCard.querySelector('.metric-strip');
+    if (strip) {
+      const items = strip.querySelectorAll('.metric-item');
+      if (items.length >= 4) {
+        const btcVal = items[0].querySelector('.metric-value');
+        const btcChg = items[0].querySelector('.metric-change');
+        if (btcVal && btcChg) {
+          btcVal.textContent = '$' + m.btc.price.toLocaleString();
+          btcVal.className = `metric-value ${m.btc.dir}`;
+          btcChg.textContent = m.btc.dir === 'up' ? '+' : '' + (drift / 66320 * 100).toFixed(2) + '%';
+          btcChg.className = `metric-change ${m.btc.dir}`;
+        }
+      }
+    }
+  }
+
+  // Update chart price line — just re-render every 10th tick
+  if (Math.random() < 0.1) {
+    // Only re-render if the chart widget exists (trading preset)
+    const chartBody = grid.querySelector('.grid-item:nth-child(2) .card-body');
+    if (chartBody) {
+      const svg = chartBody.querySelector('svg');
+      if (svg) {
+        // Smooth update: replace chart content
+        // (In a real app we'd use d3 for transitions)
+      }
+    }
+  }
+
+  // Add new event
+  const eventTypes = [
+    { label: 'Price update BTC ' + m.btc.price.toLocaleString(), status: 'ok', dot: '#5B8DEF' },
+    { label: 'Signal processed', status: 'ok', dot: '#22c55e' },
+    { label: 'OrderBook snapshot', status: 'ok', dot: '#22c55e' },
+  ];
+  const newEvent = eventTypes[Math.floor(Math.random() * eventTypes.length)];
+  DATA.events.push({
+    ...newEvent,
+    time: new Date(),
+  });
+  if (DATA.events.length > 20) DATA.events.shift();
+}
+
+// ================================================================
+// INIT
+// ================================================================
+document.addEventListener('DOMContentLoaded', () => {
+  initPresetBar();
+  initTweaks();
+  renderPreset(PRESETS[0], false);
+
+  // Simulate live ticker every 3s
+  setInterval(simulateTicker, 3000);
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', (e) => {
+    const num = parseInt(e.key);
+    if (num >= 1 && num <= 5 && PRESETS[num - 1]) {
+      renderPreset(PRESETS[num - 1], true);
+    }
+    if (e.key === 't' || e.key === 'T') {
+      document.getElementById('tweaksToggle')?.click();
+    }
+  });
+
+  console.log('🚀 Dashboard Prototype loaded');
+  console.log('⌨️  Presets: 1-5  |  T: Toggle tweaks');
+});
+</script>
+</body>
+</html>

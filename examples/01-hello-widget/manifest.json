@@ -1,0 +1,15 @@
+{
+  "id": "hello-widget",
+  "name": "Hello Widget",
+  "version": "1.0.0",
+  "description": "Minimal example: a dashboard widget that says hello",
+  "author": "Runtime SDK",
+  "icon": "hand-wave",
+  "permissions": ["widget.write"],
+  "dependencies": {
+    "runtime": ">=2.0.0"
+  },
+  "widgets": ["hello-widget"],
+  "commands": [],
+  "searchAdapters": []
+}

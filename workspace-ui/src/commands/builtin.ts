@@ -11,6 +11,59 @@ export function registerBuiltInCommands(): void {
   // ── Navigation ───────────────────────────────────────────────────
 
   reg.register({
+    id: 'nav.dashboard',
+    title: 'Go to Dashboard',
+    category: 'Navigation',
+    keywords: ['dashboard', 'home', 'main'],
+    shortcut: 'Ctrl+T',
+    run: () => useStore.getState().setActiveView('dashboard'),
+  })
+
+  reg.register({
+    id: 'nav.dashboard.overview',
+    title: 'Dashboard: Overview',
+    category: 'Navigation',
+    keywords: ['dashboard', 'overview', 'default'],
+    run: () => {
+      useStore.getState().setActiveView('dashboard')
+      useStore.getState().setDashboardPreset('default')
+    },
+  })
+
+  reg.register({
+    id: 'nav.dashboard.trading',
+    title: 'Dashboard: Trading',
+    category: 'Navigation',
+    keywords: ['dashboard', 'trading', 'chart', 'orders'],
+    run: () => {
+      useStore.getState().setActiveView('dashboard')
+      useStore.getState().setDashboardPreset('trading')
+    },
+  })
+
+  reg.register({
+    id: 'nav.dashboard.research',
+    title: 'Dashboard: Research',
+    category: 'Navigation',
+    keywords: ['dashboard', 'research', 'strategies', 'analysis'],
+    run: () => {
+      useStore.getState().setActiveView('dashboard')
+      useStore.getState().setDashboardPreset('research')
+    },
+  })
+
+  reg.register({
+    id: 'nav.dashboard.monitoring',
+    title: 'Dashboard: Monitoring',
+    category: 'Navigation',
+    keywords: ['dashboard', 'monitoring', 'health', 'system'],
+    run: () => {
+      useStore.getState().setActiveView('dashboard')
+      useStore.getState().setDashboardPreset('monitoring')
+    },
+  })
+
+  reg.register({
     id: 'nav.scanner',
     title: 'Go to Scanner',
     category: 'Navigation',

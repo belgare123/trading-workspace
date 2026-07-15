@@ -1,0 +1,15 @@
+{
+  "id": "hello-plugin",
+  "name": "Hello Plugin",
+  "version": "1.0.0",
+  "description": "Full plugin lifecycle: register, unregister, commands, search, settings",
+  "author": "Runtime SDK",
+  "icon": "puzzle",
+  "permissions": ["widget.write", "command.execute", "search.index"],
+  "dependencies": {
+    "runtime": ">=2.0.0"
+  },
+  "widgets": ["hello-plugin-widget"],
+  "commands": ["hello-plugin.greet"],
+  "searchAdapters": ["hello-plugin-search"]
+}

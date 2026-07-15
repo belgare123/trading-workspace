@@ -1,42 +1,63 @@
-import { useStore } from '../store'
+import { useEffect, useState } from 'react'
 import { LayoutSwitcher } from '../components/LayoutSwitcher'
+import { DashboardPresetSwitcher } from '../components/DashboardPresetSwitcher'
+import { useStore } from '../store'
 
 export function Toolbar() {
-  const toggleRightPanel = useStore((s) => s.toggleRightPanel)
-  const rightPanelOpen = useStore((s) => s.rightPanelOpen)
-  const activeView = useStore((s) => s.activeView)
+  const [time, setTime] = useState('')
+  const runtime = useStore((s) => s.systemMetrics?.runtime ?? 98)
+  const wsClients = useStore((s) => s.systemMetrics?.ws_clients ?? 26)
+  const health = useStore((s) => s.health?.overall_score ?? 87)
 
-  const viewLabels: Record<string, string> = {
-    scanner: 'Scanner',
-    opportunities: 'Opportunities',
-    strategies: 'Strategies',
-    replay: 'Replay Studio',
-    inspector: 'Inspector',
-    plugins: 'Plugin Store',
-    learning: 'Learning Center',
-    system: 'System Monitor',
-  }
+  useEffect(() => {
+    const tick = () => {
+      const now = new Date()
+      setTime(now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }))
+    }
+    tick()
+    const id = setInterval(tick, 1000)
+    return () => clearInterval(id)
+  }, [])
+
+  const healthColor = health >= 80 ? 'var(--success)' : health >= 50 ? 'var(--warning)' : 'var(--danger)'
 
   return (
-    <header className="h-10 flex items-center justify-between px-4 bg-toolbar-bg border-b border-border text-sm" role="toolbar" aria-label="Workspace toolbar">
-      <div className="flex items-center gap-3">
-        <span className="text-primary-400 font-semibold tracking-wide" aria-hidden="true">⚡ Workspace</span>
-        <span className="text-surface-600" aria-hidden="true">/</span>
-        <span className="text-surface-700">{viewLabels[activeView] || activeView}</span>
+    <header className="topbar" role="toolbar" aria-label="Workspace toolbar">
+      {/* Brand */}
+      <div className="topbar-brand">
+        <span>⚡</span>
+        <span>Workspace</span>
       </div>
 
-      <div className="flex items-center gap-2">
+      <DashboardPresetSwitcher />
+
+      <div className="topbar-spacer" />
+
+      {/* Right side — indicators (Spec §1.7 Topbar) */}
+      <div className="topbar-indicator">
+        <span className="dot" style={{ backgroundColor: 'var(--success)' }} />
+        <span className="val">{runtime}%</span>
+        <span>Runtime</span>
+      </div>
+
+      <div className="topbar-indicator">
+        <span className="dot" style={{ backgroundColor: 'var(--primary)' }} />
+        <span className="val">{wsClients}</span>
+        <span>WS</span>
+      </div>
+
+      <div className="topbar-indicator">
+        <span className="dot" style={{ backgroundColor: healthColor }} />
+        <span className="val">{health}</span>
+        <span>Health</span>
+      </div>
+
+      <div className="topbar-indicator">
         <LayoutSwitcher />
-        <button
-          onClick={toggleRightPanel}
-          className={`px-2 py-1 rounded text-xs transition-colors ${
-            rightPanelOpen ? 'bg-primary-500/20 text-primary-400' : 'text-surface-600 hover:text-surface-700'
-          }`}
-          aria-label={rightPanelOpen ? 'Close right panel' : 'Open right panel'}
-          aria-expanded={rightPanelOpen}
-        >
-          Panel
-        </button>
+      </div>
+
+      <div className="topbar-indicator" style={{ fontFamily: 'var(--font-mono)', fontWeight: 400 }}>
+        {time}
       </div>
     </header>
   )

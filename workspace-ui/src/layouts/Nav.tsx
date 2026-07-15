@@ -1,15 +1,18 @@
+import { LayoutDashboard, Search, Target, BrainCircuit, Play, SearchCheck, Cpu, Puzzle, BookOpen, Monitor } from 'lucide-react'
 import { useStore } from '../store'
 import { Telemetry } from '../telemetry'
 
 const NAV_ITEMS = [
-  { id: 'scanner', label: 'Scanner', icon: '🔍' },
-  { id: 'opportunities', label: 'Opportunities', icon: '🎯' },
-  { id: 'strategies', label: 'Strategies', icon: '🧠' },
-  { id: 'replay', label: 'Replay Studio', icon: '▶️' },
-  { id: 'inspector', label: 'Inspector', icon: '🔬' },
-  { id: 'plugins', label: 'Plugin Store', icon: '🧩' },
-  { id: 'learning', label: 'Learning', icon: '🤖' },
-  { id: 'system', label: 'System', icon: '📊' },
+  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { id: 'scanner', label: 'Scanner', icon: Search },
+  { id: 'opportunities', label: 'Opportunities', icon: Target },
+  { id: 'strategies', label: 'Strategies', icon: BrainCircuit },
+  { id: 'replay', label: 'Replay Studio', icon: Play },
+  { id: 'inspector', label: 'Inspector', icon: SearchCheck },
+  { id: 'runtime', label: 'Runtime', icon: Cpu },
+  { id: 'plugins', label: 'Plugin Store', icon: Puzzle },
+  { id: 'learning', label: 'Learning', icon: BookOpen },
+  { id: 'system', label: 'System', icon: Monitor },
 ]
 
 export function Nav() {
@@ -17,26 +20,25 @@ export function Nav() {
   const setActiveView = useStore((s) => s.setActiveView)
 
   return (
-    <nav className="w-14 flex flex-col items-center gap-1 py-3 bg-nav-bg border-r border-border">
-      {NAV_ITEMS.map((item) => (
-        <button
-          key={item.id}
-          onClick={() => {
-            Telemetry.viewChanged(item.id)
-            setActiveView(item.id)
-          }}
-          className={`w-10 h-10 flex items-center justify-center rounded-lg text-lg transition-colors ${
-            activeView === item.id
-              ? 'bg-primary-500/20 text-primary-400'
-              : 'text-surface-600 hover:text-surface-700 hover:bg-surface-300'
-          }`}
-          aria-label={item.label}
-          aria-current={activeView === item.id ? 'page' : undefined}
-          title={item.label}
-        >
-          {item.icon}
-        </button>
-      ))}
+    <nav className="sidebar" role="navigation" aria-label="Main navigation">
+      {NAV_ITEMS.map((item) => {
+        const Icon = item.icon
+        return (
+          <button
+            key={item.id}
+            onClick={() => {
+              Telemetry.viewChanged(item.id)
+              setActiveView(item.id)
+            }}
+            className={`sidebar-btn${activeView === item.id ? ' active' : ''}`}
+            aria-label={item.label}
+            aria-current={activeView === item.id ? 'page' : undefined}
+            title={item.label}
+          >
+            <Icon size={18} strokeWidth={1.5} />
+          </button>
+        )
+      })}
     </nav>
   )
 }

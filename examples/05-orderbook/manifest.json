@@ -1,0 +1,13 @@
+{
+  "id": "orderbook-depth",
+  "name": "Order Book Depth",
+  "version": "1.0.0",
+  "description": "Real-time order book visualization with optimized rendering",
+  "author": "Runtime SDK",
+  "icon": "layers",
+  "permissions": ["market.read", "widget.write"],
+  "dependencies": {
+    "runtime": ">=2.0.0"
+  },
+  "widgets": ["orderbook-depth"]
+}

@@ -9,17 +9,17 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   children: ReactNode
 }
 
-const variantStyles: Record<Variant, string> = {
-  primary: 'bg-primary-500 text-white hover:bg-primary-600 active:bg-primary-600',
-  secondary: 'bg-surface-300 text-surface-50 hover:bg-surface-400 border border-border',
-  ghost: 'text-surface-600 hover:text-surface-700 hover:bg-surface-300',
-  danger: 'bg-accent-red/10 text-accent-red hover:bg-accent-red/20 border border-accent-red/20',
+const variantMap: Record<Variant, string> = {
+  primary: 'btn-primary',
+  secondary: '',
+  ghost: 'btn-ghost',
+  danger: 'btn-danger',
 }
 
-const sizeStyles: Record<Size, string> = {
-  sm: 'px-2.5 py-1 text-xs rounded-md',
-  md: 'px-3 py-1.5 text-sm rounded-lg',
-  lg: 'px-4 py-2 text-sm rounded-lg',
+const sizeMap: Record<Size, string> = {
+  sm: 'btn-sm',
+  md: '',
+  lg: 'btn-lg',
 }
 
 export function Button({
@@ -29,11 +29,12 @@ export function Button({
   children,
   ...props
 }: ButtonProps) {
+  const cls = ['btn', variantMap[variant], sizeMap[variant !== 'secondary' ? size : size], className]
+    .filter(Boolean)
+    .join(' ')
+
   return (
-    <button
-      className={`inline-flex items-center justify-center font-medium transition-colors disabled:opacity-40 disabled:pointer-events-none ${variantStyles[variant]} ${sizeStyles[size]} ${className}`}
-      {...props}
-    >
+    <button className={cls} {...props}>
       {children}
     </button>
   )

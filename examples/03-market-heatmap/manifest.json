@@ -1,0 +1,14 @@
+{
+  "id": "market-heatmap",
+  "name": "Market Heatmap",
+  "version": "1.0.0",
+  "description": "Real-time market heatmap with color-coded price changes",
+  "author": "Runtime SDK",
+  "icon": "grid",
+  "permissions": ["market.read", "widget.write", "event.read"],
+  "dependencies": {
+    "runtime": ">=2.0.0"
+  },
+  "widgets": ["market-heatmap"],
+  "searchAdapters": ["market-heatmap-search"]
+}

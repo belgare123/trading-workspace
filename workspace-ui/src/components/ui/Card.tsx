@@ -11,9 +11,7 @@ export function Card({ children, className = '', hover = false, onClick }: CardP
   return (
     <div
       onClick={onClick}
-      className={`rounded-lg bg-surface-200 border border-border p-4 ${
-        hover ? 'hover:border-surface-500 transition-colors cursor-pointer' : ''
-      } ${className}`}
+      className={`glass-card${hover ? ' hover:cursor-pointer' : ''} ${className}`}
     >
       {children}
     </div>
@@ -29,5 +27,5 @@ export function CardBody({ children, className = '' }: { children: ReactNode; cl
 }
 
 export function CardFooter({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return <div className={`mt-3 pt-3 border-t border-border ${className}`}>{children}</div>
+  return <div className={`mt-3 pt-3 border-t ${className}`} style={{ borderColor: 'var(--border)' }}>{children}</div>
 }

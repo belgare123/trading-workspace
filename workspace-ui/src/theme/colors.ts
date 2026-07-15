@@ -1,82 +1,81 @@
-/**
- * Color tokens for the Workspace Design System.
- *
- * All UI colors come from this single source. Never use raw hex values
- * outside legacy inline styles — migrate those as components are touched.
- */
+// Trading Workspace — Design Token Colors
+// Inspired by Linear, Bloomberg Terminal, TradingView dark
 
 export const colors = {
-  // Background hierarchy
+  // Surfaces
   surface: {
-    DEFAULT: '#0d0d0f',       // page / root background
-    raised: '#181a1e',        // card / panel background
-    overlay: '#1e1f23',       // hover / elevated
-    toolbar: '#1a1b1e',      // top toolbar
-    sidebar: '#141517',      // nav sidebar
-    input: '#1e2026',        // text input / search
-    status: '#0d0d0f',       // bottom status bar
+    0: '#05070a',
+    1: '#0b0e14',
+    2: '#111620',
+    3: '#151c28',
+    4: '#1a2232',
+    hover: '#202838',
   },
 
-  // Border
+  // Borders
   border: {
-    DEFAULT: '#25282e',      // default border
-    subtle: '#2c2e33',       // lighter border
-    hover: '#373a40',        // hovered border
+    subtle: 'rgba(255,255,255,0.04)',
+    base: 'rgba(255,255,255,0.06)',
+    accent: 'rgba(255,255,255,0.10)',
+    strong: 'rgba(255,255,255,0.16)',
   },
 
   // Text
   text: {
-    primary: '#e4e8ee',
-    secondary: '#c8cdd5',
-    muted: '#8892a4',
-    dim: '#5b6a7a',
-    disabled: '#4a4d55',
+    primary: '#f0f2f5',
+    secondary: '#949aa8',
+    tertiary: '#5c6372',
+    muted: '#3d4350',
+    inverse: '#05070a',
+    link: '#3b82f6',
   },
 
-  // Accent / brand
+  // Accent — blue
   accent: {
-    blue: '#5b8def',
-    blueHover: '#4c7de0',
-    cyan: '#22b8cf',
-    purple: '#9775fa',
+    blue: '#3b82f6',
+    blueHover: '#60a5fa',
+    blueBg: 'rgba(59,130,246,0.12)',
+    purple: '#8b5cf6',
+    purpleHover: '#a78bfa',
+    purpleBg: 'rgba(139,92,246,0.12)',
+    cyan: '#5bc0de',
+    cyanHover: '#6dd4f0',
+    cyanBg: 'rgba(91,192,222,0.12)',
   },
 
   // Semantic
-  success: {
-    DEFAULT: '#22c55e',
-    bg: '#14532d33',
-    text: '#4ade80',
+  semantic: {
+    success: '#22c55e',
+    successBg: 'rgba(34,197,94,0.12)',
+    successText: '#4ade80',
+    warning: '#eab308',
+    warningBg: 'rgba(234,179,8,0.12)',
+    warningText: '#facc15',
+    danger: '#ef4444',
+    dangerBg: 'rgba(239,68,68,0.12)',
+    dangerText: '#f87171',
+    info: '#3b82f6',
+    infoBg: 'rgba(59,130,246,0.12)',
+    infoText: '#60a5fa',
   },
 
-  warning: {
-    DEFAULT: '#f59e0b',
-    bg: '#5c3c0a33',
-    text: '#fbbf24',
-  },
-
-  danger: {
-    DEFAULT: '#ef4444',
-    bg: '#5c1a1a33',
-    text: '#f87171',
-  },
-
-  info: {
-    DEFAULT: '#3b82f6',
-    bg: '#1e3a5f33',
-  },
-
-  // Chart / trading
+  // Chart
   chart: {
-    up: '#22c55e',
-    down: '#ef4444',
-    neutral: '#5b8def',
-    volume: '#5b8def55',
-    grid: '#1e2026',
+    green: '#22c55e',
+    red: '#ef4444',
+    volume: 'rgba(255,255,255,0.04)',
+    grid: 'rgba(255,255,255,0.04)',
+    crosshair: 'rgba(255,255,255,0.20)',
+    areaUp: 'rgba(34,197,94,0.08)',
+    areaDown: 'rgba(239,68,68,0.08)',
   },
 
-  // Overlay / backdrop
-  backdrop: '#00000066',
-  scrollbar: '#373a40',
-}
+  // Glass
+  glass: {
+    white: 'rgba(255,255,255,0.03)',
+    whiteStrong: 'rgba(255,255,255,0.06)',
+    border: 'rgba(255,255,255,0.06)',
+  },
+} as const;
 
-export type ThemeColors = typeof colors
+export type ColorKey = keyof typeof colors;

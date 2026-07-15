@@ -1,0 +1,24 @@
+{
+  "id": "ml-predictor",
+  "name": "ML Predictor",
+  "version": "1.0.0",
+  "description": "ML-powered price prediction with timeline, notifications, and commands",
+  "author": "Runtime SDK",
+  "icon": "brain",
+  "permissions": [
+    "market.read",
+    "ml.read",
+    "ml.write",
+    "widget.write",
+    "command.execute",
+    "notification.write",
+    "event.write",
+    "search.index"
+  ],
+  "dependencies": {
+    "runtime": ">=2.0.0"
+  },
+  "widgets": ["ml-predictor-widget"],
+  "commands": ["ml.predict", "ml.train"],
+  "searchAdapters": ["ml-model-search"]
+}

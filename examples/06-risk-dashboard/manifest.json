@@ -1,0 +1,31 @@
+{
+  "id": "risk-dashboard",
+  "name": "Risk Dashboard",
+  "version": "1.0.0",
+  "description": "Multi-service risk monitoring: portfolio, positions, strategy metrics, timeline",
+  "author": "Runtime SDK",
+  "icon": "shield",
+  "permissions": [
+    "market.read",
+    "widget.write",
+    "command.execute",
+    "search.index",
+    "notification.write",
+    "event.read"
+  ],
+  "dependencies": {
+    "runtime": ">=2.0.0"
+  },
+  "widgets": [
+    "risk-overview",
+    "risk-positions",
+    "risk-timeline"
+  ],
+  "commands": [
+    "risk.close-all",
+    "risk.summary"
+  ],
+  "searchAdapters": [
+    "risk-search"
+  ]
+}

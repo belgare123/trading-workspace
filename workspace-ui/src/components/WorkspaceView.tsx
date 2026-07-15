@@ -13,6 +13,8 @@ const StrategyPage = lazy(() => import('../pages/StrategyPage').then(m => ({ def
 const PluginStorePage = lazy(() => import('../pages/PluginStorePage'))
 const LearningHubPage = lazy(() => import('../pages/LearningHubPage'))
 const SystemMonitorPage = lazy(() => import('../pages/SystemMonitorPage'))
+const DashboardPage = lazy(() => import('../pages/dashboard/DashboardPage').then(m => ({ default: m.DashboardPage })))
+const RuntimeDevTools = lazy(() => import('../pages/runtime/RuntimeDevTools').then(m => ({ default: m.RuntimeDevTools })))
 
 // ── Page transition ─────────────────────────────────────────────────
 
@@ -42,9 +44,12 @@ function PageSuspense({ children }: { children: React.ReactNode }) {
 
 export function WorkspaceView() {
   const activeView = useStore((s) => s.activeView)
+  const dashboardPreset = useStore((s) => s.dashboardPreset)
 
   const pageContent = () => {
     switch (activeView) {
+      case 'dashboard':
+        return <DashboardPage preset={dashboardPreset} />
       case 'scanner':
         return <ScannerPage />
       case 'opportunities':
@@ -56,6 +61,8 @@ export function WorkspaceView() {
         return <ReplayPage />
       case 'inspector':
         return <InspectorPage />
+      case 'runtime':
+        return <RuntimeDevTools />
       case 'plugins':
         return <PluginStorePage />
       case 'learning':

@@ -1,0 +1,165 @@
+{
+  "generated": "2026-07-15T00:00:00Z",
+  "runtimeApiVersion": "2.0.0",
+  "apis": [
+    {
+      "name": "market",
+      "version": "1.0.0",
+      "exports": [
+        "MarketApi",
+        "OrderBook",
+        "OrderBookLevel",
+        "MarketTick",
+        "Candle",
+        "MARKET_TOPICS",
+        "MARKET_API_VERSION"
+      ],
+      "topics": [
+        "market.price",
+        "market.tick",
+        "market.orderbook",
+        "market.candle",
+        "market.connection"
+      ]
+    },
+    {
+      "name": "replay",
+      "version": "1.0.0",
+      "exports": [
+        "ReplayApi",
+        "ReplayState",
+        "REPLAY_TOPICS",
+        "REPLAY_API_VERSION"
+      ],
+      "topics": [
+        "replay.state",
+        "replay.time",
+        "replay.speed",
+        "replay.complete"
+      ]
+    },
+    {
+      "name": "strategy",
+      "version": "1.0.0",
+      "exports": [
+        "StrategyApi",
+        "StrategyInfo",
+        "StrategyMetrics",
+        "STRATEGY_TOPICS",
+        "STRATEGY_API_VERSION"
+      ],
+      "topics": [
+        "strategy.status",
+        "strategy.metrics",
+        "strategy.signal",
+        "strategy.error"
+      ]
+    },
+    {
+      "name": "portfolio",
+      "version": "1.0.0",
+      "exports": [
+        "PortfolioApi",
+        "Position",
+        "Balance",
+        "PORTFOLIO_TOPICS",
+        "PORTFOLIO_API_VERSION"
+      ],
+      "topics": [
+        "portfolio.position",
+        "portfolio.balance",
+        "portfolio.order",
+        "portfolio.pnl"
+      ]
+    },
+    {
+      "name": "plugin",
+      "version": "1.0.0",
+      "exports": [
+        "PluginApi",
+        "PluginInfo",
+        "PluginManifest",
+        "PLUGIN_TOPICS",
+        "PLUGIN_API_VERSION"
+      ],
+      "topics": [
+        "plugin.install",
+        "plugin.activate",
+        "plugin.deactivate",
+        "plugin.uninstall",
+        "plugin.error",
+        "plugin.crash"
+      ]
+    },
+    {
+      "name": "eventstore",
+      "version": "1.0.0",
+      "exports": [
+        "EventStoreApi",
+        "EventEntry",
+        "EventFilter",
+        "EVENTSTORE_TOPICS",
+        "EVENTSTORE_API_VERSION"
+      ],
+      "topics": [
+        "eventstore.append",
+        "eventstore.query"
+      ]
+    },
+    {
+      "name": "search",
+      "version": "1.0.0",
+      "exports": [
+        "SearchApi",
+        "SearchResult",
+        "SearchItem",
+        "SEARCH_TOPICS",
+        "SEARCH_API_VERSION"
+      ],
+      "topics": [
+        "search.index"
+      ]
+    },
+    {
+      "name": "notification",
+      "version": "1.0.0",
+      "exports": [
+        "NotificationApi",
+        "NotificationEntry",
+        "NotificationLevel",
+        "NOTIFICATION_TOPICS",
+        "NOTIFICATION_API_VERSION"
+      ],
+      "topics": [
+        "notification.new",
+        "notification.cleared"
+      ]
+    },
+    {
+      "name": "ml",
+      "version": "1.0.0",
+      "exports": [
+        "MLApi",
+        "MLModel",
+        "ML_TOPICS",
+        "ML_API_VERSION"
+      ],
+      "topics": [
+        "ml.model.status",
+        "ml.training.done",
+        "ml.prediction"
+      ]
+    },
+    {
+      "name": "runtime",
+      "version": "2.0.0",
+      "exports": [
+        "RuntimeApiServices",
+        "ServiceName",
+        "ServiceInstance",
+        "RUNTIME_API_VERSION"
+      ],
+      "topics": []
+    }
+  ]
+}

@@ -1,6 +1,5 @@
 services:
-  # Add screener to monitoring network (merged with base)
-  screener:
+  backend:
     networks:
       - monitoring
 
@@ -35,22 +34,6 @@ services:
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD:-admin}
       - GF_INSTALL_PLUGINS=grafana-piechart-panel
-    depends_on:
-      - prometheus
-    networks:
-      - monitoring
-
-  webui:
-    build:
-      context: .
-      dockerfile: webui/Dockerfile
-    image: crypto-screener-v2-webui:latest
-    container_name: webui
-    restart: unless-stopped
-    ports:
-      - "8001:8000"
-    environment:
-      - PROMETHEUS_URL=http://prometheus:9090
     depends_on:
       - prometheus
     networks:
