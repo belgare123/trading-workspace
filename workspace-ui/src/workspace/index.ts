@@ -135,3 +135,8 @@ export type {
   DockControllerOptions,
   DockControllerState,
 } from './docking'
+
+// ── Services ──
+
+export { UndoManager, CommandRegistry, createWorkspaceCommands, useKeyboardBinding, SerializerService, WorkspaceServices, workspaceServices, WorkspaceServicesProvider, useWorkspaceServices } from './services'
+export type { Command } from './services'

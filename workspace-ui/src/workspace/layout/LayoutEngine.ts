@@ -263,6 +263,21 @@ export class LayoutEngine {
     return true
   }
 
+  // ── Snapshots (for Undo/Redo) ──
+
+  /** Replace entire layout with a snapshot — updates state + notifies, does NOT persist */
+  applySnapshot(snapshot: WorkspaceLayout): void {
+    this._current = cloneWorkspaceLayout(snapshot)
+    this._state.layouts[snapshot.id] = cloneWorkspaceLayout(snapshot)
+    this.notify()
+  }
+
+  /** Replace entire layout with a snapshot AND persist to localStorage */
+  restoreSnapshot(snapshot: WorkspaceLayout): void {
+    this.applySnapshot(snapshot)
+    this.save()
+  }
+
   // ── Reset ──
 
   /** Reset current layout to default preset */
