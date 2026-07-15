@@ -16,6 +16,7 @@ export type {
   CloseCommand,
   MoveCommand,
   CommandResult,
+  CommandValidation,
   Operation,
   OperationType,
 } from './types'

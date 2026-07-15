@@ -1,16 +1,17 @@
 /**
  * DropResolver — maps DockTarget to LayoutCommand
  *
- * This is the ONLY place that knows how to translate dock targets
- * into layout operations. It has two modes:
- *   1. `resolve()` — pure function: DockTarget → LayoutCommand (no side effects)
- *   2. `execute()` — applies a LayoutCommand to LayoutEngine
+ * Three-step pipeline:
+ *   1. `resolve()`  — PURE: DockTarget → LayoutCommand  (no side effects)
+ *   2. `validate()` — Validate command against LayoutEngine (invariants)
+ *   3. `execute()`  — Apply validated command to LayoutEngine
  *
- * Separating command generation from execution enables:
+ * Separating these steps enables:
  *   - History recording (capture before/after snapshots)
  *   - Layout replay and macros
  *   - Collaborative editing
  *   - Serialization of layout operations
+ *   - Guard against invalid commands before mutating LayoutEngine
  *
  * @since 3.2.3
  */
@@ -18,7 +19,7 @@
 import type { LayoutEngine } from '../layout/LayoutEngine'
 import type { Panel } from '../layout/types'
 import type { DockTarget } from './types'
-import type { LayoutCommand, CommandResult } from './types'
+import type { LayoutCommand, CommandResult, CommandValidation } from './types'
 
 /** Deep-clone an array of panels for history snapshots */
 export function clonePanels(panels: Panel[]): Panel[] {
@@ -33,7 +34,7 @@ export class DropResolver {
   }
 
   /**
-   * Resolve a dock target into a LayoutCommand.
+   * STEP 1 — Resolve a dock target into a LayoutCommand.
    *
    * PURE function — no side effects. Returns a command description
    * that can be inspected, recorded, serialized, or executed later.
@@ -75,8 +76,95 @@ export class DropResolver {
   }
 
   /**
-   * Execute a LayoutCommand on the LayoutEngine.
+   * STEP 2 — Validate a LayoutCommand against LayoutEngine invariants.
    *
+   * Checks performed:
+   *   - Target panel exists in the current layout
+   *   - Cannot self-dock (same panel, non-center zone)
+   *   - Cannot split a non-existent panel
+   *   - Cannot close the last remaining panel
+   *   - Cannot float an already-floating panel
+   *   - Source panel exists (for dock/split operations)
+   *
+   * PURE — reads only engine.current, no mutations.
+   */
+  validate(command: LayoutCommand): CommandValidation {
+    const panels = this.engine.current.panels
+    const errors: string[] = []
+
+    switch (command.type) {
+      case 'dock': {
+        const targetPanel = panels.find(p => p.id === command.targetPanelId)
+        if (!targetPanel) {
+          errors.push(`Target panel '${command.targetPanelId}' not found`)
+        }
+        const sourcePanel = panels.find(p => p.id === command.sourcePanelId)
+        if (!sourcePanel) {
+          errors.push(`Source panel '${command.sourcePanelId}' not found`)
+        }
+        break
+      }
+
+      case 'split': {
+        const targetPanel = panels.find(p => p.id === command.targetPanelId)
+        if (!targetPanel) {
+          errors.push(`Target panel '${command.targetPanelId}' not found`)
+        }
+        const sourcePanel = panels.find(p => p.id === command.panel.id)
+        if (!sourcePanel) {
+          errors.push(`Source panel '${command.panel.id}' not found`)
+        }
+        // Self-split: source and target are the same, non-center zone
+        if (command.targetPanelId === command.panel.id) {
+          errors.push(`Cannot split panel '${command.panel.id}' onto itself`)
+        }
+        break
+      }
+
+      case 'float': {
+        const panel = panels.find(p => p.id === command.panelId)
+        if (!panel) {
+          errors.push(`Panel '${command.panelId}' not found`)
+        } else if (panel.floating) {
+          errors.push(`Panel '${command.panelId}' is already floating`)
+        }
+        break
+      }
+
+      case 'close': {
+        const panel = panels.find(p => p.id === command.panelId)
+        if (!panel) {
+          errors.push(`Panel '${command.panelId}' not found`)
+        }
+        // Don't allow closing the last panel
+        if (panels.length <= 1) {
+          errors.push('Cannot close the last remaining panel')
+        }
+        break
+      }
+
+      case 'move': {
+        const panel = panels.find(p => p.id === command.panelId)
+        if (!panel) {
+          errors.push(`Panel '${command.panelId}' not found`)
+        }
+        break
+      }
+
+      default:
+        errors.push(`Unknown command type: ${(command as any).type}`)
+    }
+
+    return {
+      valid: errors.length === 0,
+      errors,
+    }
+  }
+
+  /**
+   * STEP 3 — Execute a LayoutCommand on the LayoutEngine.
+   *
+   * Assumes the command has already been validated.
    * This is the ONLY place that calls into LayoutEngine.
    * Returns the result of the operation.
    */

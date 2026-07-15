@@ -92,6 +92,12 @@ export interface CommandResult {
   description: string
 }
 
+/** Result of validating a LayoutCommand against invariants */
+export interface CommandValidation {
+  valid: boolean
+  errors: string[]
+}
+
 // ── Unified Operation Model ──
 
 /** Operation types recorded in history */

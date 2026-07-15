@@ -1,10 +1,19 @@
 /**
  * DockController — orchestrator for drag-and-drop docking
  *
- * Finite state machine with explicit transitions:
- *   Idle → Pressed → Dragging → HoveringTarget → Dropping → Idle
- *                ↘                    ↙
- *              Cancelled → Idle
+ * ── Finite State Machine with strict transitions ──
+ *
+ *   Idle ─────[pointerDown]─────► Pressed
+ *   Pressed ──[dragThreshold]───► Dragging
+ *   Pressed ──[pointerUp]───────► Idle        (drag aborted)
+ *   Dragging ──[hitTarget]──────► HoveringTarget
+ *   Dragging ──[noTarget]───────► Cancelled
+ *   HoveringTarget ─[leave]─────► Dragging
+ *   HoveringTarget ─[drop]──────► Dropping
+ *   Dropping ────────────────────► Idle        (cleanup)
+ *   Cancelled ───────────────────► Idle        (cleanup)
+ *
+ * Any transition not in this map is a runtime error.
  *
  * Ties together:
  *   PointerTracker → HitTesting → DropResolver → LayoutEngine → PanelRuntime
@@ -31,6 +40,19 @@ import { DropResolver, clonePanels } from './DropResolver'
 import { OperationHistory } from './OperationHistory'
 import { DOCK_EVENTS, EMPTY_DRAG_STATE } from './types'
 import type { DockDragState, DockState } from './types'
+
+// ── Strict transition map ──
+// KEY:   current state
+// VALUE: allowed next states (empty array means no transitions allowed)
+// A state can always transition to itself (self-loop, useful for reset).
+const TRANSITIONS: Record<DockState, DockState[]> = {
+  idle:              ['pressed'],
+  pressed:           ['dragging', 'idle'],
+  dragging:          ['hovering-target', 'cancelled'],
+  'hovering-target': ['dragging', 'dropping'],
+  dropping:          ['idle'],
+  cancelled:         ['idle'],
+}
 
 export interface DockControllerOptions {
   engine: LayoutEngine
@@ -124,8 +146,25 @@ export class DockController {
 
   // ── State Machine ──
 
+  /**
+   * Transition to next state.
+   * Throws if the transition is not defined in the TRANSITIONS map.
+   * A self-loop (current → same) is always allowed for cleanup.
+   */
   private transitionTo(next: DockState, reason: string): void {
     const prev = this._machineState
+
+    // Always allow self-loop (same state, e.g. reset in idle)
+    if (next !== prev) {
+      const allowed = TRANSITIONS[prev]
+      if (!allowed || !allowed.includes(next)) {
+        throw new Error(
+          `Forbidden FSM transition: ${prev} → ${next} (${reason}). ` +
+          `Allowed from ${prev}: [${allowed?.join(', ') ?? 'none'}].`
+        )
+      }
+    }
+
     this._machineState = next
 
     this.emitEvent(DOCK_EVENTS.STATE_CHANGED, {
@@ -205,7 +244,7 @@ export class DockController {
 
       this._dragState.currentTarget = target
 
-      // Transition to hovering-target if we have a valid target
+      // FSM: hovering-target ↔ dragging
       if (target && this._machineState === 'dragging') {
         this.transitionTo('hovering-target', `hit ${target.panelId} ${target.zone}`)
       } else if (!target && this._machineState === 'hovering-target') {
@@ -243,58 +282,71 @@ export class DockController {
 
       const sourcePanel = this.engine.current.panels.find(p => p.id === sourcePanelId)
       if (sourcePanel) {
-        // Don't allow self-dock (same panel, non-center zone)
-        const isSelfDock = target.panelId === sourcePanelId && target.zone !== 'center'
-        if (!isSelfDock) {
-          // 1. Generate command (pure)
-          const command = this.dropResolver.resolve(target, sourcePanel)
+        // 1. Generate command (PURE — resolve has no side effects)
+        const command = this.dropResolver.resolve(target, sourcePanel)
 
-          if (command) {
-            // 2. Execute command on LayoutEngine
-            const resolution = this.dropResolver.execute(command)
+        if (command) {
+          // 2. Validate before executing
+          const validation = this.dropResolver.validate(command)
+          if (!validation.valid) {
+            this.emitEvent(DOCK_EVENTS.DRAG_DROP, {
+              sourcePanelId,
+              target,
+              command,
+              error: `Validation failed: ${validation.errors.join('; ')}`,
+            })
+            this.resetAndNotify()
+            return
+          }
 
-            if (resolution.success) {
-              // 3. Record with before/after snapshots
-              const afterPanels = clonePanels(this.engine.current.panels)
-              this.history.record(
-                resolution.operation as any,
-                command,
-                this._beforePanels,
-                afterPanels,
-                resolution.description,
-              )
+          // 3. Execute command on LayoutEngine
+          const resolution = this.dropResolver.execute(command)
 
-              // 4. Emit events
-              this.emitEvent(DOCK_EVENTS.DRAG_DROP, {
-                sourcePanelId,
-                target,
-                command,
-                resolution,
-              })
+          if (resolution.success) {
+            // 4. Record with before/after snapshots
+            const afterPanels = clonePanels(this.engine.current.panels)
+            this.history.record(
+              resolution.operation as any,
+              command,
+              this._beforePanels,
+              afterPanels,
+              resolution.description,
+            )
 
-              this.emitEvent(DOCK_EVENTS.LAYOUT_CHANGED, {
-                operation: resolution.operation,
-                command,
-                description: resolution.description,
-              })
-            } else {
-              this.emitEvent(DOCK_EVENTS.DRAG_DROP, {
-                sourcePanelId,
-                target,
-                command,
-                resolution,
-                error: 'Command execution failed',
-              })
-            }
+            // 5. Emit events
+            this.emitEvent(DOCK_EVENTS.DRAG_DROP, {
+              sourcePanelId,
+              target,
+              command,
+              resolution,
+            })
+
+            this.emitEvent(DOCK_EVENTS.LAYOUT_CHANGED, {
+              operation: resolution.operation,
+              command,
+              description: resolution.description,
+            })
+          } else {
+            this.emitEvent(DOCK_EVENTS.DRAG_DROP, {
+              sourcePanelId,
+              target,
+              command,
+              resolution,
+              error: 'Command execution failed',
+            })
           }
         }
       }
     } else if (sourcePanelId && this._machineState === 'dragging') {
-      // Dragging ended without hitting a target — cancelled
+      // Dragging ended without hitting a target → cancelled
       this.transitionTo('cancelled', 'no valid target')
     }
 
-    // Reset state
+    this.resetAndNotify()
+  }
+
+  /** Reset drag state and return to idle */
+  private resetAndNotify(): void {
     this._dragState = { ...EMPTY_DRAG_STATE }
     this._zoneRect = null
     this._beforePanels = []
