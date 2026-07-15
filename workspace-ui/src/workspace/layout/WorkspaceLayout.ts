@@ -40,6 +40,7 @@ export function createPanel(
     pinned: false,
     collapsed: false,
     minimized: false,
+    state: {},
   }
 }
 

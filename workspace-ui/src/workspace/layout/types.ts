@@ -24,6 +24,11 @@ export interface PanelPosition {
 
 // ── Panel ──
 
+/** Panel-scoped state (persists across layout switches) */
+export interface PanelState {
+  [key: string]: unknown
+}
+
 /** A tab inside a panel */
 export interface TabSpec {
   id: string
@@ -34,6 +39,8 @@ export interface TabSpec {
 
 export interface Panel {
   id: PanelId
+  /** Optional reference to a PanelDefinition.id (defaults to widgetId) */
+  definition?: string
   widgetId: WidgetRef
   title: string
   position: PanelPosition
@@ -48,6 +55,8 @@ export interface Panel {
   collapsed: boolean
   /** Minimized — hidden until restored */
   minimized: boolean
+  /** Panel-scoped state (persists across layout switches) */
+  state: Record<string, unknown>
 }
 
 // ── Layout ──
