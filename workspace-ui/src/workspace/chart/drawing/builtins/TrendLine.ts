@@ -3,6 +3,7 @@
 
 import type { DrawingDefinition, DrawingRenderContext } from '../DrawingDefinition'
 import { DrawingInstance } from '../DrawingInstance'
+import { distanceToLineSegment } from '../../interaction/hitTestUtils'
 
 const HOUR_SECONDS = 3600
 const DEFAULT_OFFSET = 5 * HOUR_SECONDS // 5 hours for second anchor default
@@ -36,6 +37,14 @@ export const TrendLineDefinition: DrawingDefinition = {
     ctx.ctx.moveTo(x1, y1)
     ctx.ctx.lineTo(x2, y2)
     ctx.ctx.stroke()
+  },
+  hitTest(point, inst, context): number | null {
+    if (inst.anchors.length < 2) return null
+    const x1 = context.timeToPixel(inst.anchors[0].time)
+    const y1 = context.priceToPixel(inst.anchors[0].price)
+    const x2 = context.timeToPixel(inst.anchors[1].time)
+    const y2 = context.priceToPixel(inst.anchors[1].price)
+    return distanceToLineSegment(point.x, point.y, x1, y1, x2, y2)
   },
 }
 

@@ -3,6 +3,7 @@
 
 import type { DrawingDefinition, DrawingRenderContext } from '../DrawingDefinition'
 import { DrawingInstance } from '../DrawingInstance'
+import { distanceToHorizontalLine } from '../../interaction/hitTestUtils'
 
 export const HorizontalLineDefinition: DrawingDefinition = {
   id: 'horizontal-line',
@@ -32,5 +33,10 @@ export const HorizontalLineDefinition: DrawingDefinition = {
     ctx.ctx.moveTo(0, y)
     ctx.ctx.lineTo(ctx.width, y)
     ctx.ctx.stroke()
+  },
+  hitTest(point, inst, context): number | null {
+    if (inst.anchors.length < 1) return null
+    const y = context.priceToPixel(inst.anchors[0].price)
+    return distanceToHorizontalLine(point.x, point.y, y)
   },
 }

@@ -3,6 +3,7 @@
 
 import type { DrawingDefinition, DrawingRenderContext } from '../DrawingDefinition'
 import { DrawingInstance } from '../DrawingInstance'
+import { distanceToPoint } from '../../interaction/hitTestUtils'
 
 export const TextDefinition: DrawingDefinition = {
   id: 'text',
@@ -47,5 +48,11 @@ export const TextDefinition: DrawingDefinition = {
     ctx.ctx.textAlign = 'center'
     ctx.ctx.textBaseline = 'middle'
     ctx.ctx.fillText(text, x, y)
+  },
+  hitTest(point, inst, context): number | null {
+    if (inst.anchors.length < 1) return null
+    const x = context.timeToPixel(inst.anchors[0].time)
+    const y = context.priceToPixel(inst.anchors[0].price)
+    return distanceToPoint(point.x, point.y, x, y)
   },
 }

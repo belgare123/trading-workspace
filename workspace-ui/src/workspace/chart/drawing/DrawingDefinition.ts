@@ -3,6 +3,7 @@
 // Each drawing type (line, rectangle, fib, text) registers one of these.
 
 import type { DrawingCategory, DrawingRenderContext, DrawingStyle, Anchor } from './types'
+import type { DrawingHitContext } from '../interaction/types'
 import type { DrawingInstance } from './DrawingInstance'
 
 export type { DrawingRenderContext } from './types'
@@ -30,4 +31,15 @@ export interface DrawingDefinition {
 
   /** Render the instance onto the canvas via the render context */
   render(ctx: DrawingRenderContext, instance: DrawingInstance): void
+
+  /**
+   * Hit-test the instance at a pixel coordinate.
+   * Returns the distance in pixels from the test point to the geometry,
+   * or null if the point is outside the hit-test threshold.
+   */
+  hitTest(
+    point: { x: number; y: number },
+    instance: DrawingInstance,
+    context: DrawingHitContext,
+  ): number | null
 }

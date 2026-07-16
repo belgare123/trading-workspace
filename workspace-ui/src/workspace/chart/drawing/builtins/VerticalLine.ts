@@ -3,6 +3,7 @@
 
 import type { DrawingDefinition, DrawingRenderContext } from '../DrawingDefinition'
 import { DrawingInstance } from '../DrawingInstance'
+import { distanceToVerticalLine } from '../../interaction/hitTestUtils'
 
 export const VerticalLineDefinition: DrawingDefinition = {
   id: 'vertical-line',
@@ -32,5 +33,10 @@ export const VerticalLineDefinition: DrawingDefinition = {
     ctx.ctx.moveTo(x, 0)
     ctx.ctx.lineTo(x, ctx.height)
     ctx.ctx.stroke()
+  },
+  hitTest(point, inst, context): number | null {
+    if (inst.anchors.length < 1) return null
+    const x = context.timeToPixel(inst.anchors[0].time)
+    return distanceToVerticalLine(point.x, point.y, x)
   },
 }

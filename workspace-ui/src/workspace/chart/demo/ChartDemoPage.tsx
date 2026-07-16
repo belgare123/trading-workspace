@@ -10,7 +10,7 @@
  * @since 3.3.2
  */
 
-import { useEffect, useRef, useMemo, useCallback } from 'react'
+import { useEffect, useRef, useMemo, useCallback, useState } from 'react'
 import { ChartDemoToolbar } from './ChartDemoToolbar'
 import { MockCandleProvider, useSandbox } from './MockCandleProvider'
 import { ChartViewport } from '../viewport/ChartViewport'
@@ -25,6 +25,8 @@ import { RENDER_PASSES } from '../rendering/types'
 import { registerBuiltinIndicators } from '../indicators/builtins/index'
 import { registerAllDrawingBuiltins } from '../drawing/builtins/index'
 import { DrawingRenderer } from '../drawing/DrawingRenderer'
+import { InteractionRuntime } from '../interaction/InteractionRuntime'
+import type { ToolMode } from '../interaction/types'
 import type { IRenderContext } from '../rendering/types'
 import type { TimeScaleOptions, PriceScaleOptions } from '../types'
 
@@ -109,7 +111,10 @@ function ChartDebugOverlay({ viewport, candleCount, debug }: {
 
 // ── Chart canvas component ──
 
-function ChartCanvas({ resetKey }: { resetKey: number }) {
+function ChartCanvas({ resetKey, interactionRuntimeRef }: {
+  resetKey: number
+  interactionRuntimeRef: React.MutableRefObject<InteractionRuntime | null>
+}) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const viewportRef = useRef<ChartViewport | null>(null)
   const loopRef = useRef<RenderLoop | null>(null)
@@ -225,6 +230,15 @@ function ChartCanvas({ resetKey }: { resetKey: number }) {
 
     loop.start()
 
+    // ── Interaction Runtime ──
+    const intRuntime = new InteractionRuntime()
+    intRuntime.connect({
+      setCursor: (cursor) => { canvas.style.cursor = cursor },
+      requestRender: () => { /* RenderLoop renders continuously — no-op */ },
+      setHovered: () => { /* hover highlight TBD */ },
+    })
+    interactionRuntimeRef.current = intRuntime
+
     // Resize observer
     const ro = new ResizeObserver((entries) => {
       for (const entry of entries) {
@@ -263,6 +277,8 @@ function ChartCanvas({ resetKey }: { resetKey: number }) {
       loop.destroy()
       ro.disconnect()
       canvas.remove()
+      intRuntime.reset()
+      interactionRuntimeRef.current = null
       loopRef.current = null
       viewportRef.current = null
       canvasRef.current = null
@@ -406,11 +422,13 @@ function ChartCanvas({ resetKey }: { resetKey: number }) {
   // ── Pointer events ──
   const draggingRef = useRef(false)
   const dragStartRef = useRef({ clientX: 0, clientY: 0, offsetX: 0, offsetY: 0 })
+  const interactionActiveRef = useRef(false)
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     const canvas = canvasRef.current
     const vp = viewportRef.current
     const ch = crosshairRef.current
+    const intRt = interactionRuntimeRef.current
     if (!canvas || !vp || !ch) return
 
     const dpr = window.devicePixelRatio || 1
@@ -418,6 +436,33 @@ function ChartCanvas({ resetKey }: { resetKey: number }) {
     const pixelX = (e.clientX - rect.left) * dpr
     const pixelY = (e.clientY - rect.top) * dpr
 
+    // Interaction route (drawing tool active or drag/resize gesture)
+    if (intRt && (interactionActiveRef.current || intRt.toolMode !== 'select')) {
+      const ctx = InteractionRuntime.makeHitContext(
+        (t: number) => vp.timeToPixel(t),
+        (p: number) => vp.priceToPixel(p),
+      )
+      intRt.router.pointerMove(
+        { pixelX, pixelY, marketTime: vp.pixelToTime(pixelX), marketPrice: vp.pixelToPrice(pixelY), altKey: e.altKey, shiftKey: e.shiftKey },
+        intRt.toolMode,
+        drawingRendererRef.current!.runtime,
+        intRt.hitTest,
+        intRt.selection,
+        intRt.drag,
+        intRt.resize,
+        intRt.cursor,
+        ctx,
+      )
+      ch.position = {
+        pixelX, pixelY,
+        timestamp: vp.pixelToTime(pixelX),
+        price: vp.pixelToPrice(pixelY),
+        visible: true,
+      }
+      return
+    }
+
+    // Existing pan/crosshair behavior (select mode with no active gesture)
     if (draggingRef.current) {
       const dx = (e.clientX - dragStartRef.current.clientX) * dpr
       const dy = (e.clientY - dragStartRef.current.clientY) * dpr
@@ -434,7 +479,50 @@ function ChartCanvas({ resetKey }: { resetKey: number }) {
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     const vp = viewportRef.current
+    const intRt = interactionRuntimeRef.current
+    const dr = drawingRendererRef.current
     if (!vp) return
+
+    if (intRt && dr) {
+      const dpr = window.devicePixelRatio || 1
+      const rect = (e.target as HTMLElement).getBoundingClientRect()
+      const pixelX = (e.clientX - rect.left) * dpr
+      const pixelY = (e.clientY - rect.top) * dpr
+      const ctx = InteractionRuntime.makeHitContext(
+        (t: number) => vp.timeToPixel(t),
+        (p: number) => vp.priceToPixel(p),
+      )
+
+      if (intRt.toolMode !== 'select') {
+        // Drawing tool — route to InteractionRuntime for creation
+        intRt.router.pointerDown(
+          { pixelX, pixelY, marketTime: vp.pixelToTime(pixelX), marketPrice: vp.pixelToPrice(pixelY), altKey: e.altKey, shiftKey: e.shiftKey },
+          intRt.toolMode, dr.runtime, intRt.hitTest, intRt.selection,
+          intRt.toolController, intRt.drag, intRt.resize, ctx,
+        )
+        interactionActiveRef.current = true
+        return
+      }
+
+      // Select mode — hit-test first
+      const hit = intRt.hitTest.hitTest(pixelX, pixelY, dr.runtime, ctx)
+      if (hit) {
+        // Hit an object — route to InteractionRuntime for selection/drag
+        intRt.router.pointerDown(
+          { pixelX, pixelY, marketTime: vp.pixelToTime(pixelX), marketPrice: vp.pixelToPrice(pixelY), altKey: e.altKey, shiftKey: e.shiftKey },
+          intRt.toolMode, dr.runtime, intRt.hitTest, intRt.selection,
+          intRt.toolController, intRt.drag, intRt.resize, ctx,
+        )
+        interactionActiveRef.current = true
+        return
+      }
+
+      // No hit — deselect and start pan
+      intRt.selection.clearSelection()
+      intRt.selection.setActive(null)
+    }
+
+    // Existing pan behavior
     draggingRef.current = true
     dragStartRef.current = {
       clientX: e.clientX,
@@ -444,9 +532,21 @@ function ChartCanvas({ resetKey }: { resetKey: number }) {
     }
   }, [])
 
-  const handlePointerUp = useCallback(() => { draggingRef.current = false }, [])
+  const handlePointerUp = useCallback(() => {
+    const intRt = interactionRuntimeRef.current
+    draggingRef.current = false
+    if (interactionActiveRef.current && intRt) {
+      interactionActiveRef.current = false
+      intRt.router.pointerUp(intRt.drag, intRt.resize)
+    }
+  }, [])
   const handlePointerLeave = useCallback(() => {
     draggingRef.current = false
+    interactionActiveRef.current = false
+    const intRt = interactionRuntimeRef.current
+    if (intRt) {
+      intRt.router.pointerLeave(intRt.selection, intRt.cursor)
+    }
     if (crosshairRef.current) {
       crosshairRef.current.position = { ...crosshairRef.current.position, visible: false }
     }
@@ -488,6 +588,13 @@ function ChartCanvas({ resetKey }: { resetKey: number }) {
 
 export function ChartDemoPage() {
   const { resetKey } = useSandbox()
+  const [activeTool, setActiveTool] = useState<ToolMode>('select')
+  const interactionRuntimeRef = useRef<InteractionRuntime | null>(null)
+
+  const handleToolActivate = useCallback((tool: ToolMode) => {
+    setActiveTool(tool)
+    interactionRuntimeRef.current?.activateTool(tool)
+  }, [])
 
   return (
     <div
@@ -501,9 +608,9 @@ export function ChartDemoPage() {
         overflow: 'hidden',
       }}
     >
-      <ChartDemoToolbar />
+      <ChartDemoToolbar activeTool={activeTool} onToolActivate={handleToolActivate} />
       <div style={{ flex: 1, position: 'relative' }}>
-        <ChartCanvas resetKey={resetKey} />
+        <ChartCanvas resetKey={resetKey} interactionRuntimeRef={interactionRuntimeRef} />
       </div>
     </div>
   )

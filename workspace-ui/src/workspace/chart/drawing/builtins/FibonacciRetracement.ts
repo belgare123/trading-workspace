@@ -4,6 +4,7 @@
 
 import type { DrawingDefinition, DrawingRenderContext } from '../DrawingDefinition'
 import { DrawingInstance } from '../DrawingInstance'
+import { distanceToLineSegment } from '../../interaction/hitTestUtils'
 
 const FIB_LEVELS = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1]
 const HOUR_SECONDS = 3600
@@ -86,5 +87,14 @@ export const FibonacciDefinition: DrawingDefinition = {
         ctx.ctx.fillRect(drawLeft, yTop, drawRight - drawLeft, yBottom - yTop)
       }
     }
+  },
+  hitTest(point, inst, context): number | null {
+    if (inst.anchors.length < 2) return null
+    const x1 = context.timeToPixel(inst.anchors[0].time)
+    const y1 = context.priceToPixel(inst.anchors[0].price)
+    const x2 = context.timeToPixel(inst.anchors[1].time)
+    const y2 = context.priceToPixel(inst.anchors[1].price)
+    // Hit-test against the baseline (line connecting the two anchors)
+    return distanceToLineSegment(point.x, point.y, x1, y1, x2, y2)
   },
 }

@@ -16,6 +16,7 @@ import { CANDLE_COUNT_OPTIONS } from './sandboxConstants'
 import type { SandboxSymbol, SandboxTimeframe } from './MockCandleProvider'
 import { IndicatorRegistry } from '../indicators/IndicatorRegistry'
 import { DrawingRegistry } from '../drawing/DrawingRegistry'
+import type { ToolMode } from '../interaction/types'
 
 const SYMBOLS: SandboxSymbol[] = ['BTCUSDT', 'ETHUSDT']
 const TIMEFRAMES: SandboxTimeframe[] = ['1m', '5m', '1h']
@@ -54,7 +55,12 @@ const group: React.CSSProperties = {
 
 const spacer32: React.CSSProperties = { width: 32, flexShrink: 0 }
 
-export function ChartDemoToolbar() {
+interface ChartDemoToolbarProps {
+  activeTool: ToolMode | null
+  onToolActivate: (tool: ToolMode) => void
+}
+
+export function ChartDemoToolbar({ activeTool, onToolActivate }: ChartDemoToolbarProps) {
   const {
     candleCount,
     symbol,
@@ -187,8 +193,34 @@ export function ChartDemoToolbar() {
         </button>
       ))}
 
-      {/* Drawings */}
+      {/* Drawing Tools (interactive placement) */}
       <div style={{ ...spacer32, width: 16 }} />
+      {[
+        { id: 'select' as ToolMode, name: 'Select', color: '#888' },
+        { id: 'trend-line' as ToolMode, name: 'Trend', color: '#8B5CF6' },
+        { id: 'horizontal-line' as ToolMode, name: 'H-Line', color: '#F59E0B' },
+        { id: 'vertical-line' as ToolMode, name: 'V-Line', color: '#10B981' },
+        { id: 'rectangle' as ToolMode, name: 'Rect', color: '#3B82F6' },
+        { id: 'text' as ToolMode, name: 'Text', color: '#FFFFFF' },
+        { id: 'fib' as ToolMode, name: 'Fib', color: '#8B5CF6' },
+      ].map(({ id, name, color }) => (
+        <button
+          key={id}
+          style={activeTool === id ? {
+            ...btnActive,
+            borderLeft: `3px solid ${color}`,
+          } : {
+            ...btnBase,
+            borderLeft: `3px solid transparent`,
+          }}
+          onClick={() => onToolActivate(id)}
+        >
+          {name}
+        </button>
+      ))}
+
+      {/* Quick-add drawing buttons (instant via queue, for demo) */}
+      <div style={{ ...spacer32, width: 8 }} />
       {DrawingRegistry.list().map((def) => {
         const colors: Record<string, string> = {
           'trend-line': '#8B5CF6',
@@ -204,11 +236,12 @@ export function ChartDemoToolbar() {
             key={def.id}
             style={{
               ...btnBase,
+              fontSize: 10,
               borderLeft: `3px solid ${colors[def.id] ?? '#888'}`,
             }}
             onClick={() => queueDrawing(def.id)}
           >
-            {def.name}
+            +{def.name}
           </button>
         )
       })}
