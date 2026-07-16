@@ -30,3 +30,50 @@ export type { GatewayFactory } from './gateway/GatewayRegistry'
 export { BacktestProvider } from './providers/BacktestProvider'
 export { PaperProvider } from './providers/PaperProvider'
 export { LiveProvider } from './providers/LiveProvider'
+
+// ── Types ──
+
+export type {
+  MarketEventType,
+  MarketEvent,
+  TickerEvent,
+  TradeEvent,
+  KlineEvent,
+  KlineInterval,
+  OrderBookEvent,
+  OrderBookLevel,
+  MarketErrorEvent,
+  LatencyEvent,
+} from './types'
+
+// ── Feed ──
+
+export { LiveFeedRuntime } from './feed/LiveFeedRuntime'
+export { MarketEventBus } from './feed/MarketEventBus'
+export { SubscriptionManager } from './feed/SubscriptionManager'
+export type { SubscriptionState } from './feed/SubscriptionManager'
+export { FeedRegistry } from './feed/FeedRegistry'
+export { SymbolRegistry } from './feed/SymbolRegistry'
+export type { SymbolInfo } from './feed/SymbolRegistry'
+export { FeedStatistics } from './feed/FeedStatistics'
+export type { AdapterStats } from './feed/FeedStatistics'
+
+// ── Adapters ──
+
+export type { FeedAdapter, Listener } from './adapters/FeedAdapter'
+export { MockFeedAdapter } from './adapters/MockFeedAdapter'
+export { BinanceFeedAdapter } from './adapters/BinanceFeedAdapter'
+
+// ── Cache ──
+
+export { CandleCache } from './cache/CandleCache'
+export { TradeCache } from './cache/TradeCache'
+export { TickerCache } from './cache/TickerCache'
+export { OrderBookCache, OrderBookSnapshot } from './cache/OrderBookCache'
+
+// ── Aggregation ──
+
+export { CandleAggregator } from './aggregation/CandleAggregator'
+export { TimeframeBuilder } from './aggregation/TimeframeBuilder'
+export { VolumeAggregator } from './aggregation/VolumeAggregator'
+export type { VolumeStats } from './aggregation/VolumeAggregator'
