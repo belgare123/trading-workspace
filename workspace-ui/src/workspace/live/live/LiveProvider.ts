@@ -30,6 +30,8 @@ import { BrokerEventAdapter } from './BrokerEventAdapter'
 import type { ExecutionEventBus } from '../../execution/events/ExecutionEventBus'
 import type { Order } from '../../execution/types'
 import { SecretsProvider, SecretKeys } from './SecretsProvider'
+import type { RateLimiter } from './RateLimiter'
+import type { RetryPolicy } from './RetryPolicy'
 
 export class LiveProvider {
   public readonly id: string
@@ -48,7 +50,13 @@ export class LiveProvider {
   private config: LiveProviderConfig
   private eventBus?: ExecutionEventBus
 
-  constructor(adapter: BrokerAdapter, config: LiveProviderConfig, secrets?: SecretsProvider) {
+  constructor(
+    adapter: BrokerAdapter,
+    config: LiveProviderConfig,
+    secrets?: SecretsProvider,
+    rateLimiter?: RateLimiter,
+    retryPolicy?: RetryPolicy,
+  ) {
     this.id = adapter.id
     this.name = adapter.name
     this.capabilities = adapter.capabilities
@@ -58,7 +66,7 @@ export class LiveProvider {
     this.secrets = secrets ?? new SecretsProvider()
     this.session = new BrokerSession(adapter, config)
     this.clock = this.session.clock
-    this.router = new OrderRouter(adapter)
+    this.router = new OrderRouter(adapter, rateLimiter, retryPolicy)
     this.positionSync = new PositionSynchronizer(adapter)
     this.accountSync = new AccountSynchronizer(adapter)
     this.eventAdapter = new BrokerEventAdapter(adapter)
