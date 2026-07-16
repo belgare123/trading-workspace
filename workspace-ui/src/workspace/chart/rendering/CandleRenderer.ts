@@ -64,8 +64,7 @@ export class CandleRenderer extends CanvasLayer {
   }
 
   render(context: IRenderContext): void {
-    if (!this._ctx) return
-    const ctx = this._ctx
+    const ctx = context.ctx
 
     const ohlcv = this.data ?? context.visibleData
     if (!ohlcv || ohlcv.length === 0) return

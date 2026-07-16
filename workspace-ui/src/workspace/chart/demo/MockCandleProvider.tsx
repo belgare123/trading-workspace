@@ -38,6 +38,10 @@ export interface SandboxState {
   showDebug: boolean
   /** Viewport reset counter (increment to trigger reset) */
   resetKey: number
+  /** Active indicator IDs (from IndicatorRegistry) */
+  activeIndicators: string[]
+  /** Toggle an indicator on/off */
+  toggleIndicator: (id: string) => void
   /** Set candle count */
   setCandleCount: (count: number) => void
   /** Set symbol */
@@ -93,6 +97,7 @@ export function MockCandleProvider({ children }: { children: ReactNode }) {
   const [showDebug, setShowDebug] = useState(true)
   const [resetKey, setResetKey] = useState(0)
   const [genKey, setGenKey] = useState(0)
+  const [activeIndicators, setActiveIndicators] = useState<string[]>(['SMA', 'EMA', 'VWAP'])
 
   const data = useMemo(
     () => buildData(candleCount, symbol, timeframe),
@@ -105,6 +110,11 @@ export function MockCandleProvider({ children }: { children: ReactNode }) {
   const toggleDebug = useCallback(() => setShowDebug((v) => !v), [])
   const resetViewport = useCallback(() => setResetKey((k) => k + 1), [])
   const regenerate = useCallback(() => setGenKey((k) => k + 1), [])
+  const toggleIndicator = useCallback((id: string) => {
+    setActiveIndicators((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    )
+  }, [])
 
   const value: SandboxState = {
     candleCount,
@@ -115,6 +125,8 @@ export function MockCandleProvider({ children }: { children: ReactNode }) {
     showCrosshair,
     showDebug,
     resetKey,
+    activeIndicators,
+    toggleIndicator,
     setCandleCount,
     setSymbol,
     setTimeframe,

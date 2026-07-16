@@ -29,8 +29,7 @@ export class GridRenderer extends CanvasLayer {
   showVertical = true
 
   render(context: IRenderContext): void {
-    if (!this._ctx) return
-    const ctx = this._ctx
+    const ctx = context.ctx
     const { viewport, width, height } = context
 
     ctx.strokeStyle = this.gridColor

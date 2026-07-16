@@ -50,8 +50,7 @@ export class AxisRenderer extends CanvasLayer {
   }
 
   render(context: IRenderContext): void {
-    if (!this._ctx) return
-    const ctx = this._ctx
+    const ctx = context.ctx
     const { viewport, width, height, dpr } = context
     const { timeAxisHeight, priceAxisWidth, fontFamily, fontSize, textColor, axisColor, backgroundColor } = this.options
 

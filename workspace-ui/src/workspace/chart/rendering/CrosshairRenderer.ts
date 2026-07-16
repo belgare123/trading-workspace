@@ -50,8 +50,8 @@ export class CrosshairRenderer extends CanvasLayer {
   labelBg = 'rgba(26, 26, 46, 0.85)'
 
   render(context: IRenderContext): void {
-    if (!this._ctx || !this.position.visible) return
-    const ctx = this._ctx
+    if (!this.position.visible) return
+    const ctx = context.ctx
     const { width, height, dpr } = context
     const { pixelX, pixelY, timestamp, price } = this.position
 

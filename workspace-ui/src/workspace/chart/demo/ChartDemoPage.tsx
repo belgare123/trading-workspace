@@ -19,9 +19,15 @@ import { GridRenderer } from '../rendering/GridRenderer'
 import { CandleRenderer } from '../rendering/CandleRenderer'
 import { AxisRenderer } from '../rendering/AxisRenderer'
 import { CrosshairRenderer } from '../rendering/CrosshairRenderer'
+import { IndicatorRenderer } from '../indicators/IndicatorRenderer'
+import { IndicatorRuntime } from '../indicators/IndicatorRuntime'
 import { RENDER_PASSES } from '../rendering/types'
+import { registerBuiltinIndicators } from '../indicators/builtins/index'
 import type { IRenderContext } from '../rendering/types'
 import type { TimeScaleOptions, PriceScaleOptions } from '../types'
+
+// Register built-in indicators once at module load
+registerBuiltinIndicators()
 
 // ── Viewport config (shared across resets) ──
 
@@ -45,12 +51,14 @@ function makeTimeScale(from?: number, to?: number): TimeScaleOptions {
   }
 }
 
-function makePriceScale(): PriceScaleOptions {
+function makePriceScale(fixedMin?: number, fixedMax?: number): PriceScaleOptions {
   return {
     visible: true,
     position: 'right',
     inverted: false,
     logarithmic: false,
+    fixedMin,
+    fixedMax,
   }
 }
 
@@ -107,7 +115,7 @@ function ChartCanvas({ resetKey }: { resetKey: number }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const debugRef = useRef<DebugInfo>({ frameCount: 0, lastFrameTime: 0, fps: 60 })
 
-  const { data, showGrid, showCrosshair, showDebug } = useSandbox()
+  const { data, showGrid, showCrosshair, showDebug, activeIndicators } = useSandbox()
 
   // Memoize viewport config (changes when data changes — update timescale range)
   const timeScale = useMemo(
@@ -124,10 +132,19 @@ function ChartCanvas({ resetKey }: { resetKey: number }) {
     const container = containerRef.current
     if (!container || data.length === 0) return
 
+    // Compute price range from data
+    let priceMin = Infinity
+    let priceMax = -Infinity
+    for (const d of data) {
+      if (d.low < priceMin) priceMin = d.low
+      if (d.high > priceMax) priceMax = d.high
+    }
+    const padding = (priceMax - priceMin) * 0.1 || priceMax * 0.1
+
     const vp = new ChartViewport(
       makeViewportConfig(),
       { ...timeScale, from: data[0].timestamp, to: data[data.length - 1].timestamp },
-      makePriceScale(),
+      makePriceScale(priceMin - padding, priceMax + padding),
     )
     viewportRef.current = vp
 
@@ -141,14 +158,20 @@ function ChartCanvas({ resetKey }: { resetKey: number }) {
     candles.data = data
     const axes = new AxisRenderer()
     const crosshair = new CrosshairRenderer()
+    const indicatorRuntime = new IndicatorRuntime()
+    const indicatorRenderer = new IndicatorRenderer(indicatorRuntime)
     gridRef.current = grid
     crosshairRef.current = crosshair
+
+    // Pre-compute initial indicators
+    indicatorRuntime.updateData(data)
 
     const loop = new RenderLoop([RENDER_PASSES.main])
     loop.addLayer(grid)
     loop.addLayer(candles)
     loop.addLayer(axes)
     loop.addLayer(crosshair)
+    loop.addLayer(indicatorRenderer)
     loopRef.current = loop
 
     // Initialize layers
@@ -164,10 +187,12 @@ function ChartCanvas({ resetKey }: { resetKey: number }) {
       candles.initialize(renderCtx)
       axes.initialize(renderCtx)
       crosshair.initialize(renderCtx)
+      indicatorRenderer.initialize(renderCtx)
       grid.resize(w, h, dpr)
       candles.resize(w, h, dpr)
       axes.resize(w, h, dpr)
       crosshair.resize(w, h, dpr)
+      indicatorRenderer.resize(w, h, dpr)
       loop.setContext(renderCtx)
     }
 
@@ -217,7 +242,7 @@ function ChartCanvas({ resetKey }: { resetKey: number }) {
             visibleData: candles.data,
           })
         }
-        for (const layerId of ['grid', 'candles', 'axis', 'crosshair'] as const) {
+        for (const layerId of ['grid', 'candles', 'axis', 'crosshair', 'indicators'] as const) {
           loop.getLayer(layerId)?.resize(pw, ph, dpr)
         }
       }
@@ -244,7 +269,44 @@ function ChartCanvas({ resetKey }: { resetKey: number }) {
     if (!loop) return
     const layer = loop.getLayer('candles') as CandleRenderer | undefined
     if (layer) layer.data = data
+
+    // Recompute indicators on new data
+    const indRenderer = loop.getLayer('indicators') as IndicatorRenderer | undefined
+    if (indRenderer?.runtime) {
+      indRenderer.runtime.recomputeAll(data)
+    }
   }, [data])
+
+  // ── Sync active indicators ──
+  useEffect(() => {
+    const loop = loopRef.current
+    if (!loop) return
+    const indRenderer = loop.getLayer('indicators') as IndicatorRenderer | undefined
+    const rt = indRenderer?.runtime
+    if (!rt) return
+
+    // Build set of desired indicator IDs
+    const desired = new Set(activeIndicators)
+
+    // Remove instances not in desired set
+    for (const inst of rt.getAll()) {
+      if (!desired.has(inst.definition.id)) {
+        rt.remove(inst.instanceId)
+      }
+    }
+
+    // Add instances for IDs not yet active
+    for (const id of activeIndicators) {
+      const exists = rt.getAll().some((i) => i.definition.id === id)
+      if (!exists) {
+        try {
+          rt.add(id)
+        } catch {
+          // Indicator not registered — skip
+        }
+      }
+    }
+  }, [activeIndicators])
 
   // ── Toggle grid visibility ──
   useEffect(() => {

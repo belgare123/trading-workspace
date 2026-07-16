@@ -13,6 +13,7 @@
 
 import { useSandbox, CANDLE_COUNT_OPTIONS } from './MockCandleProvider'
 import type { SandboxSymbol, SandboxTimeframe } from './MockCandleProvider'
+import { IndicatorRegistry } from '../indicators/IndicatorRegistry'
 
 const SYMBOLS: SandboxSymbol[] = ['BTCUSDT', 'ETHUSDT']
 const TIMEFRAMES: SandboxTimeframe[] = ['1m', '5m', '1h']
@@ -59,6 +60,7 @@ export function ChartDemoToolbar() {
     showGrid,
     showCrosshair,
     showDebug,
+    activeIndicators,
     setCandleCount,
     setSymbol,
     setTimeframe,
@@ -67,6 +69,7 @@ export function ChartDemoToolbar() {
     toggleDebug,
     resetViewport,
     regenerate,
+    toggleIndicator,
   } = useSandbox()
 
   return (
@@ -161,6 +164,24 @@ export function ChartDemoToolbar() {
       <button style={showDebug ? btnActive : btnBase} onClick={toggleDebug}>
         Debug
       </button>
+
+      {/* Indicators */}
+      <div style={{ ...spacer32, width: 16 }} />
+      {IndicatorRegistry.list().map((def) => (
+        <button
+          key={def.id}
+          style={activeIndicators.includes(def.id) ? {
+            ...btnActive,
+            borderLeft: `3px solid ${def.outputs[0]?.color ?? '#888'}`,
+          } : {
+            ...btnBase,
+            borderLeft: `3px solid transparent`,
+          }}
+          onClick={() => toggleIndicator(def.id)}
+        >
+          {def.id}
+        </button>
+      ))}
     </div>
   )
 }
