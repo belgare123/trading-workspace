@@ -97,3 +97,29 @@ export type { HistoryRuntimeOptions } from './history/HistoryRuntime'
 export { JsonExporter } from './history/exporters/JsonExporter'
 export type { HistoryExport } from './history/exporters/JsonExporter'
 export { CsvExporter } from './history/exporters/CsvExporter'
+
+// ── Live Provider (Sprint 4.5) ──
+
+export type * from './live/types'
+export {
+  ConnectionStates,
+  canTransition,
+  DEFAULT_LIVE_CONFIG,
+} from './live/types'
+export type { BrokerAdapter, BrokerEventHandler } from './live/BrokerAdapter'
+export type { BrokerCapabilities } from './live/BrokerCapabilities'
+export {
+  NO_CAPABILITIES,
+  BINANCE_SPOT_CAPABILITIES,
+  BINANCE_FUTURES_CAPABILITIES,
+  BYBIT_CAPABILITIES,
+} from './live/BrokerCapabilities'
+export { BrokerSession } from './live/BrokerSession'
+export type { SessionListener } from './live/BrokerSession'
+export { OrderRouter } from './live/OrderRouter'
+export { PositionSynchronizer } from './live/PositionSynchronizer'
+export { AccountSynchronizer } from './live/AccountSynchronizer'
+export { BrokerEventAdapter } from './live/BrokerEventAdapter'
+export { LiveProvider } from './live/LiveProvider'
+export type { LiveProviderConfig } from './live/types'
+

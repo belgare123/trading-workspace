@@ -1,8 +1,9 @@
 /**
  * LiveProvider.ts — Live trading provider
  *
- * IMPORTANT: This is a STUB for Sprint 4.1.
- * Full implementation in Sprint 4.5 — Live Provider.
+ * IMPORTANT: This is the Sprint 4.1 stub. The full implementation
+ * moved to LiveProvider in ../live/LiveProvider.ts (Sprint 4.5).
+ * This stub remains for ExecutionGateway interface compatibility.
  *
  * LiveProvider delegates to a BrokerAdapter (Binance, Bybit, IBKR).
  * Strategy code is identical to PaperProvider — only this provider changes.
