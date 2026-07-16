@@ -14,6 +14,7 @@
 import { useSandbox, CANDLE_COUNT_OPTIONS } from './MockCandleProvider'
 import type { SandboxSymbol, SandboxTimeframe } from './MockCandleProvider'
 import { IndicatorRegistry } from '../indicators/IndicatorRegistry'
+import { DrawingRegistry } from '../drawing/DrawingRegistry'
 
 const SYMBOLS: SandboxSymbol[] = ['BTCUSDT', 'ETHUSDT']
 const TIMEFRAMES: SandboxTimeframe[] = ['1m', '5m', '1h']
@@ -70,6 +71,8 @@ export function ChartDemoToolbar() {
     resetViewport,
     regenerate,
     toggleIndicator,
+    queueDrawing,
+    clearDrawings,
   } = useSandbox()
 
   return (
@@ -182,6 +185,38 @@ export function ChartDemoToolbar() {
           {def.id}
         </button>
       ))}
+
+      {/* Drawings */}
+      <div style={{ ...spacer32, width: 16 }} />
+      {DrawingRegistry.list().map((def) => {
+        const colors: Record<string, string> = {
+          'trend-line': '#8B5CF6',
+          'horizontal-line': '#F59E0B',
+          'vertical-line': '#10B981',
+          ray: '#EC4899',
+          rectangle: '#3B82F6',
+          text: '#FFFFFF',
+          'fib-retracement': '#8B5CF6',
+        }
+        return (
+          <button
+            key={def.id}
+            style={{
+              ...btnBase,
+              borderLeft: `3px solid ${colors[def.id] ?? '#888'}`,
+            }}
+            onClick={() => queueDrawing(def.id)}
+          >
+            {def.name}
+          </button>
+        )
+      })}
+      <button
+        style={{ ...btnBase, borderColor: 'rgba(255,80,80,0.4)', color: '#ef5350' }}
+        onClick={clearDrawings}
+      >
+        Clear
+      </button>
     </div>
   )
 }

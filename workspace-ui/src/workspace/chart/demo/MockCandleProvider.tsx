@@ -42,6 +42,16 @@ export interface SandboxState {
   activeIndicators: string[]
   /** Toggle an indicator on/off */
   toggleIndicator: (id: string) => void
+  /** Queue a drawing to be added at a default position */
+  queueDrawing: (defId: string) => void
+  /** Clear all drawings */
+  clearDrawings: () => void
+  /** Drawing clear counter (incremented on clear) */
+  drawingClearKey: number
+  /** Drawing queue — pending additions */
+  drawingQueue: { defId: string }[]
+  /** Reset drawing queue (called by chart canvas after processing) */
+  resetDrawingQueue: () => void
   /** Set candle count */
   setCandleCount: (count: number) => void
   /** Set symbol */
@@ -98,6 +108,8 @@ export function MockCandleProvider({ children }: { children: ReactNode }) {
   const [resetKey, setResetKey] = useState(0)
   const [genKey, setGenKey] = useState(0)
   const [activeIndicators, setActiveIndicators] = useState<string[]>(['SMA', 'EMA', 'VWAP'])
+  const [drawingQueue, setDrawingQueue] = useState<{ defId: string }[]>([])
+  const [drawingClearKey, setDrawingClearKey] = useState(0)
 
   const data = useMemo(
     () => buildData(candleCount, symbol, timeframe),
@@ -115,6 +127,16 @@ export function MockCandleProvider({ children }: { children: ReactNode }) {
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     )
   }, [])
+  const queueDrawing = useCallback((defId: string) => {
+    setDrawingQueue((prev) => [...prev, { defId }])
+  }, [])
+  const clearDrawings = useCallback(() => {
+    setDrawingClearKey((k) => k + 1)
+    setDrawingQueue([])
+  }, [])
+  const resetDrawingQueue = useCallback(() => {
+    setDrawingQueue([])
+  }, [])
 
   const value: SandboxState = {
     candleCount,
@@ -127,6 +149,11 @@ export function MockCandleProvider({ children }: { children: ReactNode }) {
     resetKey,
     activeIndicators,
     toggleIndicator,
+    queueDrawing,
+    clearDrawings,
+    drawingClearKey,
+    drawingQueue,
+    resetDrawingQueue,
     setCandleCount,
     setSymbol,
     setTimeframe,

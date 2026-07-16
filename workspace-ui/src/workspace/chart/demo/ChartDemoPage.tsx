@@ -23,11 +23,14 @@ import { IndicatorRenderer } from '../indicators/IndicatorRenderer'
 import { IndicatorRuntime } from '../indicators/IndicatorRuntime'
 import { RENDER_PASSES } from '../rendering/types'
 import { registerBuiltinIndicators } from '../indicators/builtins/index'
+import { registerAllDrawingBuiltins } from '../drawing/builtins/index'
+import { DrawingRenderer } from '../drawing/DrawingRenderer'
 import type { IRenderContext } from '../rendering/types'
 import type { TimeScaleOptions, PriceScaleOptions } from '../types'
 
-// Register built-in indicators once at module load
+// Register built-in indicators and drawing tools once at module load
 registerBuiltinIndicators()
+registerAllDrawingBuiltins()
 
 // ── Viewport config (shared across resets) ──
 
@@ -112,10 +115,11 @@ function ChartCanvas({ resetKey }: { resetKey: number }) {
   const loopRef = useRef<RenderLoop | null>(null)
   const gridRef = useRef<GridRenderer | null>(null)
   const crosshairRef = useRef<CrosshairRenderer | null>(null)
+  const drawingRendererRef = useRef<DrawingRenderer | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const debugRef = useRef<DebugInfo>({ frameCount: 0, lastFrameTime: 0, fps: 60 })
 
-  const { data, showGrid, showCrosshair, showDebug, activeIndicators } = useSandbox()
+  const { data, showGrid, showCrosshair, showDebug, activeIndicators, drawingQueue, drawingClearKey, resetDrawingQueue } = useSandbox()
 
   // Memoize viewport config (changes when data changes — update timescale range)
   const timeScale = useMemo(
@@ -160,8 +164,10 @@ function ChartCanvas({ resetKey }: { resetKey: number }) {
     const crosshair = new CrosshairRenderer()
     const indicatorRuntime = new IndicatorRuntime()
     const indicatorRenderer = new IndicatorRenderer(indicatorRuntime)
+    const drawingRenderer = new DrawingRenderer()
     gridRef.current = grid
     crosshairRef.current = crosshair
+    drawingRendererRef.current = drawingRenderer
 
     // Pre-compute initial indicators
     indicatorRuntime.updateData(data)
@@ -172,6 +178,7 @@ function ChartCanvas({ resetKey }: { resetKey: number }) {
     loop.addLayer(axes)
     loop.addLayer(crosshair)
     loop.addLayer(indicatorRenderer)
+    loop.addLayer(drawingRenderer)
     loopRef.current = loop
 
     // Initialize layers
@@ -188,11 +195,13 @@ function ChartCanvas({ resetKey }: { resetKey: number }) {
       axes.initialize(renderCtx)
       crosshair.initialize(renderCtx)
       indicatorRenderer.initialize(renderCtx)
+      drawingRenderer.initialize(renderCtx)
       grid.resize(w, h, dpr)
       candles.resize(w, h, dpr)
       axes.resize(w, h, dpr)
       crosshair.resize(w, h, dpr)
       indicatorRenderer.resize(w, h, dpr)
+      drawingRenderer.resize(w, h, dpr)
       loop.setContext(renderCtx)
     }
 
@@ -242,7 +251,7 @@ function ChartCanvas({ resetKey }: { resetKey: number }) {
             visibleData: candles.data,
           })
         }
-        for (const layerId of ['grid', 'candles', 'axis', 'crosshair', 'indicators'] as const) {
+        for (const layerId of ['grid', 'candles', 'axis', 'crosshair', 'indicators', 'drawings'] as const) {
           loop.getLayer(layerId)?.resize(pw, ph, dpr)
         }
       }
@@ -307,6 +316,68 @@ function ChartCanvas({ resetKey }: { resetKey: number }) {
       }
     }
   }, [activeIndicators])
+
+  // ── Process drawing queue ──
+  useEffect(() => {
+    const drawer = drawingRendererRef.current
+    if (!drawer || data.length === 0 || drawingQueue.length === 0) return
+
+    const rt = drawer.runtime
+
+    for (const item of drawingQueue) {
+      // Pick a default position: middle of the visible data
+      const midIdx = Math.floor(data.length / 2)
+      const midCandle = data[midIdx]
+      const offset = Math.floor(data.length * 0.1)
+
+      switch (item.defId) {
+        case 'trend-line':
+          rt.add('trend-line', [
+            { time: data[Math.max(0, midIdx - offset)].timestamp, price: midCandle.high * 1.02 },
+            { time: data[Math.min(data.length - 1, midIdx + offset)].timestamp, price: midCandle.low * 0.98 },
+          ])
+          break
+        case 'horizontal-line':
+          rt.add('horizontal-line', [{ time: midCandle.timestamp, price: midCandle.close }])
+          break
+        case 'vertical-line':
+          rt.add('vertical-line', [{ time: midCandle.timestamp, price: midCandle.close }])
+          break
+        case 'ray':
+          rt.add('ray', [
+            { time: data[Math.max(0, midIdx - offset)].timestamp, price: midCandle.low },
+            { time: midCandle.timestamp, price: midCandle.high },
+          ])
+          break
+        case 'rectangle':
+          rt.add('rectangle', [
+            { time: data[Math.max(0, midIdx - offset)].timestamp, price: midCandle.high * 1.05 },
+            { time: data[Math.min(data.length - 1, midIdx + offset)].timestamp, price: midCandle.low * 0.95 },
+          ])
+          break
+        case 'text':
+          rt.add('text', [{ time: midCandle.timestamp, price: midCandle.high }])
+          break
+        case 'fib-retracement':
+          rt.add('fib-retracement', [
+            { time: data[Math.max(0, midIdx - offset)].timestamp, price: midCandle.low },
+            { time: data[Math.min(data.length - 1, midIdx + offset)].timestamp, price: midCandle.high },
+          ])
+          break
+      }
+    }
+
+    // Clear the queue so the same items aren't re-processed
+    resetDrawingQueue()
+  }, [drawingQueue, data, resetDrawingQueue])
+
+  // ── Clear all drawings ──
+  useEffect(() => {
+    if (drawingClearKey === 0) return
+    const drawer = drawingRendererRef.current
+    if (!drawer) return
+    drawer.runtime.clear()
+  }, [drawingClearKey])
 
   // ── Toggle grid visibility ──
   useEffect(() => {
