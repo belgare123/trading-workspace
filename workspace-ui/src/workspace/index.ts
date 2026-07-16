@@ -140,3 +140,43 @@ export type {
 
 export { UndoManager, CommandRegistry, createWorkspaceCommands, useKeyboardBinding, SerializerService, WorkspaceServices, workspaceServices, WorkspaceServicesProvider, useWorkspaceServices } from './services'
 export type { Command } from './services'
+
+// ── Chart Studio ──
+
+export {
+  ChartRuntime,
+  ChartHost,
+  ChartRegistry,
+  chartRegistry,
+  ChartDefinitionRegistry,
+  chartDefinitionRegistry,
+  ChartRuntimeContext,
+  useChartRuntime,
+  ChartViewport,
+  TimeScale,
+  PriceScale,
+  IndicatorRegistry,
+  indicatorRegistry,
+  ToolRegistry,
+  toolRegistry,
+  OverlayRegistry,
+  overlayRegistry,
+  CHART_TYPES,
+  ChartError,
+} from './chart'
+export type {
+  ChartConfig,
+  ChartType,
+  SymbolInfo,
+  TimeInterval,
+  ChartInstance,
+  ChartDefinition,
+  IndicatorMeta,
+  ToolMeta,
+  OverlayMeta,
+  ChartChangeHandler,
+  TimeScaleOptions,
+  PriceScaleOptions,
+  ViewportState,
+  OHLCV,
+} from './chart'
