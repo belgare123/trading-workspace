@@ -66,3 +66,24 @@ export {
   OverlayRegistry,
   overlayRegistry,
 } from './registries'
+
+// Rendering
+export {
+  CanvasLayer,
+  RenderLoop,
+  GridRenderer,
+  AxisRenderer,
+  CrosshairRenderer,
+  CandleRenderer,
+  RENDER_PASSES,
+} from './rendering'
+export type {
+  FrameCallback,
+  AxisRendererOptions,
+  CrosshairPosition,
+  CandleStyle,
+  IRenderLayer,
+  IRenderContext,
+  IRenderPass,
+  LayerZIndex,
+} from './rendering'

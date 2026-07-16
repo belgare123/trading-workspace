@@ -135,6 +135,12 @@ export class ChartViewport {
 
   // ── Utility ──
 
+  /** Set viewport offset (pan) */
+  setOffset(offsetX: number, offsetY: number): void {
+    this.viewport.offsetX = offsetX
+    this.viewport.offsetY = offsetY
+  }
+
   /** Get the visible data range as [fromTimestamp, toTimestamp] */
   getVisibleTimeRange(): [number, number] {
     return [this.timeScale.from, this.timeScale.to]
