@@ -82,3 +82,82 @@ This enables: independent scaling, hot-restart of UI without affecting engine, r
 | v0.15.0 | 2026-07-14 | Stabilisation — API audit, boundaries, hardening |
 | v0.16.0-rc1 | 2026-07-14 | Release Candidate Cycle |
 | **v1.0.0** | **2026-07-14** | **Initial Stable Release 🎉** |
+| **Sprint 4.8** | **2026-07-16** | **Live Trading Workspace UI** — 6 panels (Connection, Orders, Positions, Account, Risk, History), ScreenRegistry, Ctrl+9 |
+
+---
+
+## Sprint 4.8 ✅ — Live Trading Workspace UI
+
+6 Live Trading panels, ScreenRegistry registration, keyboard shortcut Ctrl+9. Docker production build. Подтверждено: 32/32 integration tests, 6 panels в Docker.
+
+---
+
+## Gen 2 — Спринты 4.9A / 4.9B / 4.9C 🔄
+
+### Sprint 4.9A — Binance Spot Adapter (функциональный) ✅
+
+**Scope**: Binance Spot REST + WebSocket адаптер. Реализован: `BinanceSpotBrokerAdapter.ts` (972 строки). TypeScript — 0 errors.
+
+| Компонент | Статус |
+|-----------|--------|
+| REST API: place/cancel/query order, balances | ✅ |
+| User Data Stream: reconnect, listenKey refresh | ✅ |
+| WebSocket lifecycle: dis/reconnect, delayed/duplicated events | ✅ |
+| Symbol filters: LOT_SIZE, PRICE_FILTER, MIN_NOTIONAL | ✅ |
+| `recvWindow` через `BrokerClock` | ✅ |
+| Signed HMAC-SHA256 requests | ✅ |
+| Barrel export + BrokerCapabilities | ✅ |
+
+### Sprint 4.9B — Certification Suite
+
+Отдельный модуль `workspace/certification/`:
+
+```
+workspace/certification/
+├── CertificationRuntime
+├── ScenarioRunner
+├── ScenarioDefinition
+├── ScenarioRegistry
+├── CertificationReport
+└── builtins/
+    ├── gateway/     (submit/cancel/duplicate/unknown order)
+    ├── websocket/   (dis/reconnect, delayed/duplicated/out-of-order)
+    ├── recovery/    (restart, recovery, reconciliation)
+    ├── risk/        (reject, modify, allow, kill switch)
+    ├── exchange/    (partial/full fill, expired, rejected)
+    └── infra/       (rate limit, retry, clock drift, secrets missing)
+```
+
+### Sprint 4.9C — Observability Runtime
+
+Отдельный модуль `workspace/observability/`:
+
+| Метрика | Назначение |
+|---------|-----------|
+| Feed latency | Задержка входящих данных |
+| Broker latency | Задержка исполнения ордера |
+| WebSocket lag | Отставание WS подключения |
+| Dropped events | Потерянные события |
+| Queue depth | Глубина очереди событий |
+| Order RTT | Round-trip ордера |
+| Risk rejects | Количество отклонённых по риску |
+| Reconnects | Количество переподключений |
+
+### Staged rollout
+
+```
+Mock → Replay → Paper Binance Spot → Small Live Trade → Long-running Paper → Production
+```
+
+---
+
+## Sprint Sequence (утверждён 2026-07-16)
+
+| Sprint | Что | Когда |
+|--------|-----|-------|
+| **4.9A** | Binance Spot Adapter | Сейчас |
+| **4.9B** | Certification Suite | Параллельно/следом |
+| **4.9C** | Observability Runtime | Параллельно/следом |
+| **5.0** | Paper Trading на реальном рынке | После 4.9A/B/C |
+| **5.1** | First Live Trade (мин. объём) | После 5.0 |
+| **5.2** | Long-running Paper → Production | После 5.1 |
