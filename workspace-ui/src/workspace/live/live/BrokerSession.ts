@@ -39,7 +39,7 @@ export class BrokerSession {
   async connect(apiKey: string, apiSecret: string, testnet = false): Promise<void> {
     this.transitionTo(ConnectionStates.CONNECTING)
     try {
-      await this.adapter.connect(apiKey, apiSecret, testnet)
+      await this.adapter.connection.connect(apiKey, apiSecret, testnet)
       this.reconnectAttempts = 0
       this.transitionTo(ConnectionStates.CONNECTED)
     } catch (err) {
@@ -55,7 +55,7 @@ export class BrokerSession {
 
   async disconnect(): Promise<void> {
     this.cancelReconnect()
-    await this.adapter.disconnect()
+    await this.adapter.connection.disconnect()
     this.transitionTo(ConnectionStates.DISCONNECTED)
     this.reconnectAttempts = 0
   }

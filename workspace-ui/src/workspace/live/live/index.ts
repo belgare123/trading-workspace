@@ -13,12 +13,13 @@ export {
 } from './types'
 
 // Broker Adapter interface
-export type { BrokerAdapter, BrokerEventHandler } from './BrokerAdapter'
+export type { BrokerAdapter } from './BrokerAdapter'
 
 // Capabilities
 export type { BrokerCapabilities } from './BrokerCapabilities'
 export {
   NO_CAPABILITIES,
+  MOCK_CAPABILITIES,
   BINANCE_SPOT_CAPABILITIES,
   BINANCE_FUTURES_CAPABILITIES,
   BYBIT_CAPABILITIES,

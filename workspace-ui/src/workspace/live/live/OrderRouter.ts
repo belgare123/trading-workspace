@@ -1,49 +1,59 @@
 /**
  * OrderRouter.ts — Order placement/routing through broker
  *
- * Routes orders to the broker, tracks ACK and status transitions,
- * and emits events into the platform's ExecutionEventBus.
+ * Routes orders to the broker via OrderAdapter, tracks ACK and status
+ * transitions, and emits events into the platform's ExecutionEventBus.
  *
  * @since 4.5
  */
 
-import type { BrokerAdapter } from './BrokerAdapter'
-import type { BrokerOrderStatus } from './types'
+import type { BrokerAdapter, OrderAdapter } from './BrokerAdapter'
+import type { BrokerOrder } from './types'
 import type { ExecutionEventBus } from '../../execution/events/ExecutionEventBus'
 import type { Order, Fill, OrderStatus } from '../../execution/types'
+import { classifyBrokerError } from './BrokerError'
 
 export class OrderRouter {
-  private adapter: BrokerAdapter
+  private adapter: OrderAdapter
   private eventBus?: ExecutionEventBus
-  private pendingOrders = new Map<string, string>() // localOrderId → brokerOrderId
-  private brokerToLocal = new Map<string, string>() // brokerOrderId → localOrderId
+  private pendingOrders = new Map<string, string>() // clientOrderId → brokerOrderId
+  private brokerToLocal = new Map<string, string>() // brokerOrderId → clientOrderId
+  private unsubscribers: Array<() => void> = []
 
   constructor(adapter: BrokerAdapter) {
-    this.adapter = adapter
+    this.adapter = adapter.orders
   }
 
   /** Connect to event bus for forwarding broker events */
   connectEventBus(bus: ExecutionEventBus): void {
     this.eventBus = bus
+
+    // Subscribe to broker order updates
+    this.unsubscribers.push(
+      this.adapter.subscribeOrders((brokerOrder) => {
+        this.handleBrokerUpdate(brokerOrder)
+      })
+    )
   }
 
   /** Route an order to the broker */
-  async route(order: Order): Promise<BrokerOrderStatus> {
+  async route(order: Order): Promise<BrokerOrder> {
     try {
-      const brokerStatus = await this.adapter.placeOrder({
+      const brokerOrder = await this.adapter.placeOrder({
         symbol: order.symbol,
         side: order.side as 'buy' | 'sell',
         type: this.mapOrderType(order.type),
         quantity: order.quantity,
         price: order.price,
         stopPrice: order.stopPrice,
+        timeInForce: order.timeInForce,
         reduceOnly: order.reduceOnly,
         clientOrderId: order.id,
       })
 
       // Track the mapping
-      this.pendingOrders.set(order.id, brokerStatus.brokerOrderId)
-      this.brokerToLocal.set(brokerStatus.brokerOrderId, order.id)
+      this.pendingOrders.set(order.id, brokerOrder.brokerOrderId)
+      this.brokerToLocal.set(brokerOrder.brokerOrderId, order.id)
 
       // Emit ORDER_ACCEPTED
       if (this.eventBus) {
@@ -54,32 +64,37 @@ export class OrderRouter {
         })
       }
 
-      return brokerStatus
+      return brokerOrder
     } catch (err) {
+      const brokerErr = classifyBrokerError(err)
+
       // Emit ORDER_REJECTED
       if (this.eventBus) {
         this.eventBus.emit({
           type: 'ORDER_REJECTED',
           order,
-          reason: String(err),
+          reason: brokerErr.message,
           timestamp: Date.now(),
         })
       }
-      throw err
+      throw brokerErr
     }
   }
 
-  /** Cancel an order */
-  async cancel(localOrderId: string): Promise<boolean> {
-    const brokerId = this.pendingOrders.get(localOrderId)
+  /** Cancel an order by client order ID */
+  async cancel(clientOrderId: string): Promise<boolean> {
+    const brokerId = this.pendingOrders.get(clientOrderId)
     if (!brokerId) return false
 
-    const result = await this.adapter.cancelOrder(brokerId)
-    return result
+    try {
+      return await this.adapter.cancelOrder(brokerId)
+    } catch (err) {
+      throw classifyBrokerError(err)
+    }
   }
 
-  /** Handle broker order update event */
-  handleBrokerUpdate(update: BrokerOrderStatus): void {
+  /** Handle broker order update via subscription */
+  private handleBrokerUpdate(update: BrokerOrder): void {
     const localId = this.brokerToLocal.get(update.brokerOrderId)
     if (!localId) return
 
@@ -100,8 +115,10 @@ export class OrderRouter {
       updatedAt: update.updatedAt,
     }
 
-    if (this.eventBus) {
-      if (update.status === 'FILLED' || update.filledQuantity > 0) {
+    if (!this.eventBus) return
+
+    if (update.status === 'FILLED' || update.status === 'PARTIALLY_FILLED') {
+      if (update.filledQuantity > 0) {
         const fill: Fill = {
           id: `fill_${update.updatedAt}`,
           orderId: localId,
@@ -110,7 +127,7 @@ export class OrderRouter {
           quantity: update.filledQuantity,
           price: update.averagePrice,
           commission: update.commission,
-          commissionAsset: '',
+          commissionAsset: update.commissionAsset ?? '',
           slippage: 0,
           timestamp: update.updatedAt,
         }
@@ -121,14 +138,14 @@ export class OrderRouter {
           timestamp: update.updatedAt,
         })
       }
+    }
 
-      if (update.status === 'CANCELLED' || update.status === 'EXPIRED') {
-        this.eventBus.emit({
-          type: 'ORDER_CANCELLED',
-          order,
-          timestamp: update.updatedAt,
-        })
-      }
+    if (update.status === 'CANCELLED' || update.status === 'EXPIRED') {
+      this.eventBus.emit({
+        type: 'ORDER_CANCELLED',
+        order,
+        timestamp: update.updatedAt,
+      })
     }
   }
 
@@ -172,5 +189,13 @@ export class OrderRouter {
       case 'REJECTED': return 'rejected'
       default: return 'pending'
     }
+  }
+
+  dispose(): void {
+    for (const unsub of this.unsubscribers) {
+      unsub()
+    }
+    this.unsubscribers = []
+    this.clear()
   }
 }

@@ -29,7 +29,6 @@ export type { GatewayFactory } from './gateway/GatewayRegistry'
 
 export { BacktestProvider } from './providers/BacktestProvider'
 export { PaperProvider } from './providers/PaperProvider'
-export { LiveProvider } from './providers/LiveProvider'
 
 // ── Types ──
 
@@ -83,7 +82,7 @@ export type { VolumeStats } from './aggregation/VolumeAggregator'
 export { TradeJournal } from './journal/TradeJournal'
 export type { JournalEntry, JournalEntryType } from './journal/TradeJournal'
 
-// ── History & Audit ──
+// ── History & Audit (Sprint 4.4) ──
 
 export type * from './history/types'
 export { OrderHistoryStore } from './history/OrderHistoryStore'
@@ -98,7 +97,7 @@ export { JsonExporter } from './history/exporters/JsonExporter'
 export type { HistoryExport } from './history/exporters/JsonExporter'
 export { CsvExporter } from './history/exporters/CsvExporter'
 
-// ── Live Provider (Sprint 4.5) ──
+// ── Live Provider — Types & Config (Sprint 4.5) ──
 
 export type * from './live/types'
 export {
@@ -106,14 +105,46 @@ export {
   canTransition,
   DEFAULT_LIVE_CONFIG,
 } from './live/types'
-export type { BrokerAdapter, BrokerEventHandler } from './live/BrokerAdapter'
+export type { LiveProviderConfig } from './live/types'
+
+// ── Live Provider — Broker Adapter Contract (Sprint 4.6) ──
+
+export type {
+  BrokerAdapter,
+  ConnectionAdapter,
+  OrderAdapter,
+  PositionAdapter,
+  AccountAdapter,
+  MarketDataAdapter,
+} from './live/BrokerAdapter'
+
+// ── Live Provider — Broker Capabilities ──
+
 export type { BrokerCapabilities } from './live/BrokerCapabilities'
 export {
   NO_CAPABILITIES,
+  MOCK_CAPABILITIES,
   BINANCE_SPOT_CAPABILITIES,
   BINANCE_FUTURES_CAPABILITIES,
   BYBIT_CAPABILITIES,
 } from './live/BrokerCapabilities'
+
+// ── Live Provider — Broker Error Hierarchy (Sprint 4.6) ──
+
+export {
+  BrokerError,
+  AuthenticationError,
+  PermissionError,
+  ValidationError,
+  NetworkError,
+  RateLimitError,
+  ExchangeRejectedError,
+  TemporaryUnavailableError,
+  classifyBrokerError,
+} from './live/BrokerError'
+
+// ── Live Provider — Orchestration (Sprint 4.5) ──
+
 export { BrokerSession } from './live/BrokerSession'
 export type { SessionListener } from './live/BrokerSession'
 export { OrderRouter } from './live/OrderRouter'
@@ -121,5 +152,8 @@ export { PositionSynchronizer } from './live/PositionSynchronizer'
 export { AccountSynchronizer } from './live/AccountSynchronizer'
 export { BrokerEventAdapter } from './live/BrokerEventAdapter'
 export { LiveProvider } from './live/LiveProvider'
-export type { LiveProviderConfig } from './live/types'
 
+// ── Broker Implementations (Sprint 4.6) ──
+
+export { MockBrokerAdapter, ReplayBrokerAdapter } from './brokers'
+export type { MockBrokerConfig, ReplayEvent, ReplaySession, ReplayBrokerConfig } from './brokers'

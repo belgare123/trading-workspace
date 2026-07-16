@@ -71,6 +71,34 @@ export const NO_CAPABILITIES: BrokerCapabilities = {
   providesKlines: false,
 }
 
+/** Mock / Replay adapter: full capabilities */
+export const MOCK_CAPABILITIES: BrokerCapabilities = {
+  ...NO_CAPABILITIES,
+  supportsMarket: true,
+  supportsLimit: true,
+  supportsStop: true,
+  supportsStopLimit: true,
+  supportsOCO: false,
+  supportsTrailingStop: true,
+  supportsReduceOnly: true,
+  supportsHedgeMode: true,
+  supportsPositionTrading: true,
+  supportsMargin: false,
+  supportsFutures: true,
+  supportsSpot: true,
+  supportsPostOnly: true,
+  supportsIceberg: false,
+  supportsSelfTradePrevention: false,
+  supportsTimeInForce: true,
+  supportsMinNotional: true,
+  supportsWebSocket: true,
+  supportsPolling: true,
+  providesTicker: true,
+  providesOrderBook: true,
+  providesTrades: true,
+  providesKlines: true,
+}
+
 /** Binance Spot capabilities */
 export const BINANCE_SPOT_CAPABILITIES: BrokerCapabilities = {
   ...NO_CAPABILITIES,
