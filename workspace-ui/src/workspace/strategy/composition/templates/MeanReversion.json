@@ -1,0 +1,79 @@
+{
+  "id": "mean-reversion",
+  "name": "Mean Reversion",
+  "version": "1.0.0",
+  "description": "RSI-based mean reversion: buy when oversold, sell when overbought",
+  "metadata": {
+    "created": 1747353600000,
+    "updated": 1747353600000,
+    "author": "Strategy Studio",
+    "tags": ["mean-reversion", "rsi", "example"],
+    "schedule": "onBar"
+  },
+  "nodes": [
+    {
+      "id": "signal_rsi",
+      "type": "signal",
+      "label": "RSI(14)",
+      "definitionId": "rsi-signal",
+      "params": { "period": 14, "oversold": 30, "overbought": 70 },
+      "position": { "x": 100, "y": 100 }
+    },
+    {
+      "id": "condition_oversold",
+      "type": "condition",
+      "label": "Oversold",
+      "definitionId": "rsi-oversold",
+      "params": {},
+      "position": { "x": 300, "y": 50 }
+    },
+    {
+      "id": "condition_overbought",
+      "type": "condition",
+      "label": "Overbought",
+      "definitionId": "rsi-overbought",
+      "params": {},
+      "position": { "x": 300, "y": 150 }
+    },
+    {
+      "id": "condition_cooldown_buy",
+      "type": "condition",
+      "label": "Buy Cooldown",
+      "definitionId": "cooldown",
+      "params": { "bars": 5 },
+      "position": { "x": 500, "y": 50 }
+    },
+    {
+      "id": "condition_cooldown_sell",
+      "type": "condition",
+      "label": "Sell Cooldown",
+      "definitionId": "cooldown",
+      "params": { "bars": 5 },
+      "position": { "x": 500, "y": 150 }
+    },
+    {
+      "id": "action_buy",
+      "type": "action",
+      "label": "Buy",
+      "definitionId": "buy-market",
+      "params": { "symbol": "BTC/USDT", "quantity": 0.01 },
+      "position": { "x": 700, "y": 50 }
+    },
+    {
+      "id": "action_sell",
+      "type": "action",
+      "label": "Sell",
+      "definitionId": "sell-market",
+      "params": { "symbol": "BTC/USDT", "quantity": 0.01 },
+      "position": { "x": 700, "y": 150 }
+    }
+  ],
+  "edges": [
+    { "id": "e1", "sourceId": "signal_rsi", "targetId": "condition_oversold" },
+    { "id": "e2", "sourceId": "signal_rsi", "targetId": "condition_overbought" },
+    { "id": "e3", "sourceId": "condition_oversold", "targetId": "condition_cooldown_buy" },
+    { "id": "e4", "sourceId": "condition_overbought", "targetId": "condition_cooldown_sell" },
+    { "id": "e5", "sourceId": "condition_cooldown_buy", "targetId": "action_buy" },
+    { "id": "e6", "sourceId": "condition_cooldown_sell", "targetId": "action_sell" }
+  ]
+}

@@ -1,0 +1,79 @@
+{
+  "id": "breakout",
+  "name": "Breakout",
+  "version": "1.0.0",
+  "description": "N-period high/low breakout strategy with volume confirmation",
+  "metadata": {
+    "created": 1747353600000,
+    "updated": 1747353600000,
+    "author": "Strategy Studio",
+    "tags": ["breakout", "volume", "example"],
+    "schedule": "onBar"
+  },
+  "nodes": [
+    {
+      "id": "signal_breakout-high",
+      "type": "signal",
+      "label": "High Breakout",
+      "definitionId": "breakout",
+      "params": { "period": 20, "direction": "high" },
+      "position": { "x": 100, "y": 50 }
+    },
+    {
+      "id": "signal_breakout-low",
+      "type": "signal",
+      "label": "Low Breakout",
+      "definitionId": "breakout",
+      "params": { "period": 20, "direction": "low" },
+      "position": { "x": 100, "y": 150 }
+    },
+    {
+      "id": "signal_volume-spike",
+      "type": "signal",
+      "label": "Volume Spike",
+      "definitionId": "volume-spike",
+      "params": { "multiplier": 2.0, "period": 20 },
+      "position": { "x": 100, "y": 250 }
+    },
+    {
+      "id": "condition_breakout-confirm-high",
+      "type": "condition",
+      "label": "High Breakout + Volume",
+      "definitionId": "and",
+      "params": {},
+      "position": { "x": 350, "y": 50 }
+    },
+    {
+      "id": "condition_breakout-confirm-low",
+      "type": "condition",
+      "label": "Low Breakout + Volume",
+      "definitionId": "and",
+      "params": {},
+      "position": { "x": 350, "y": 150 }
+    },
+    {
+      "id": "action_buy",
+      "type": "action",
+      "label": "Buy Market",
+      "definitionId": "buy-market",
+      "params": { "symbol": "BTC/USDT", "quantity": 0.01 },
+      "position": { "x": 600, "y": 50 }
+    },
+    {
+      "id": "action_sell",
+      "type": "action",
+      "label": "Sell Market",
+      "definitionId": "sell-market",
+      "params": { "symbol": "BTC/USDT", "quantity": 0.01 },
+      "position": { "x": 600, "y": 150 }
+    }
+  ],
+  "edges": [
+    { "id": "e1", "sourceId": "signal_breakout-high", "targetId": "condition_breakout-confirm-high", "label": "breakout" },
+    { "id": "e2", "sourceId": "signal_volume-spike", "targetId": "condition_breakout-confirm-high", "label": "volume" },
+    { "id": "e3", "sourceId": "signal_breakout-low", "targetId": "condition_breakout-confirm-low", "label": "breakout" },
+    { "id": "e4", "sourceId": "signal_volume-spike", "targetId": "condition_breakout-confirm-low", "label": "volume" },
+    { "id": "e5", "sourceId": "condition_breakout-confirm-high", "targetId": "action_buy", "label": "go long" },
+    { "id": "e6", "sourceId": "condition_breakout-confirm-low", "targetId": "action_sell", "label": "go short" }
+  ]
+}

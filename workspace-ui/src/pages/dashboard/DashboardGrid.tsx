@@ -9,6 +9,7 @@ export interface WidgetGridProps {
   autoRows?: string;
   gap?: number;
   className?: string;
+  style?: React.CSSProperties;
 }
 
 export function WidgetGrid({

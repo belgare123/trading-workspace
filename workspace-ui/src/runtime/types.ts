@@ -1,7 +1,6 @@
 import type { ComponentType, ReactNode } from 'react';
-import type { MarketApi, ReplayApi, PluginApi, SignalApi } from './api';
+import type { MarketApi, ReplayApi, PluginApi } from './api';
 import type { EventBus } from './EventBus';
-import type { RuntimeApiServices } from './api';
 import type { Capability } from './Capabilities';
 
 // ── Categories ──

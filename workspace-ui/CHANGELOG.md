@@ -73,3 +73,66 @@ Phase 2.4 Stabilization — complete platform overhaul of the Runtime Kernel.
 - Vite production build: 287ms, 2131 modules
 - Runtime source: 91 `.ts`/`.tsx` files
 - All benchmark scenarios self-contained — zero hardcoded Runtime imports
+
+## Strategy Studio v1.0.0 (2026-07-16)
+
+Strategy Studio — подсистема стратегий Trading Platform. Завершено архитектурное ядро: Definition → Registry → Runtime → Consumer для всех 4 engines, ExecutionContext (фасад 7 контекстов), Composition Engine (DAG-based оркестрация).
+
+### Added
+
+**Sprint 3.4.1 — Strategy Runtime Foundation**
+- `StrategyDefinition` — контракт стратегии (id, name, create, onBar, destroy)
+- `StrategyRegistry` — singleton, регистрация/получение определений
+- `StrategyRuntime` — lifecycle: создание, старт, стоп, очистка
+- `StrategyExecutor` — per-bar цикл: bar → signals → conditions → actions
+
+**Sprint 3.4.2 — Strategy Execution Context**
+- `ExecutionContext` — единый фасад: MarketContext, OrderContext, PositionContext, PortfolioContext, TimeContext, IndicatorContext
+- `OrderContext.submit()` — декларативные ордер-запросы (buy/sell/cancel/replace)
+- `StrategyContextBar` — callback для получения бара в стратегии
+
+**Sprint 3.4.3 — Signal Engine**
+- `SignalDefinition` — контракт сигнала: evaluate(ctx, params) → SignalResult
+- `SignalRegistry` — singleton
+- `SignalRuntime` — binding + per-bar кэш
+- 8 builtins: cross-above, cross-below, rsi-signal, macd-signal, volume-spike, breakout, trendline-break, divergence
+
+**Sprint 3.4.4 — Condition Engine**
+- `ConditionDefinition` — контракт условия: evaluate(input) → ConditionEvaluationOutput
+- `ConditionRegistry` — singleton
+- `ConditionRuntime` — дерево условий + per-node state management
+- 9 builtins: AND, OR, NOT, XOR, Sequence, Cooldown, TimeWindow, PositionState, Drawdown
+- `ConditionHelpers` — утилиты композиции условий
+
+**Sprint 3.4.5 — Action Engine**
+- `ActionDefinition` — контракт действия: execute(ctx, params) → ActionResult
+- `ActionRegistry` — singleton
+- `ActionRuntime` — execute + executeAll + история
+- 14 builtins: BuyMarket, SellMarket, BuyLimit, SellLimit, ClosePosition, ReversePosition, ScaleIn, ScaleOut, SetStopLoss, SetTakeProfit, MoveStopToBreakeven, CancelOrder, CancelAllOrders, ReplaceOrder
+- `ActionHelpers` — orderSuccess, actionError, requireParam
+
+**Sprint 3.4.6 — Strategy Composition Engine**
+- `StrategyGraph` — pure data DAG (nodes, edges, metadata, layout)
+- `StrategyNode` / `StrategyEdge` — фабрики + хелперы
+- `GraphValidator` — 8 проверок: циклы (Kahn), dangling edges, дубли ID, root node, совместимость типов
+- `GraphScheduler` — событийный планировщик: onBar, onTick, onTrade, onTimer, onNews, onCustomEvent
+- `GraphExecutor` — топологическое исполнение DAG (Kahn's algorithm), per-node state для temporal conditions
+- `GraphRuntime` — фасад: load(graph) → onBar(ctx) → execution
+- `GraphSerializer` — toJSON/fromJSON + JSON Schema v1
+- `GraphMigration` — version migration support
+- 3 template strategies: TrendFollowing, MeanReversion, Breakout
+
+### Frozen
+
+- **Strategy Studio Constitution v1.0** — `docs/architecture/strategy-studio-constitution.md`
+- **STRATEGY_STUDIO_API** — `src/workspace/strategy/STRATEGY_STUDIO_API.ts`
+- Frozen paths: definition/, runtime/, executor/, context/, signals/{definition,registry,runtime}/, conditions/{definition,registry,runtime}/, actions/{definition,registry,runtime}/, composition/{runtime,graph/GraphValidator.ts,serialization}/
+- Additive Growth Rule: builtins и templates — активно расширяемы
+
+### Technical
+
+- TypeScript type-check: 0 errors in strategy/ module (excluding pre-existing StrategyService.ts)
+- Module source: 60+ `.ts` files
+- Total lines: ~2,500+ lines of TypeScript across 5 engines
+- Architecture pattern: Definition → Registry → Runtime → Consumer (identical to Chart Studio)
+- Pipeline: Market → Indicators → Signals → Conditions → Actions → Execution/Metrics

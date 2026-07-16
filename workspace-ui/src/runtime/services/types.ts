@@ -7,15 +7,15 @@
  */
 
 export type {
-  MarketRuntime as MarketApi,
-  ReplayRuntime as ReplayApi,
-  PluginRuntime as PluginApi,
-  PortfolioRuntime as PortfolioApi,
-  StrategyRuntime as StrategyApi,
-  MLRuntime as MLApi,
-  NotificationRuntime as NotificationApi,
-  SearchRuntime as SearchApi,
-  EventStoreRuntime as EventStoreApi,
+  MarketApi,
+  ReplayApi,
+  PluginApi,
+  PortfolioApi,
+  StrategyApi,
+  MLApi,
+  NotificationApi,
+  SearchApi,
+  EventStoreApi,
 } from '../api'
 
 export type { Position, Balance } from '../api'

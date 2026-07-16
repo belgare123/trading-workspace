@@ -1,0 +1,69 @@
+{
+  "id": "trend-following",
+  "name": "Trend Following",
+  "version": "1.0.0",
+  "description": "Classic trend-following strategy: cross-above signals a buy, cross-below signals a sell",
+  "metadata": {
+    "created": 1747353600000,
+    "updated": 1747353600000,
+    "author": "Strategy Studio",
+    "tags": ["trend", "classic", "example"],
+    "schedule": "onBar"
+  },
+  "nodes": [
+    {
+      "id": "signal_fast-sma",
+      "type": "signal",
+      "label": "Fast SMA",
+      "definitionId": "cross-above",
+      "params": { "fastPeriod": 10, "slowPeriod": 50, "maType": "sma" },
+      "position": { "x": 100, "y": 50 }
+    },
+    {
+      "id": "signal_slow-sma",
+      "type": "signal",
+      "label": "Slow SMA",
+      "definitionId": "cross-below",
+      "params": { "fastPeriod": 10, "slowPeriod": 50, "maType": "sma" },
+      "position": { "x": 100, "y": 150 }
+    },
+    {
+      "id": "condition_buy-entry",
+      "type": "condition",
+      "label": "Buy Entry",
+      "definitionId": "cross-above",
+      "params": {},
+      "position": { "x": 350, "y": 50 }
+    },
+    {
+      "id": "condition_sell-entry",
+      "type": "condition",
+      "label": "Sell Entry",
+      "definitionId": "cross-below",
+      "params": {},
+      "position": { "x": 350, "y": 150 }
+    },
+    {
+      "id": "action_buy",
+      "type": "action",
+      "label": "Buy Market",
+      "definitionId": "buy-market",
+      "params": { "symbol": "BTC/USDT", "quantity": 0.01 },
+      "position": { "x": 600, "y": 50 }
+    },
+    {
+      "id": "action_sell",
+      "type": "action",
+      "label": "Sell Market",
+      "definitionId": "sell-market",
+      "params": { "symbol": "BTC/USDT", "quantity": 0.01 },
+      "position": { "x": 600, "y": 150 }
+    }
+  ],
+  "edges": [
+    { "id": "e1", "sourceId": "signal_fast-sma", "targetId": "condition_buy-entry", "label": "fast → buy check" },
+    { "id": "e2", "sourceId": "signal_slow-sma", "targetId": "condition_sell-entry", "label": "slow → sell check" },
+    { "id": "e3", "sourceId": "condition_buy-entry", "targetId": "action_buy", "label": "cross above → buy" },
+    { "id": "e4", "sourceId": "condition_sell-entry", "targetId": "action_sell", "label": "cross below → sell" }
+  ]
+}
