@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AppLayout } from './layouts/AppLayout'
 import { WorkspaceView } from './components/WorkspaceView'
@@ -23,6 +23,7 @@ import {
 import { useCommands } from './commands/CommandProvider'
 import { useStore } from './store'
 import { useFeatureFlag } from './featureFlags'
+import { ChartSandboxStandalone } from './workspace/chart/demo'
 
 const queryClient = new QueryClient()
 
@@ -100,7 +101,25 @@ function GlobalKeyHandler() {
 
 // ── App shell ──────────────────────────────────────────────────────
 
+function useSandboxMode() {
+  const [sandbox, setSandbox] = useState(() => window.location.hash === '#chart-sandbox')
+
+  useEffect(() => {
+    const handler = () => setSandbox(window.location.hash === '#chart-sandbox')
+    window.addEventListener('hashchange', handler)
+    return () => window.removeEventListener('hashchange', handler)
+  }, [])
+
+  return sandbox
+}
+
 export default function App() {
+  const sandbox = useSandboxMode()
+
+  if (sandbox) {
+    return <ChartSandboxStandalone />
+  }
+
   return (
     <QueryClientProvider client={queryClient}>
       <NotificationProvider>
