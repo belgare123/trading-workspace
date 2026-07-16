@@ -15,6 +15,10 @@
 import { panelRegistry } from '../panels/PanelRegistry'
 import type { PanelDefinition, PanelContext, Size } from '../panels/PanelDefinition'
 import type { ReactNode } from 'react'
+import { ChartPanel } from './panels/ChartPanel'
+import { BuilderPanel } from './panels/BuilderPanel'
+import { BacktestPanel } from './panels/BacktestPanel'
+import { ReportPanel } from './panels/ReportPanel'
 
 // ── Panel IDs ──
 
@@ -198,32 +202,31 @@ const defaultBindings: Array<{ id: string; title: string; widgetId: string; desc
 ]
 
 /**
- * Register a set of stub/placeholder panels for initial integration.
- * These will be replaced with real components in Sprint 3.7.2.
- *
- * Pass `renderAll` to set a single fallback render for all panels,
- * or omit to use the default placeholder.
+ * Register default panel bindings with real thin React components.
+ * Each panel is a thin host layer over its Runtime — no business logic.
  */
 export function registerDefaultBindings(
   renderMap?: Partial<Record<string, ComponentLoader>>,
   defaultRender?: ComponentLoader,
 ): void {
-  const fallback: ComponentLoader = (ctx: PanelContext) => {
-    const { panel } = ctx
-    return (
-      <div style={{ padding: 16, color: 'var(--text-muted, #888)', fontSize: 13 }}>
-        <h3 style={{ margin: '0 0 8px', color: 'var(--text, #ddd)', fontSize: 14 }}>
-          {panel.tabs[0]?.title ?? panel.id}
-        </h3>
-        <p>Panel not yet implemented.</p>
-        <p style={{ fontSize: 11, color: '#555' }}>{panel.id}</p>
-      </div>
-    )
+  const builtInMap: Record<string, ComponentLoader> = {
+    [PANEL_CHART]: (_ctx) => <ChartPanel />,
+    [PANEL_BUILDER]: (_ctx) => <BuilderPanel />,
+    [PANEL_BACKTEST]: (_ctx) => <BacktestPanel />,
+    [PANEL_REPORT]: (_ctx) => <ReportPanel />,
   }
 
+  const fallback: ComponentLoader = (_ctx) => (
+    <div style={{ padding: 16, color: '#888', fontSize: 13 }}>
+      <h3 style={{ margin: '0 0 8px', color: '#ddd', fontSize: 14 }}>Panel</h3>
+      <p>Panel not yet implemented.</p>
+    </div>
+  )
+
   for (const binding of defaultBindings) {
+    const builtIn = builtInMap[binding.id]
     const customRender = renderMap?.[binding.id]
-    const render = customRender ?? defaultRender ?? fallback
+    const render = customRender ?? defaultRender ?? builtIn ?? fallback
     panelRegistry.register(
       {
         id: binding.id,

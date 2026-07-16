@@ -1,0 +1,96 @@
+// ── CashLedger — Cash balance tracking ──
+//
+// Tracks cash in multiple assets (USDT, BTC, etc.).
+//
+// @since 3.5.1
+
+import type { CashBalance, Fill } from '../types'
+
+export class CashLedger {
+  private balances: Map<string, CashBalance> = new Map()
+
+  constructor(initialBalances: { asset: string; amount: number }[] = []) {
+    for (const { asset, amount } of initialBalances) {
+      this.setBalance(asset, amount)
+    }
+  }
+
+  /** Seed or reset a balance (used by ExecutionRuntime.initialize) */
+  seed(asset: string, amount: number): void {
+    this.balances.clear()
+    this.setBalance(asset, amount)
+  }
+
+  /** Get balance for an asset */
+  get(asset: string): CashBalance {
+    return this.balances.get(asset) ?? { asset, free: 0, locked: 0, total: 0 }
+  }
+
+  /** All balances */
+  all(): CashBalance[] {
+    return Array.from(this.balances.values())
+  }
+
+  /** Process a fill: debit quote, credit base */
+  applyFill(fill: Fill): void {
+    const quoteCost = fill.price * fill.quantity + fill.commission
+
+    if (fill.side === 'buy') {
+      // Debit quote currency, credit base
+      this.debit(fill.commissionAsset, quoteCost)
+      this.credit(fill.symbol, fill.quantity)
+    } else {
+      // Debit base, credit quote currency
+      this.debit(fill.symbol, fill.quantity)
+      this.credit(fill.commissionAsset, quoteCost - fill.commission)
+    }
+  }
+
+  /** Cash available for spending */
+  free(asset: string): number {
+    return this.get(asset).free
+  }
+
+  /** Total cash balance */
+  total(asset: string): number {
+    return this.get(asset).total
+  }
+
+  /** Reset to initial state */
+  clear(): void {
+    this.balances.clear()
+  }
+
+  // ── Internal ──
+
+  private credit(asset: string, amount: number): void {
+    const balance = this.get(asset)
+    this.balances.set(asset, {
+      ...balance,
+      free: balance.free + amount,
+      total: balance.total + amount,
+    })
+  }
+
+  private debit(asset: string, amount: number): void {
+    const balance = this.get(asset)
+    if (balance.free < amount) {
+      throw new Error(`Insufficient ${asset}: have ${balance.free}, need ${amount}`)
+    }
+    this.balances.set(asset, {
+      ...balance,
+      free: balance.free - amount,
+      locked: balance.locked,
+      total: balance.total - amount,
+    })
+  }
+
+  private setBalance(asset: string, amount: number): void {
+    this.balances.set(asset, {
+      asset,
+      free: amount,
+      locked: 0,
+      total: amount,
+    })
+  }
+}

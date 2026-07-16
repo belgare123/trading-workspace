@@ -72,3 +72,32 @@ export type {
   ModuleState,
   CompositionEventMap,
 } from './WorkspaceComposition'
+
+// ── Workspace Synchronization (3.7.2) ──
+
+export {
+  WorkspaceSync,
+  workspaceSync,
+} from './WorkspaceSync'
+export type {
+  SyncEvent,
+  SyncListener,
+} from './WorkspaceSync'
+
+// ── Thin React Panel Components (3.7.2) ──
+
+export { ChartPanel } from './panels/ChartPanel'
+export { BuilderPanel } from './panels/BuilderPanel'
+export { StrategyPanel } from './panels/StrategyPanel'
+export { BacktestPanel } from './panels/BacktestPanel'
+export { ReportPanel } from './panels/ReportPanel'
+
+// ── End-to-End Flow Validation (3.7.2) ──
+
+export {
+  E2EFlowValidator,
+} from './validation/E2EFlowValidator'
+export type {
+  E2EStepResult,
+  E2EFlowResult,
+} from './validation/E2EFlowValidator'
