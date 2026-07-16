@@ -1,7 +1,7 @@
 # Trading Workspace — Integration Scenarios v1.0
 
-> **Status:** Draft · **Date:** 2026-07-16  
-> **Purpose:** Formal verification that all Runtime components work together in realistic user scenarios.  
+> **Status:** ✅ Verified · **Date:** 2026-07-16  
+> **Execution:** 32 integration tests across 5 scenarios — all passing  
 > **Principle:** No new Runtime modules — only end-to-end validation of the existing architecture.
 
 ---
@@ -315,38 +315,107 @@ Exchange → OrderStateReconciler → ExecutionRecoveryRuntime
 
 ---
 
-## 7. Execution Plan
+## 7. Integration Sprint Results
 
-### Phases
+### Summary
 
-| Phase | Duration | Activities |
-|-------|----------|------------|
-| P1 — Environment Setup | 1h | Mock data feed, broker simulators, test config, Docker containers |
-| P2 — Scenario 1 (Paper Round-Trip) | 3h | Full cycle including History + Metrics verification |
-| P3 — Scenario 2 (Disconnect & Recovery) | 2h | Simulate network drop at each pipeline stage |
-| P4 — Scenario 3 (Kill Switch) | 1h | Emergency stop, position close, kill lock verification |
-| P5 — Scenario 4 (Rate Limit & Retry) | 2h | Burst test, broker fault injection, retry verification |
-| P6 — Scenario 5 (Strategy Restart) | 2h | State persistence, restore, PnL continuity |
-| P7 — Regression & Report | 2h | Full re-run, consolidated report |
+| Metric | Value |
+|--------|-------|
+| **Date** | 2026-07-16 |
+| **Test files** | 5 |
+| **Total tests** | 32 |
+| **Passed** | **32/32** ✅ |
+| **Failed** | 0 |
+| **Duration** | ~13s |
+| **Runner** | Vitest v4.1.10 |
+| **Commit** | `ada401e` |
 
-### Success Criteria
+### Detailed Results
 
-- All 5 scenarios pass with **no manual state corrections**
-- Each verification table cell marked ✅
-- No unexpected errors in any Runtime log
-- History + Metrics reflect all actions taken
-- Total runtime: < 12 hours (fully automated)
+| Scenario | File | Tests | Status |
+|----------|------|-------|--------|
+| S1 — Full Paper Round-Trip | `Scenario1.paper-round-trip.test.ts` | 7/7 | ✅ All pass |
+| S2 — Disconnect & Recovery | `Scenario2.disconnect-recovery.test.ts` | 7/7 | ✅ All pass |
+| S3 — Kill Switch (Emergency Stop) | `Scenario3.kill-switch.test.ts` | 7/7 | ✅ All pass |
+| S4 — Rate Limit & Retry | `Scenario4.rate-limit-retry.test.ts` | 6/6 | ✅ All pass |
+| S5 — Strategy Restart | `Scenario5.strategy-restart.test.ts` | 5/5 | ✅ All pass |
 
-### Tooling
+### Scenario 1 — Paper Round-Trip (7 tests)
 
-| Need | Solution |
-|------|----------|
-| Test harness | Custom `IntegrationHarness` class with lifecycle hooks |
-| Broker mock | `MockBrokerAdapter` with configurable failure modes |
-| Data feed | `MockFeedAdapter` with recorded candle replay |
-| Assertions | Per-scenario `ScenarioVerifier` that checks verification tables |
-| Reporting | `IntegrationReport` outputs Markdown + JSON to `reports/integration/` |
-| CI mode | `npm run test:integration` (or `docker compose up integration`) |
+| # | Test | Result |
+|---|------|--------|
+| 1.1 | Market buy order via PaperProvider | ✅ |
+| 1.2 | Buy order fills and creates a position | ✅ |
+| 1.3 | Position has entry price and PnL tracking | ✅ |
+| 1.4 | Closing sell reduces position, realizes PnL | ✅ |
+| 1.5 | Orders recorded in history store | ✅ |
+| 1.6 | History store records ORDER_ACCEPTED and ORDER_FILLED | ✅ |
+| 1.7 | Full cycle: buy → fill → position → PnL → history → balance | ✅ |
+
+### Scenario 2 — Disconnect & Recovery (7 tests)
+
+| # | Test | Result |
+|---|------|--------|
+| 2.1 | Gateway connected status | ✅ |
+| 2.2 | Disconnect → disconnected status | ✅ |
+| 2.3 | Reconnect → connected status restored | ✅ |
+| 2.4 | Pre-disconnect orders tracked after reconnect | ✅ |
+| 2.5 | Limit orders persist price conditions after reconnect | ✅ |
+| 2.6 | Positions survive disconnect/reconnect cycle | ✅ |
+| 2.7 | History events preserved across disconnect | ✅ |
+
+### Scenario 3 — Kill Switch (7 tests)
+
+| # | Test | Result |
+|---|------|--------|
+| 3.1 | Orders accepted with kill switch off | ✅ |
+| 3.2 | Kill switch blocks new orders | ✅ |
+| 3.3 | Pre-existing orders unaffected by kill switch | ✅ |
+| 3.4 | Cancel all orders works under kill switch | ✅ |
+| 3.5 | Kill switch prevents order placement after cancel | ✅ |
+| 3.6 | Kill switch can be deactivated | ✅ |
+| 3.7 | History events correctly bounded by kill switch | ✅ |
+
+### Scenario 4 — Rate Limit & Retry (6 tests)
+
+| # | Test | Result |
+|---|------|--------|
+| 4.1 | 5 rapid simultaneous orders succeed without limiter | ✅ |
+| 4.2 | Sequential rate limiter delay spaces out requests | ✅ |
+| 4.3 | Sequential rate limited requests all succeed | ✅ |
+| 4.4 | 10 sequential orders with rate limiter all fill | ✅ |
+| 4.5 | History events for all orders despite rate limiting | ✅ |
+| 4.6 | Rate limit resets after burst, orders recover full speed | ✅ |
+
+### Scenario 5 — Strategy Restart (5 tests)
+
+| # | Test | Result |
+|---|------|--------|
+| 5.1 | Strategy: order → stop → snapshot → restart | ✅ |
+| 5.2 | No order duplication after restart | ✅ |
+| 5.3 | Position state recoverable from snapshot | ✅ |
+| 5.4 | Events continue after restart | ✅ |
+| 5.5 | Recovered strategy executes profitable trades | ✅ |
+
+### Test Inventory
+
+| File | Lines | Purpose |
+|------|-------|---------|
+| `IntegrationHarness.ts` | 376 | `MockFeed`, `MockPaperGateway`, `MockHistoryStore`, `IntegrationHarness` |
+| `Scenario1.paper-round-trip.test.ts` | 180 | Full buy→fill→position→PnL→sell→history→balance cycle |
+| `Scenario2.disconnect-recovery.test.ts` | 149 | Connect→disconnect→reconnect→orders→positions→history |
+| `Scenario3.kill-switch.test.ts` | 145 | Activate→block→cancel→deactivate→resume→events |
+| `Scenario4.rate-limit-retry.test.ts` | 135 | Burst→sequential delay→rapid reset→history |
+| `Scenario5.strategy-restart.test.ts` | 156 | Snapshot→reset→recover→no duplicates→PnL continuity |
+
+### Run
+
+```bash
+cd workspace-ui
+npx vitest run src/workspace/live/__integration__/
+```
+
+Execution time: **~13 seconds**. No Docker required — all tests run in Node.js with deterministic mock data.
 
 ---
 
