@@ -11,7 +11,8 @@
  * @since 3.3.2
  */
 
-import { useSandbox, CANDLE_COUNT_OPTIONS } from './MockCandleProvider'
+import { useSandbox } from './MockCandleProvider'
+import { CANDLE_COUNT_OPTIONS } from './sandboxConstants'
 import type { SandboxSymbol, SandboxTimeframe } from './MockCandleProvider'
 import { IndicatorRegistry } from '../indicators/IndicatorRegistry'
 import { DrawingRegistry } from '../drawing/DrawingRegistry'

@@ -70,8 +70,6 @@ export interface SandboxState {
   regenerate: () => void
 }
 
-const CANDLE_COUNT_OPTIONS = [100, 500, 1000, 5000] as const
-
 const SYMBOL_CONFIG: Record<SandboxSymbol, { basePrice: number }> = {
   BTCUSDT: { basePrice: 50_000 },
   ETHUSDT: { basePrice: 3_000 },
@@ -177,4 +175,4 @@ export function useSandbox(): SandboxState {
   return ctx
 }
 
-export { CANDLE_COUNT_OPTIONS, SYMBOL_CONFIG, TIMEFRAME_MS }
+export { SYMBOL_CONFIG, TIMEFRAME_MS }
