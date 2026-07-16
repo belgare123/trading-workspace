@@ -10,6 +10,7 @@
 import type { BrokerAdapter } from './BrokerAdapter'
 import type { ConnectionState, LiveProviderConfig } from './types'
 import { ConnectionStates, canTransition } from './types'
+import { BrokerClock } from './BrokerClock'
 
 export type SessionListener = (state: ConnectionState, prev: ConnectionState) => void
 
@@ -21,9 +22,13 @@ export class BrokerSession {
   private config: LiveProviderConfig
   private adapter: BrokerAdapter
 
+  /** Exchange-aware clock synchronization */
+  public readonly clock: BrokerClock
+
   constructor(adapter: BrokerAdapter, config: LiveProviderConfig) {
     this.adapter = adapter
     this.config = config
+    this.clock = new BrokerClock()
   }
 
   get state(): ConnectionState {
@@ -42,6 +47,16 @@ export class BrokerSession {
       await this.adapter.connection.connect(apiKey, apiSecret, testnet)
       this.reconnectAttempts = 0
       this.transitionTo(ConnectionStates.CONNECTED)
+
+      // Sync clock from exchange server time if available
+      if (this.adapter.connection.getServerTime) {
+        try {
+          const serverTime = await this.adapter.connection.getServerTime()
+          this.clock.sync(serverTime)
+        } catch {
+          // Non-fatal — clock stays at local time
+        }
+      }
     } catch (err) {
       const msg = String(err)
       if (msg.includes('auth') || msg.includes('key') || msg.includes('signature')) {
@@ -83,6 +98,14 @@ export class BrokerSession {
         this.transitionTo(ConnectionStates.CONNECTING)
         this.transitionTo(ConnectionStates.CONNECTED)
         this.reconnectAttempts = 0
+
+        // Re-sync clock after reconnect
+        if (this.adapter.connection.getServerTime) {
+          try {
+            const serverTime = await this.adapter.connection.getServerTime()
+            this.clock.sync(serverTime)
+          } catch { /* non-fatal */ }
+        }
       } catch {
         this.scheduleReconnect()
       }

@@ -24,6 +24,9 @@ export interface ConnectionAdapter {
   connect(apiKey: string, apiSecret: string, testnet?: boolean): Promise<void>
   disconnect(): Promise<void>
   isConnected(): boolean
+
+  /** Optional: fetch exchange server time for clock synchronization */
+  getServerTime?(): Promise<number>
 }
 
 // ── Order Management ──

@@ -22,6 +22,7 @@ import type { BrokerCapabilities } from './BrokerCapabilities'
 import type { LiveProviderConfig, ConnectionState } from './types'
 import { ConnectionStates, DEFAULT_LIVE_CONFIG } from './types'
 import { BrokerSession } from './BrokerSession'
+import { BrokerClock } from './BrokerClock'
 import { OrderRouter } from './OrderRouter'
 import { PositionSynchronizer } from './PositionSynchronizer'
 import { AccountSynchronizer } from './AccountSynchronizer'
@@ -38,6 +39,8 @@ export class LiveProvider {
   public readonly positionSync: PositionSynchronizer
   public readonly accountSync: AccountSynchronizer
   public readonly eventAdapter: BrokerEventAdapter
+  /** Exchange-aware clock synchronization (synced during BrokerSession.connect) */
+  public readonly clock: BrokerClock
 
   private config: LiveProviderConfig
   private eventBus?: ExecutionEventBus
@@ -50,6 +53,7 @@ export class LiveProvider {
 
     // Sub-components
     this.session = new BrokerSession(adapter, config)
+    this.clock = this.session.clock
     this.router = new OrderRouter(adapter)
     this.positionSync = new PositionSynchronizer(adapter)
     this.accountSync = new AccountSynchronizer(adapter)
