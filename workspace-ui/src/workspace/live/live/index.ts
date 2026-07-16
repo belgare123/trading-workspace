@@ -62,6 +62,11 @@ export type { ReconciliationIssue, ReconciliationResult, ReconciliationSeverity,
 export { SecretsProvider, SecretKeys, EnvSecretStore, MemorySecretStore, SecretNotFound } from './SecretsProvider'
 export type { SecretStore, SecretsProviderConfig } from './SecretsProvider'
 
+// ── Execution Recovery Runtime (Sprint 4.6.6) ──
+
+export { ExecutionRecoveryRuntime } from './ExecutionRecoveryRuntime'
+export type { RecoveryConfig, RecoveryReport, RecoveryPhase, RecoveryMode, RecoveryEvent } from './ExecutionRecoveryRuntime'
+
 // Main Provider
 export { LiveProvider } from './LiveProvider'
 
