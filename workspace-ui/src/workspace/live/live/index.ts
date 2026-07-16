@@ -67,12 +67,15 @@ export type { SecretStore, SecretsProviderConfig } from './SecretsProvider'
 export { ExecutionRecoveryRuntime } from './ExecutionRecoveryRuntime'
 export type { RecoveryConfig, RecoveryReport, RecoveryPhase, RecoveryMode, RecoveryEvent } from './ExecutionRecoveryRuntime'
 
-// ── Live Workspace Panels (Sprint 4.9) ──
+// ── Live Workspace Panels (Sprint 4.8) ──
 
 export { LiveConnectionPanel } from './LiveConnectionPanel'
 export { LiveOrdersPanel } from './LiveOrdersPanel'
 export { LivePositionsPanel } from './LivePositionsPanel'
-export { registerLivePanels } from './LivePanels'
+export { LiveAccountPanel } from './LiveAccountPanel'
+export { LiveRiskPanel } from './LiveRiskPanel'
+export { LiveHistoryPanel } from './LiveHistoryPanel'
+export { registerLivePanels, LIVE_PANEL_DEFINITIONS } from './LivePanels'
 
 // Main Provider
 export { LiveProvider } from './LiveProvider'

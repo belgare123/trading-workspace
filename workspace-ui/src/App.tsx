@@ -24,8 +24,7 @@ import { useCommands } from './commands/CommandProvider'
 import { useStore } from './store'
 import { useFeatureFlag } from './featureFlags'
 import { ChartSandboxStandalone } from './workspace/chart/demo'
-
-const queryClient = new QueryClient()
+import { registerLiveModule } from './pages/live/LiveModule'
 
 // ── Platform boot — single entry point ─────────────────────────────
 
@@ -43,6 +42,11 @@ const bootReport = PlatformBootstrap.initialize([
 if (import.meta.env.DEV && bootReport.validations.errors > 0) {
   console.warn(`[Platform] ⚠ ${bootReport.validations.errors} validation error(s)`)
 }
+
+// Register Live Trading module AFTER PlatformBootstrap (it clears registries)
+registerLiveModule()
+
+const queryClient = new QueryClient()
 
 // ── Global keyboard shortcut handler ───────────────────────────────
 
@@ -72,8 +76,8 @@ function GlobalKeyHandler() {
         return
       }
 
-      // Ctrl+[1-8] → navigation shortcuts
-      if ((e.ctrlKey || e.metaKey) && e.key >= '1' && e.key <= '8') {
+      // Ctrl+[1-9] → navigation shortcuts
+      if ((e.ctrlKey || e.metaKey) && e.key >= '1' && e.key <= '9') {
         e.preventDefault()
         const viewMap: Record<string, string> = {
           '1': 'scanner',
@@ -84,6 +88,7 @@ function GlobalKeyHandler() {
           '6': 'learning',
           '7': 'system',
           '8': 'runtime',
+          '9': 'live',
         }
         const view = viewMap[e.key]
         if (view) {

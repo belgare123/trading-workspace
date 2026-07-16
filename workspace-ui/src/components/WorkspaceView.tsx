@@ -3,6 +3,7 @@ import { useStore } from '../store'
 import { ScreenRegistry } from '../runtime/dashboard/screen/ScreenRegistry'
 import { DashboardShell } from '../runtime/dashboard/runtime/DashboardShell'
 import { ScannerPage } from '../pages/ScannerPage'
+import { LiveWorkspace } from '../pages/live/LiveWorkspace'
 import { ErrorBoundary } from './ErrorBoundary'
 import { AsyncBoundary } from './AsyncBoundary'
 import { ErrorCard } from './ErrorCard'
@@ -43,6 +44,8 @@ function renderFallback(view: string): React.ReactNode {
   switch (view) {
     case 'scanner':
       return <ScannerPage />
+    case 'live':
+      return <LiveWorkspace />
     case 'inspector':
       return <InspectorPage />
     case 'plugins':
