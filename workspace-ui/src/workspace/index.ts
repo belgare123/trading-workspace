@@ -164,6 +164,33 @@ export {
   CHART_TYPES,
   ChartError,
 } from './chart'
+
+// ── Risk Runtime (Sprint 4.7) ──
+
+export {
+  RiskRuntime,
+  RiskRegistry,
+  RiskPipeline,
+  RiskEventBus,
+  RiskViolationLog,
+  RiskReport,
+  createRiskDefinition,
+  buildRiskContext,
+  BUILTIN_RISK_RULES,
+  MaxPositionSizeRule,
+  MaxExposureRule,
+  MaxDailyLossRule,
+  MaxDrawdownRule,
+  MaxOpenPositionsRule,
+  MaxOrdersPerMinuteRule,
+  TradingSessionRule,
+  SymbolWhitelistRule,
+  CooldownRule,
+  KillSwitchRule,
+  allow,
+  modify,
+  reject,
+} from './risk'
 export type {
   ChartConfig,
   ChartType,
