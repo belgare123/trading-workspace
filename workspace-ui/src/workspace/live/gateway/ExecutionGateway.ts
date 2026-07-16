@@ -59,6 +59,12 @@ export interface GatewayStatus {
   uptime: number // seconds since connect
   activeOrders: number
   openPositions: number
+  /** Total equity (paper/live only) */
+  totalEquity?: number
+  /** Unrealized PnL (paper/live only) */
+  unrealizedPnl?: number
+  /** Number of journal entries (paper only) */
+  journalSize?: number
   /** Error if any */
   error?: string
 }
