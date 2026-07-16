@@ -4,9 +4,9 @@
 //
 // @since 3.3.6
 
-import type { OverlayDefinition } from '../OverlayDefinition'
-import type { OverlayInstance } from '../OverlayInstance'
-import type { OverlayRenderContext } from '../types'
+import type { OverlayDefinition } from '../../OverlayDefinition'
+import type { OverlayInstance } from '../../OverlayInstance'
+import type { OverlayRenderContext } from '../../types'
 
 function render(ctx: OverlayRenderContext, inst: OverlayInstance): void {
   const time = inst.position?.time
@@ -56,6 +56,6 @@ function render(ctx: OverlayRenderContext, inst: OverlayInstance): void {
 export const alertMarkerDefinition: OverlayDefinition = {
   id: 'alert-marker',
   name: 'Alert Marker',
-  category: 'alert',
+  category: 'event',
   render,
 }

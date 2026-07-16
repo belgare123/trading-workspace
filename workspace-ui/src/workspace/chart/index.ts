@@ -90,7 +90,6 @@ export type {
 
 // Overlay Engine
 export {
-  OverlayRegistry,
   OverlayInstance,
   OverlayRuntime,
   OverlayRenderer,
@@ -102,3 +101,20 @@ export type {
   OverlayRenderContext,
 } from './overlay'
 export { registerAllOverlayBuiltins } from './overlay/builtins'
+
+// Composition Engine (multi-pane)
+export {
+  PaneRuntime,
+  PaneLayout,
+  PaneRenderer,
+  SynchronizationRuntime,
+  CrosshairSync,
+  PriceScaleManager,
+} from './composition'
+export type {
+  PaneState,
+  PaneLayoutRow,
+  PanePriceScale,
+  CrosshairState,
+  PaneRendererOptions,
+} from './composition'

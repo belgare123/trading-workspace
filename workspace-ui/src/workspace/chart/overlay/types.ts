@@ -3,7 +3,7 @@
 // Unlike DrawingInstance, they have no anchors, no style, no interactive editing.
 
 /** Category grouping for overlays */
-export type OverlayCategory = 'price' | 'trade' | 'alert' | 'volume' | 'session' | 'custom'
+export type OverlayCategory = 'price' | 'trade' | 'execution' | 'position' | 'volume' | 'session' | 'event' | 'annotation' | 'custom'
 
 /** Primary position of an overlay in market or pixel coordinates */
 export interface OverlayPosition {

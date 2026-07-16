@@ -4,9 +4,9 @@
 //
 // @since 3.3.6
 
-import type { OverlayDefinition } from '../OverlayDefinition'
-import type { OverlayInstance } from '../OverlayInstance'
-import type { OverlayRenderContext } from '../types'
+import type { OverlayDefinition } from '../../OverlayDefinition'
+import type { OverlayInstance } from '../../OverlayInstance'
+import type { OverlayRenderContext } from '../../types'
 
 const ARROW_SIZE = 8
 

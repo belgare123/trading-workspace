@@ -53,10 +53,9 @@ export class IndicatorRenderer extends CanvasLayer {
 
       if (!values || values.length !== outputs.length) continue
 
-      // ── Overlay indicators (plotted on price scale, same X as candles) ──
-      if (definition.overlay) {
-        this._renderOverlay(ctx, viewport, data, values, outputs)
-      }
+      // Render indicator lines (overlay + subchart unified)
+      // Each indicator uses the current viewport's price scale
+      this._renderOverlay(ctx, viewport, data, values, outputs)
     }
   }
 

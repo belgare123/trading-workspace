@@ -5,9 +5,9 @@
 //
 // @since 3.3.6
 
-import type { OverlayDefinition } from '../OverlayDefinition'
-import type { OverlayInstance } from '../OverlayInstance'
-import type { OverlayRenderContext } from '../types'
+import type { OverlayDefinition } from '../../OverlayDefinition'
+import type { OverlayInstance } from '../../OverlayInstance'
+import type { OverlayRenderContext } from '../../types'
 
 function render(ctx: OverlayRenderContext, inst: OverlayInstance): void {
   const startTime = inst.data.startTime as number | undefined
