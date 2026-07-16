@@ -56,6 +56,13 @@ export type { RateLimitConfig, OperationType } from './RateLimiter'
 
 export { OrderStateReconciler } from './OrderStateReconciler'
 export type { ReconciliationIssue, ReconciliationResult, ReconciliationSeverity, LocalStateProvider } from './OrderStateReconciler'
+
+// ── Secrets Provider (Sprint 4.6.4) ──
+
+export { SecretsProvider, SecretKeys, EnvSecretStore, MemorySecretStore, SecretNotFound } from './SecretsProvider'
+export type { SecretStore, SecretsProviderConfig } from './SecretsProvider'
+
+// Main Provider
 export { LiveProvider } from './LiveProvider'
 
 // LiveProviderConfig

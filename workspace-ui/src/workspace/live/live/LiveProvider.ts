@@ -29,6 +29,7 @@ import { AccountSynchronizer } from './AccountSynchronizer'
 import { BrokerEventAdapter } from './BrokerEventAdapter'
 import type { ExecutionEventBus } from '../../execution/events/ExecutionEventBus'
 import type { Order } from '../../execution/types'
+import { SecretsProvider, SecretKeys } from './SecretsProvider'
 
 export class LiveProvider {
   public readonly id: string
@@ -41,17 +42,20 @@ export class LiveProvider {
   public readonly eventAdapter: BrokerEventAdapter
   /** Exchange-aware clock synchronization (synced during BrokerSession.connect) */
   public readonly clock: BrokerClock
+  /** Credential resolution (env vars, keychain, vault) */
+  public readonly secrets: SecretsProvider
 
   private config: LiveProviderConfig
   private eventBus?: ExecutionEventBus
 
-  constructor(adapter: BrokerAdapter, config: LiveProviderConfig) {
+  constructor(adapter: BrokerAdapter, config: LiveProviderConfig, secrets?: SecretsProvider) {
     this.id = adapter.id
     this.name = adapter.name
     this.capabilities = adapter.capabilities
     this.config = { ...DEFAULT_LIVE_CONFIG, ...config }
 
     // Sub-components
+    this.secrets = secrets ?? new SecretsProvider()
     this.session = new BrokerSession(adapter, config)
     this.clock = this.session.clock
     this.router = new OrderRouter(adapter)
@@ -63,11 +67,16 @@ export class LiveProvider {
   // ── Connection ──
 
   async connect(apiKey?: string, apiSecret?: string): Promise<void> {
-    const key = apiKey ?? this.config.apiKey ?? ''
-    const secret = apiSecret ?? this.config.apiSecret ?? ''
+    // Resolve credentials: explicit args → config → SecretsProvider → error
+    const key = apiKey ?? this.config.apiKey ?? await this.secrets.get(SecretKeys.apiKey(this.id)) ?? ''
+    const secret = apiSecret ?? this.config.apiSecret ?? await this.secrets.get(SecretKeys.apiSecret(this.id)) ?? ''
 
     if (!key || !secret) {
-      throw new Error('LiveProvider: API key and secret are required')
+      throw new Error(
+        `LiveProvider(${this.id}): API key and secret are required. ` +
+        `Set ${SecretKeys.apiKey(this.id)} and ${SecretKeys.apiSecret(this.id)} ` +
+        'as env vars, pass them to connect(), or provide a SecretsProvider.',
+      )
     }
 
     await this.session.connect(key, secret)
