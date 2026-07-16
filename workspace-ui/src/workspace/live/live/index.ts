@@ -67,6 +67,13 @@ export type { SecretStore, SecretsProviderConfig } from './SecretsProvider'
 export { ExecutionRecoveryRuntime } from './ExecutionRecoveryRuntime'
 export type { RecoveryConfig, RecoveryReport, RecoveryPhase, RecoveryMode, RecoveryEvent } from './ExecutionRecoveryRuntime'
 
+// ── Live Workspace Panels (Sprint 4.9) ──
+
+export { LiveConnectionPanel } from './LiveConnectionPanel'
+export { LiveOrdersPanel } from './LiveOrdersPanel'
+export { LivePositionsPanel } from './LivePositionsPanel'
+export { registerLivePanels } from './LivePanels'
+
 // Main Provider
 export { LiveProvider } from './LiveProvider'
 
