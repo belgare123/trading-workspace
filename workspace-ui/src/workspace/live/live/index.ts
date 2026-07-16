@@ -52,7 +52,10 @@ export type { BrokerClockConfig } from './BrokerClock'
 export { RateLimiter, RateLimitExceeded } from './RateLimiter'
 export type { RateLimitConfig, OperationType } from './RateLimiter'
 
-// Main Provider
+// ── Order State Reconciler (Sprint 4.6.2) ──
+
+export { OrderStateReconciler } from './OrderStateReconciler'
+export type { ReconciliationIssue, ReconciliationResult, ReconciliationSeverity, LocalStateProvider } from './OrderStateReconciler'
 export { LiveProvider } from './LiveProvider'
 
 // LiveProviderConfig
