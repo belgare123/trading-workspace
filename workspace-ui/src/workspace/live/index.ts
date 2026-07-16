@@ -157,3 +157,14 @@ export { LiveProvider } from './live/LiveProvider'
 
 export { MockBrokerAdapter, ReplayBrokerAdapter } from './brokers'
 export type { MockBrokerConfig, ReplayEvent, ReplaySession, ReplayBrokerConfig } from './brokers'
+
+// ── Execution Infrastructure Core (Sprint 4.6.1) ──
+
+export { RetryPolicy } from './live/RetryPolicy'
+export type { RetryPolicyConfig, RetryStrategy, RetryDecision } from './live/RetryPolicy'
+
+export { BrokerClock } from './live/BrokerClock'
+export type { BrokerClockConfig } from './live/BrokerClock'
+
+export { RateLimiter, RateLimitExceeded } from './live/RateLimiter'
+export type { RateLimitConfig, OperationType } from './live/RateLimiter'

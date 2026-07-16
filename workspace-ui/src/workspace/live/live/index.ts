@@ -41,6 +41,17 @@ export { AccountSynchronizer } from './AccountSynchronizer'
 // Event Adapter
 export { BrokerEventAdapter } from './BrokerEventAdapter'
 
+// ── Execution Infrastructure Core (Sprint 4.6.1) ──
+
+export { RetryPolicy } from './RetryPolicy'
+export type { RetryPolicyConfig, RetryStrategy, RetryDecision } from './RetryPolicy'
+
+export { BrokerClock } from './BrokerClock'
+export type { BrokerClockConfig } from './BrokerClock'
+
+export { RateLimiter, RateLimitExceeded } from './RateLimiter'
+export type { RateLimitConfig, OperationType } from './RateLimiter'
+
 // Main Provider
 export { LiveProvider } from './LiveProvider'
 
