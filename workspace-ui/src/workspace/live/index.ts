@@ -77,3 +77,23 @@ export { CandleAggregator } from './aggregation/CandleAggregator'
 export { TimeframeBuilder } from './aggregation/TimeframeBuilder'
 export { VolumeAggregator } from './aggregation/VolumeAggregator'
 export type { VolumeStats } from './aggregation/VolumeAggregator'
+
+// ── Journal ──
+
+export { TradeJournal } from './journal/TradeJournal'
+export type { JournalEntry, JournalEntryType } from './journal/TradeJournal'
+
+// ── History & Audit ──
+
+export type * from './history/types'
+export { OrderHistoryStore } from './history/OrderHistoryStore'
+export { PositionHistoryStore } from './history/PositionHistoryStore'
+export { DecisionLog } from './history/DecisionLog'
+export { StrategyHistoryStore } from './history/StrategyHistoryStore'
+export { SessionHistoryStore } from './history/SessionHistoryStore'
+export { TimelineBuilder } from './history/TimelineBuilder'
+export { HistoryRuntime } from './history/HistoryRuntime'
+export type { HistoryRuntimeOptions } from './history/HistoryRuntime'
+export { JsonExporter } from './history/exporters/JsonExporter'
+export type { HistoryExport } from './history/exporters/JsonExporter'
+export { CsvExporter } from './history/exporters/CsvExporter'
