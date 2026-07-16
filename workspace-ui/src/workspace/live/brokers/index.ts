@@ -9,3 +9,6 @@ export type { MockBrokerConfig } from './MockBrokerAdapter'
 
 export { ReplayBrokerAdapter } from './ReplayBrokerAdapter'
 export type { ReplayEvent, ReplaySession, ReplayBrokerConfig } from './ReplayBrokerAdapter'
+
+export { BinanceSpotBrokerAdapter } from './BinanceSpotBrokerAdapter'
+export type { BinanceSpotConfig, BinanceSymbolFilterInfo, LotSizeFilter, PriceFilter, MinNotionalFilter } from './BinanceSpotBrokerAdapter'
