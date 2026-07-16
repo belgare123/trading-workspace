@@ -55,7 +55,7 @@ export type LayerZIndex = 'background' | 'grid' | 'candles' | 'indicators' | 'dr
 
 export const RENDER_PASSES: Record<string, IRenderPass> = {
   main: {
-    layers: ['background', 'grid', 'candles', 'indicators', 'drawings', 'crosshair'],
+    layers: ['background', 'grid', 'candles', 'indicators', 'drawings', 'overlay', 'crosshair'],
     clearColor: '#1a1a2e',
   },
   overlay: {

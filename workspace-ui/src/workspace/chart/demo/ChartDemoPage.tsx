@@ -26,13 +26,16 @@ import { registerBuiltinIndicators } from '../indicators/builtins/index'
 import { registerAllDrawingBuiltins } from '../drawing/builtins/index'
 import { DrawingRenderer } from '../drawing/DrawingRenderer'
 import { InteractionRuntime } from '../interaction/InteractionRuntime'
+import { OverlayRenderer } from '../overlay/OverlayRenderer'
+import { registerAllOverlayBuiltins } from '../overlay/builtins/index'
 import type { ToolMode } from '../interaction/types'
 import type { IRenderContext } from '../rendering/types'
 import type { TimeScaleOptions, PriceScaleOptions } from '../types'
 
-// Register built-in indicators and drawing tools once at module load
+// Register built-in indicators, drawing tools, and overlays once at module load
 registerBuiltinIndicators()
 registerAllDrawingBuiltins()
+registerAllOverlayBuiltins()
 
 // ── Viewport config (shared across resets) ──
 
@@ -170,6 +173,7 @@ function ChartCanvas({ resetKey, interactionRuntimeRef }: {
     const indicatorRuntime = new IndicatorRuntime()
     const indicatorRenderer = new IndicatorRenderer(indicatorRuntime)
     const drawingRenderer = new DrawingRenderer()
+    const overlayRenderer = new OverlayRenderer()
     gridRef.current = grid
     crosshairRef.current = crosshair
     drawingRendererRef.current = drawingRenderer
@@ -184,6 +188,7 @@ function ChartCanvas({ resetKey, interactionRuntimeRef }: {
     loop.addLayer(crosshair)
     loop.addLayer(indicatorRenderer)
     loop.addLayer(drawingRenderer)
+    loop.addLayer(overlayRenderer)
     loopRef.current = loop
 
     // Initialize layers
@@ -201,12 +206,14 @@ function ChartCanvas({ resetKey, interactionRuntimeRef }: {
       crosshair.initialize(renderCtx)
       indicatorRenderer.initialize(renderCtx)
       drawingRenderer.initialize(renderCtx)
+      overlayRenderer.initialize(renderCtx)
       grid.resize(w, h, dpr)
       candles.resize(w, h, dpr)
       axes.resize(w, h, dpr)
       crosshair.resize(w, h, dpr)
       indicatorRenderer.resize(w, h, dpr)
       drawingRenderer.resize(w, h, dpr)
+      overlayRenderer.resize(w, h, dpr)
       loop.setContext(renderCtx)
     }
 
@@ -265,7 +272,7 @@ function ChartCanvas({ resetKey, interactionRuntimeRef }: {
             visibleData: candles.data,
           })
         }
-        for (const layerId of ['grid', 'candles', 'axis', 'crosshair', 'indicators', 'drawings'] as const) {
+        for (const layerId of ['grid', 'candles', 'axis', 'crosshair', 'indicators', 'drawings', 'overlay'] as const) {
           loop.getLayer(layerId)?.resize(pw, ph, dpr)
         }
       }
@@ -394,6 +401,73 @@ function ChartCanvas({ resetKey, interactionRuntimeRef }: {
     if (!drawer) return
     drawer.runtime.clear()
   }, [drawingClearKey])
+
+  // ── Demo overlay data ──
+  useEffect(() => {
+    const loop = loopRef.current
+    if (!loop || data.length < 10) return
+    const olLayer = loop.getLayer('overlay') as OverlayRenderer | undefined
+    if (!olLayer) return
+    const rt = olLayer.runtime
+
+    // Clear previous overlays
+    rt.clear()
+
+    // 1. Price markers at key levels
+    const priceHigh = Math.max(...data.map(d => d.high))
+    const priceLow = Math.min(...data.map(d => d.low))
+    const priceMid = (priceHigh + priceLow) / 2
+    rt.add('price-marker', { price: priceHigh }, { label: `High ${priceHigh.toFixed(2)}`, color: '#ef9a9a' })
+    rt.add('price-marker', { price: priceLow }, { label: `Low ${priceLow.toFixed(2)}`, color: '#a5d6a7' })
+    rt.add('price-marker', { price: priceMid }, { label: `Mid ${priceMid.toFixed(2)}`, color: '#90caf9', lineWidth: 0.5 })
+
+    // 2. Session box (middle 40% of the visible range as a Tokyo session)
+    const startIdx = Math.floor(data.length * 0.3)
+    const endIdx = Math.floor(data.length * 0.7)
+    const sessionStart = data[startIdx].timestamp
+    const sessionEnd = data[endIdx].timestamp
+    rt.add('session-box', {}, {
+      startTime: sessionStart,
+      endTime: sessionEnd,
+      label: 'Tokyo Session',
+      color: 'rgba(255, 183, 77, 0.08)',
+    })
+
+    // 3. Mock buy order
+    const buyIdx = Math.floor(data.length * 0.4)
+    rt.add('order-marker', { time: data[buyIdx].timestamp, price: data[buyIdx].low },
+      { side: 'buy', quantity: 1.5, label: '1.5' })
+
+    // 4. Mock position
+    const entryIdx = Math.floor(data.length * 0.25)
+    const exitIdx = Math.floor(data.length * 0.65)
+    const entryPrice = data[entryIdx].close
+    const exitPrice = data[exitIdx].close
+    const pnl = ((exitPrice - entryPrice) / entryPrice) * 100
+    rt.add('position-marker', { time: data[entryIdx].timestamp, price: data[entryIdx].close },
+      { side: 'long', entryPrice, exitPrice, quantity: 1000, pnl, label: `+${pnl.toFixed(2)}%` })
+
+    // 5. Volume profile (compute volume levels from first half of data)
+    const volumeLevels: { price: number; volume: number }[] = []
+    const bucketCount = 20
+    const minPrice = priceLow
+    const maxPrice = priceHigh
+    const step = (maxPrice - minPrice) / bucketCount
+    const buckets = new Array(bucketCount).fill(0)
+    for (const d of data) {
+      const bucketIdx = Math.min(bucketCount - 1, Math.floor((d.close - minPrice) / step))
+      buckets[bucketIdx] += d.volume
+    }
+    for (let i = 0; i < bucketCount; i++) {
+      volumeLevels.push({ price: minPrice + step * i + step / 2, volume: buckets[i] })
+    }
+    rt.add('volume-profile', {}, { levels: volumeLevels, barWidth: 60, color: 'rgba(38, 166, 154, 0.25)' })
+
+    // 6. Alert at the close
+    const lastCandle = data[data.length - 1]
+    rt.add('alert-marker', { time: lastCandle.timestamp, price: lastCandle.high * 1.02 },
+      { label: 'Resistance', color: '#ffa726' })
+  }, [data])
 
   // ── Toggle grid visibility ──
   useEffect(() => {

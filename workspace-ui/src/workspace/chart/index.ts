@@ -87,3 +87,18 @@ export type {
   IRenderPass,
   LayerZIndex,
 } from './rendering'
+
+// Overlay Engine
+export {
+  OverlayRegistry,
+  OverlayInstance,
+  OverlayRuntime,
+  OverlayRenderer,
+} from './overlay'
+export type {
+  OverlayDefinition,
+  OverlayCategory,
+  OverlayPosition,
+  OverlayRenderContext,
+} from './overlay'
+export { registerAllOverlayBuiltins } from './overlay/builtins'
