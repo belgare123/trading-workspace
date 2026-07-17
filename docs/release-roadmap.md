@@ -108,25 +108,37 @@ This enables: independent scaling, hot-restart of UI without affecting engine, r
 | Signed HMAC-SHA256 requests | ✅ |
 | Barrel export + BrokerCapabilities | ✅ |
 
-### Sprint 4.9B — Certification Suite
+### Sprint 4.9B — Certification Suite ✅
 
-Отдельный модуль `workspace/certification/`:
+Отдельный модуль `workspace/certification/` с 75 сценариями в 7 категориях:
 
 ```
 workspace/certification/
-├── CertificationRuntime
-├── ScenarioRunner
-├── ScenarioDefinition
-├── ScenarioRegistry
-├── CertificationReport
-└── builtins/
-    ├── gateway/     (submit/cancel/duplicate/unknown order)
-    ├── websocket/   (dis/reconnect, delayed/duplicated/out-of-order)
-    ├── recovery/    (restart, recovery, reconciliation)
-    ├── risk/        (reject, modify, allow, kill switch)
-    ├── exchange/    (partial/full fill, expired, rejected)
-    └── infra/       (rate limit, retry, clock drift, secrets missing)
+├── CertificationRuntime.ts    — orchestrator
+├── ScenarioRunner.ts          — executor + timeout + isolation
+├── ScenarioDefinition.ts      — типы, контекст, хуки
+├── ScenarioRegistry.ts        — регистрация + фильтры
+├── CertificationReport.ts     — отчёт (таблица + JSON)
+├── builtins/
+│   ├── ConnectivityScenarios  — 12 сценариев
+│   ├── OrderScenarios         — 18 сценариев
+│   ├── RiskScenarios          — 10 сценариев
+│   ├── RecoveryScenarios      — 9 сценариев
+│   ├── InfrastructureScenarios — 11 сценариев
+│   ├── HistoryScenarios       — 8 сценариев
+│   └── MetricsScenarios       — 7 сценариев
+└── index.ts
 ```
+
+Использование:
+```ts
+const runtime = new CertificationRuntime(broker, gateway)
+runtime.registerBuiltins()
+const report = await runtime.run()
+console.log(CertificationRuntime.formatReport(report))
+```
+
+TypeScript — 0 errors. Коммит: `[SHA]`.
 
 ### Sprint 4.9C — Observability Runtime
 
