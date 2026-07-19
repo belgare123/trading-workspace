@@ -102,6 +102,11 @@ export class PaperCampaign {
   private stopRequested = false
   private lastCertReport: CertificationReport | null = null
 
+  // Observability (reset per healthcheck cycle)
+  private lastHealthcheckDurationMs = 0
+  private lastHealthcheckTime = 0
+  private currentHealthcheckStart = 0
+
   public campaignStateDir: string
 
   constructor(config: PaperCampaignConfig) {
@@ -203,6 +208,11 @@ export class PaperCampaign {
         lastCertTimestamp: certResult?.timestamp ?? '',
         incidents,
         memoryMB: health.memoryMB,
+
+        // Observability
+        healthcheckDurationMs: this.lastHealthcheckDurationMs,
+        lastHealthcheckTime: new Date(this.lastHealthcheckTime).toISOString(),
+        lastMarketEventAgeMs: this.supervisor.getMarketDataAge(),
       }
 
       fs.writeFileSync(path.join(this.campaignStateDir, 'state.json'), JSON.stringify(state, null, 2))
@@ -377,6 +387,7 @@ export class PaperCampaign {
   // ── Operations ──
 
   private async performHealthCheck(): Promise<void> {
+    this.currentHealthcheckStart = Date.now()
     try {
       // Update supervisor state FIRST — proves gateway & feed alive
       this.supervisor.recordGatewayState(true)
@@ -411,6 +422,9 @@ export class PaperCampaign {
       this.saveStateFile()
     } catch (err) {
       console.error('[HealthCheck] Error:', err)
+    } finally {
+      this.lastHealthcheckDurationMs = Date.now() - this.currentHealthcheckStart
+      this.lastHealthcheckTime = Date.now()
     }
   }
 
