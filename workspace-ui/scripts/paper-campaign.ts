@@ -1,41 +1,32 @@
 #!/usr/bin/env node
 /**
- * bybit-testnet-campaign.ts — Bybit TestNet Campaign
+ * paper-campaign.ts — CLI entry point for Paper Campaign (Burn-in + 7d)
  *
- * Runs a PaperCampaign on Bybit TestNet with real API keys.
- * Uses BybitBrokerAdapter for order execution on TestNet.
- *
- * This is a clone of paper-campaign.ts but wired to Bybit TestNet
- * instead of the paper simulator.
+ * Runs the Paper Campaign as a background daemon.
+ * Stage 1: 24-hour burn-in → Stage 2: 7-day campaign.
  *
  * Usage:
- *   npx tsx scripts/bybit-testnet-campaign.ts [--symbols BTCUSDT,ETHUSDT] [--mode burn-in|full]
+ *   npx tsx scripts/paper-campaign.ts [--mode burn-in|full] [--symbols BTCUSDT,ETHUSDT,SOLUSDT] [--balance 10000]
  *
  * Environment:
- *   BYBIT_TESTNET_API_KEY       — Required: Bybit TestNet API key
- *   BYBIT_TESTNET_API_SECRET    — Required: Bybit TestNet API secret
- *   BYBIT_TESTNET_SYMBOLS       — Comma-separated symbols (default: BTCUSDT,ETHUSDT,SOLUSDT)
- *   BYBIT_TESTNET_MODE          — 'burn-in' or 'full' (default: full)
- *   BYBIT_TESTNET_STATE_DIR     — State directory (default: .bybit-testnet-state/)
- *
- * @since 4.9E
+ *   MODE         — 'burn-in' or 'full' (default: full)
+ *   SYMBOLS      — comma-separated symbols
+ *   PAPER_BALANCE — initial balance
  */
 
 import { LiveFeedRuntime } from '../src/workspace/live/feed/LiveFeedRuntime'
 import { BybitFeedAdapter } from '../src/workspace/live/adapters/BybitFeedAdapter'
-import { BybitBrokerAdapter } from '../src/workspace/live/brokers/BybitBrokerAdapter'
-import { BybitExecutionGateway } from '../src/workspace/live/gateway/BybitExecutionGateway'
+import { PaperBrokerAdapter } from '../src/workspace/live/brokers/PaperBrokerAdapter'
 import { CertificationRuntime } from '../src/workspace/certification/CertificationRuntime'
 import { GatewayRuntime } from '../src/workspace/live/gateway/GatewayRuntime'
 import { gatewayRegistry } from '../src/workspace/live/gateway/GatewayRegistry'
 import { ExecutionMode } from '../src/workspace/live/gateway/ExecutionMode'
+import { PaperExecutionGateway } from '../src/workspace/live/gateway/PaperExecutionGateway'
 import { RiskRuntime } from '../src/workspace/risk/runtime/RiskRuntime'
 import { BUILTIN_RISK_RULES } from '../src/workspace/risk/builtins'
 import { PaperCampaign } from '../src/workspace/campaign/PaperCampaign'
 import { CampaignMode, CampaignStage } from '../src/workspace/campaign/types'
 import { CampaignReporter } from '../src/workspace/campaign/CampaignReporter'
-import * as fs from 'fs'
-import * as path from 'path'
 
 function parseArgs() {
   const args = process.argv.slice(2)
@@ -50,98 +41,76 @@ function parseArgs() {
   return opts
 }
 
-function requireEnv(name: string): string {
-  const val = process.env[name]
-  if (!val) {
-    console.error(`❌ Required environment variable ${name} is not set.`)
-    console.error(`   Set it in your shell or .env file:`)
-    console.error(`   export ${name}=your_value`)
-    process.exit(1)
-  }
-  return val
-}
-
 async function main() {
   const opts = parseArgs()
-
-  // ── Config from env ──
-  const apiKey = requireEnv('BYBIT_TESTNET_API_KEY')
-  const apiSecret = requireEnv('BYBIT_TESTNET_API_SECRET')
-  const mode = (opts.mode ?? process.env.BYBIT_TESTNET_MODE ?? 'full') as 'burn-in' | 'full'
-  const symbols = (opts.symbols ?? process.env.BYBIT_TESTNET_SYMBOLS ?? 'BTCUSDT,ETHUSDT,SOLUSDT')
-    .split(',').map(s => s.trim()).filter(Boolean)
-  const stateDir = opts['state-dir'] ?? process.env.BYBIT_TESTNET_STATE_DIR ?? '.bybit-testnet-state'
-
-  // Ensure state directory exists
-  const statePath = path.resolve(stateDir)
-  if (!fs.existsSync(statePath)) {
-    fs.mkdirSync(statePath, { recursive: true })
-  }
+  const mode = (opts.mode ?? process.env.MODE ?? 'full') as 'burn-in' | 'full'
+  const symbols = (opts.symbols ?? process.env.SYMBOLS ?? 'BTCUSDT,ETHUSDT,SOLUSDT').split(',').map(s => s.trim()).filter(Boolean)
+  const initialBalance = parseFloat(opts.balance ?? process.env.PAPER_BALANCE ?? '10000')
 
   console.log('╔══════════════════════════════════════════════════════╗')
-  console.log('║   Bybit TestNet Campaign — Live TestNet Trading    ║')
-  console.log('║   Sprint 4.9E — BybitBrokerAdapter v1              ║')
+  console.log('║   Paper Campaign — Two-Stage Campaign              ║')
+  console.log('║   Burn-in (24h) → Paper Trading (7d)              ║')
   console.log('╚══════════════════════════════════════════════════════╝')
   console.log()
-  console.log(`Mode:           ${mode === 'burn-in' ? 'Burn-in only' : 'Burn-in → TestNet Campaign'}`)
+  console.log(`Mode:           ${mode === 'burn-in' ? 'Burn-in only' : 'Burn-in → Paper Campaign (7d)'}`)
   console.log(`Symbols:        ${symbols.join(', ')}`)
-  console.log(`TestNet API:    ${apiKey.slice(0, 8)}...${apiKey.slice(-4)}`)
-  console.log(`State dir:      ${statePath}`)
+  console.log(`Initial balance: ${initialBalance} USDT`)
   console.log()
 
-  // ── 1. LiveFeedRuntime + BybitFeedAdapter (public market data) ──
+  // ── 1. LiveFeedRuntime + BybitFeedAdapter ──
   console.log('[1/5] Starting LiveFeedRuntime with BybitFeedAdapter...')
   const feedRuntime = new LiveFeedRuntime()
-  const bybitFeed = new BybitFeedAdapter()
+  const bybitAdapter = new BybitFeedAdapter()
 
-  feedRuntime.useAdapter(bybitFeed)
+  feedRuntime.useAdapter(bybitAdapter)
 
   for (const symbol of symbols) {
     await feedRuntime.subscribe(symbol)
     console.log(`      Subscribed to ${symbol}`)
   }
 
-  // ── 2. BybitBrokerAdapter (TestNet execution) ──
-  console.log('[2/5] Creating BybitBrokerAdapter (TestNet)...')
-  const broker = new BybitBrokerAdapter()
-
-  // ── 3. GatewayRuntime + RiskRuntime Chain ──
-  console.log('[3/5] Building GatewayRuntime → BybitExecutionGateway → RiskRuntime...')
-
-  const testnetGateway = new BybitExecutionGateway(broker, true) // TestNet
-  gatewayRegistry.register({
-    mode: ExecutionMode.Live,
-    create: () => testnetGateway,
+  // ── 2. PaperBrokerAdapter ──
+  console.log('[2/5] Creating PaperBrokerAdapter...')
+  const broker = new PaperBrokerAdapter(feedRuntime, {
+    symbols,
+    initialBalance,
+    commissionRate: 0.001,
+    slippageValue: 0,
   })
 
-  const riskRuntime = new RiskRuntime(testnetGateway, 'bybit-testnet')
+  // ── 3. GatewayRuntime + RiskRuntime Chain ──
+  console.log('[3/5] Building GatewayRuntime → RiskRuntime → PaperExecutionGateway...')
+
+  const paperGateway = new PaperExecutionGateway(broker)
+  gatewayRegistry.register({
+    mode: ExecutionMode.Paper,
+    create: () => paperGateway,
+  })
+
+  const riskRuntime = new RiskRuntime(paperGateway, 'paper')
   riskRuntime.registry.registerAll(BUILTIN_RISK_RULES)
 
   const gatewayRuntime = new GatewayRuntime()
-  await gatewayRuntime.init(ExecutionMode.Live, {
-    credentials: { apiKey, apiSecret },
-  })
+  await gatewayRuntime.init(ExecutionMode.Paper)
   gatewayRuntime.useRiskRuntime(riskRuntime)
 
   console.log(`      ${BUILTIN_RISK_RULES.length} risk rules registered`)
-  console.log(`      Gateway using mode: ${ExecutionMode.Live}`)
 
   // ── 4. CertificationRuntime ──
   console.log('[4/5] Initialising CertificationRuntime...')
   const certRuntime = new CertificationRuntime(broker, gatewayRuntime)
   certRuntime.registerBuiltins()
 
-  // ── 5. PaperCampaign (reused orchestrator) ──
-  console.log('[5/5] Starting PaperCampaign with Bybit TestNet adapter...')
+  // ── 5. PaperCampaign ──
+  console.log('[5/5] Starting PaperCampaign...')
   console.log()
 
   // Give WS a moment to connect
-  await new Promise((r) => setTimeout(r, 3_000))
+  await new Promise((r) => setTimeout(r, 2_000))
 
   const campaign = new PaperCampaign({
     mode: mode === 'burn-in' ? CampaignMode.BurnIn : CampaignMode.FullCampaign,
     symbols,
-    stateDir: path.join(statePath, 'paper-campaign'),
     onStageChange: (stage) => {
       console.log(`\n[Campaign] Stage → ${stage}`)
     },
@@ -183,6 +152,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error('\n❌ Bybit TestNet Campaign fatal error:', err)
+  console.error('\n❌ Paper Campaign fatal error:', err)
   process.exit(1)
 })

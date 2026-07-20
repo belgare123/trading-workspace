@@ -21,6 +21,20 @@ export class CashLedger {
     this.setBalance(asset, amount)
   }
 
+  /** Add to existing balance without clearing — for additional asset seeds */
+  addBalance(asset: string, amount: number): void {
+    const existing = this.balances.get(asset)
+    if (existing) {
+      this.balances.set(asset, {
+        ...existing,
+        free: existing.free + amount,
+        total: existing.total + amount,
+      })
+    } else {
+      this.setBalance(asset, amount)
+    }
+  }
+
   /** Get balance for an asset */
   get(asset: string): CashBalance {
     return this.balances.get(asset) ?? { asset, free: 0, locked: 0, total: 0 }

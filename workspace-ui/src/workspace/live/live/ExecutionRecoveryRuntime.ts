@@ -237,7 +237,7 @@ export class ExecutionRecoveryRuntime {
       try {
         // Check if already on broker
         if (order.id) {
-          const existing = await this.adapter.orders.getOrder(order.id)
+          const existing = await this.adapter.orders.getOrder(order.id, order.symbol)
           if (existing && existing.status !== 'CANCELLED' && existing.status !== 'REJECTED') {
             continue // still alive on broker
           }

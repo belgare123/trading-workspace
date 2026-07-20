@@ -138,38 +138,109 @@ const report = await runtime.run()
 console.log(CertificationRuntime.formatReport(report))
 ```
 
-TypeScript — 0 errors. Коммит: `[SHA]`.
+TypeScript — 0 errors. Коммит: `bb6a432`.
 
-### Sprint 4.9C — Observability Runtime
+### Paper Campaign 🏆
 
-Отдельный модуль `workspace/observability/`:
+**Приоритет:** сейчас. Observability — после накопления реальных эксплуатационных данных.
+
+**Условия:**
+- непрерывная работа 48–72 часа;
+- несколько символов (BTCUSDT, ETHUSDT, SOLUSDT);
+- разные стратегии;
+- переподключения сети;
+- рестарт приложения;
+- ручные отмены ордеров;
+- проверка Recovery.
+
+**Критерии завершения:**
+- ни одного «зависшего» ордера;
+- отсутствуют рассинхронизации между локальным состоянием и биржей;
+- PnL совпадает с расчётным;
+- History непрерывен;
+- Recovery проходит автоматически;
+- Certification Suite 75/75 после каждого изменения.
+
+---
+
+### Sprint 4.9C — Observability Runtime (после Paper Campaign)
+
+Отдельный модуль `workspace/observability/` — только после накопления реальных эксплуатационных данных.
 
 | Метрика | Назначение |
 |---------|-----------|
 | Feed latency | Задержка входящих данных |
-| Broker latency | Задержка исполнения ордера |
-| WebSocket lag | Отставание WS подключения |
-| Dropped events | Потерянные события |
+| Broker RTT | Round-trip исполнения ордера |
+| WS reconnect count | Количество переподключений |
+| REST error rate | Частота ошибок REST |
 | Queue depth | Глубина очереди событий |
-| Order RTT | Round-trip ордера |
+| Retry count | Количество повторных попыток |
+| Rate-limit hits | Срабатывания rate limit |
 | Risk rejects | Количество отклонённых по риску |
-| Reconnects | Количество переподключений |
+| Reconciliation duration | Время восстановления состояния |
+| Order lifecycle timing | Длительность жизненного цикла ордера |
 
-### Staged rollout
-
+Состав:
 ```
-Mock → Replay → Paper Binance Spot → Small Live Trade → Long-running Paper → Production
+workspace/observability/
+├── LoggingRuntime     — structured logs
+├── TracingRuntime     — distributed tracing
+├── HealthRuntime      — health checks
+├── MetricsExporter    — метрики (JSON, Prometheus)
+├── AlertRuntime       — алерты
+└── dashboards/        — шаблоны дашбордов
 ```
 
 ---
 
-## Sprint Sequence (утверждён 2026-07-16)
+### Live Readiness Review (Gate перед Live)
+
+Перед первой реальной сделкой — обязательный чек-лист:
+
+| # | Проверка | Статус |
+|---|---------|--------|
+| 1 | Certification Suite: 75/75 | ⏳ |
+| 2 | Paper Campaign: ≥72 часа | ⏳ |
+| 3 | Recovery проверен | ⏳ |
+| 4 | Kill Switch проверен | ⏳ |
+| 5 | Reconciliation проверен | ⏳ |
+| 6 | Risk Rules проверены | ⏳ |
+| 7 | Binance Spot без ошибок | ⏳ |
+| 8 | Нет memory leaks | ⏳ |
+| 9 | Нет необработанных исключений | ⏳ |
+| 10 | Нет рассинхронизации позиций | ⏳ |
+
+---
+
+### First Live Trade
+
+После выполнения Readiness Review:
+- один символ (BTCUSDT);
+- минимально допустимый объём (0.001 BTC);
+- одна стратегия;
+- постоянный мониторинг;
+- Kill Switch доступен мгновенно.
+
+### Staged rollout
+
+```
+Mock → Replay → Paper Binance Spot (48-72h)
+     → Live Readiness Review
+     → First Live Trade (0.001 BTC)
+     → Long-running Paper (1 week)
+     → Production
+```
+
+---
+
+## Sprint Sequence (утверждён 2026-07-17)
 
 | Sprint | Что | Когда |
 |--------|-----|-------|
-| **4.9A** | Binance Spot Adapter | Сейчас |
-| **4.9B** | Certification Suite | Параллельно/следом |
-| **4.9C** | Observability Runtime | Параллельно/следом |
-| **5.0** | Paper Trading на реальном рынке | После 4.9A/B/C |
-| **5.1** | First Live Trade (мин. объём) | После 5.0 |
-| **5.2** | Long-running Paper → Production | После 5.1 |
+| **4.9A** | ✅ Binance Spot Adapter | Завершён |
+| **4.9B** | ✅ Certification Suite (75 сценариев) | Завершён |
+| **Paper Campaign** | 🏆 Длительная Paper на Binance Spot (48-72h) | **Сейчас** |
+| **4.9C** | Observability Runtime (по итогам Paper) | После Paper |
+| **Live Readiness** | Чек-лист из 10 пунктов | Перед Live |
+| **5.0** | First Live Trade (0.001 BTC) | После Paper + Readiness |
+| **5.1** | Long-running Paper → Production | После 5.0 |

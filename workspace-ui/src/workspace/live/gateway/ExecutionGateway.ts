@@ -96,6 +96,7 @@ export interface ExecutionGateway {
 
   placeOrder(request: OrderRequest): Promise<OrderResult>
   cancelOrder(orderId: string): Promise<boolean>
+  cancelAllOrders(symbol?: string): Promise<number>
   replaceOrder(orderId: string, request: Partial<OrderRequest>): Promise<OrderResult>
 
   // ── Query ──

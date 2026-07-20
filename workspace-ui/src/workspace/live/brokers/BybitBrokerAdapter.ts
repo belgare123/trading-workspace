@@ -91,6 +91,33 @@ interface BybitState {
   fillHandlers: Array<(fill: BrokerFill) => void>
   positionHandlers: Array<(pos: BrokerPosition) => void>
   balanceHandlers: Array<(balances: Record<string, BrokerBalance>) => void>
+
+  // Exchange rules cache (loaded on connect)
+  symbolInfo: Map<string, BybitInstrumentInfo> | null
+}
+
+// ═══════════════════════════════════════════════
+// Exchange Rules Types
+// ═══════════════════════════════════════════════
+
+export interface BybitLotSizeFilter {
+  minOrderQty: string
+  maxOrderQty: string
+  qtyStep: string
+}
+
+export interface BybitPriceFilter {
+  tickSize: string
+  minPrice: string
+  maxPrice: string
+}
+
+export interface BybitInstrumentInfo {
+  symbol: string
+  status: string
+  lotSizeFilter: BybitLotSizeFilter
+  priceFilter: BybitPriceFilter
+  minNotionalValue: string
 }
 
 // ═══════════════════════════════════════════════
@@ -171,6 +198,133 @@ function parseBybitResponse<T>(body: string): T {
 }
 
 // ═══════════════════════════════════════════════
+// Exchange Rules Helpers
+// ═══════════════════════════════════════════════
+
+/**
+ * Fetch and cache instruments-info for all subscribed symbols.
+ * Called on connect to ensure exchange rules are available.
+ */
+async function fetchInstruments(state: BybitState, symbols: string[]): Promise<void> {
+  const map = new Map<string, BybitInstrumentInfo>()
+  const baseUrl = state.config.restBaseUrl
+
+  // Fetch all at once (supports symbol filter for smaller response)
+  for (const symbol of symbols) {
+    try {
+      const url = `${baseUrl}/v5/market/instruments-info?category=linear&symbol=${symbol}`
+      const res = await fetch(url, { signal: AbortSignal.timeout(10_000) })
+      const text = await res.json()
+      if (text.retCode !== 0) continue
+      const list = text.result?.list ?? []
+      for (const item of list) {
+        map.set(item.symbol, {
+          symbol: item.symbol,
+          status: item.status ?? 'Trading',
+          lotSizeFilter: {
+            minOrderQty: item.lotSizeFilter?.minOrderQty ?? '0',
+            maxOrderQty: item.lotSizeFilter?.maxOrderQty ?? '999999',
+            qtyStep: item.lotSizeFilter?.qtyStep ?? '0.0001',
+          },
+          priceFilter: {
+            tickSize: item.priceFilter?.tickSize ?? '0.01',
+            minPrice: item.priceFilter?.minPrice ?? '0',
+            maxPrice: item.priceFilter?.maxPrice ?? '999999',
+          },
+          minNotionalValue: item.lotSizeFilter?.minNotionalValue ?? '5',
+        })
+      }
+    } catch {
+      // Non-fatal — continue without cached info
+    }
+  }
+  state.symbolInfo = map
+}
+
+/**
+ * Validate order params against exchange rules before sending.
+ * Throws ValidationError if any rule is violated.
+ */
+function validateOrder(
+  symbolInfo: BybitInstrumentInfo,
+  params: BrokerPlacementParams,
+): void {
+  const qty = params.quantity
+  const price = params.price ?? 0
+  const ls = symbolInfo.lotSizeFilter
+  const pf = symbolInfo.priceFilter
+  const minNotional = parseFloat(symbolInfo.minNotionalValue)
+
+  // Lot size
+  const minQty = parseFloat(ls.minOrderQty)
+  const maxQty = parseFloat(ls.maxOrderQty)
+  const qtyStep = parseFloat(ls.qtyStep)
+
+  if (qty < minQty) {
+    throw new ValidationError(
+      `[${params.symbol}] Quantity ${qty} < min lot size ${minQty}`,
+    )
+  }
+  if (qty > maxQty) {
+    throw new ValidationError(
+      `[${params.symbol}] Quantity ${qty} > max lot size ${maxQty}`,
+    )
+  }
+
+  // Round to qtyStep precision (Math.floor to avoid rounding up)
+  const alignedQty = Math.floor(qty / qtyStep) * qtyStep
+  if (Math.abs(alignedQty - qty) > 1e-8) {
+    throw new ValidationError(
+      `[${params.symbol}] Quantity ${qty} not aligned to qty step ${qtyStep}. Suggested: ${alignedQty}`,
+    )
+  }
+
+  // Price filter
+  const tickSize = parseFloat(pf.tickSize)
+  const minPrice = parseFloat(pf.minPrice)
+  const maxPrice = parseFloat(pf.maxPrice)
+
+  if (price > 0) {
+    if (price < minPrice) {
+      throw new ValidationError(
+        `[${params.symbol}] Price ${price} < min price ${minPrice}`,
+      )
+    }
+    if (price > maxPrice) {
+      throw new ValidationError(
+        `[${params.symbol}] Price ${price} > max price ${maxPrice}`,
+      )
+    }
+
+    const alignedPrice = Math.round(price / tickSize) * tickSize
+    if (Math.abs(alignedPrice - price) > 1e-8) {
+      throw new ValidationError(
+        `[${params.symbol}] Price ${price} not aligned to tick size ${tickSize}. Suggested: ${alignedPrice}`,
+      )
+    }
+  }
+
+  // Min notional (for limit/market orders)
+  if (price > 0) {
+    const notional = qty * price
+    if (notional < minNotional) {
+      throw new ValidationError(
+        `[${params.symbol}] Notional ${notional} < min notional ${minNotional}. Minimum order qty: ${(minNotional / price).toFixed(4)}`,
+      )
+    }
+  }
+}
+
+/**
+ * Count decimal places in a number string.
+ */
+function decimalPlaces(n: number): number {
+  const s = String(n)
+  const dot = s.indexOf('.')
+  return dot >= 0 ? s.length - dot - 1 : 0
+}
+
+// ═══════════════════════════════════════════════
 // REST Client
 // ═══════════════════════════════════════════════
 
@@ -187,35 +341,32 @@ async function signedRequest<T>(
 
   // Build query string for GET, JSON body for POST
   const isGet = method === 'GET'
-  const body: Record<string, unknown> = {}
 
-  if (params) {
-    for (const [k, v] of Object.entries(params)) {
-      if (v !== undefined) {
-        if (isGet) {
-          // Skip for now — build query below
-          body[k] = String(v)
-        } else {
-          body[k] = v
-        }
-      }
-    }
-  }
-
-  const payload = isGet
-    ? ''
-    : JSON.stringify(body)
-
-  // Bybit v5 signature: timestamp + apiKey + recvWindow + body
-  const signData = `${timestamp}${apiKey}${recvWindow}${payload}`
-  const signature = await hmacSha256(apiSecret, signData)
-
+  // Build query string first (needed for both URL and GET signature)
   const queryString = isGet && params
     ? '?' + Object.entries(params)
         .filter(([, v]) => v !== undefined)
         .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
         .join('&')
     : ''
+
+  // Build JSON body for POST
+  const body: Record<string, unknown> = {}
+  if (params && !isGet) {
+    for (const [k, v] of Object.entries(params)) {
+      if (v !== undefined) body[k] = v
+    }
+  }
+
+  // Bybit v5 signature: timestamp + apiKey + recvWindow + payload
+  // For GET: payload = query string (without leading '?')
+  // For POST: payload = JSON body
+  const payload = isGet
+    ? queryString.slice(1)
+    : JSON.stringify(body)
+
+  const signData = `${timestamp}${apiKey}${recvWindow}${payload}`
+  const signature = await hmacSha256(apiSecret, signData)
 
   const url = `${state.config.restBaseUrl}${path}${queryString}`
 
@@ -822,6 +973,22 @@ class BybitOrderAdapter implements OrderAdapter {
   }
 
   async placeOrder(params: BrokerPlacementParams): Promise<BrokerOrder> {
+    // ── Pre-trade validation against exchange rules ──
+    const symbol = params.symbol
+    let info = this.state.symbolInfo?.get(symbol)
+
+    if (!info) {
+      // Lazy-load if not cached yet
+      try {
+        await fetchInstruments(this.state, [symbol])
+        info = this.state.symbolInfo?.get(symbol)
+      } catch { /* silent — proceed without validation */ }
+    }
+
+    if (info) {
+      validateOrder(info, params)
+    }
+
     const body: Record<string, string | number | boolean> = {
       category: 'linear',
       symbol: params.symbol,
@@ -848,19 +1015,76 @@ class BybitOrderAdapter implements OrderAdapter {
       body.timeInForce = 'PostOnly'
     }
 
-    if (params.clientOrderId) {
-      body.orderLinkId = params.clientOrderId
+    // ── Generate idempotency key (orderLinkId) ──
+    // Bybit uses orderLinkId for dedup: same orderLinkId + same create request = safe retry
+    const orderLinkId = params.clientOrderId ?? `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+    body.orderLinkId = orderLinkId
+
+    // ── Send order with idempotent retry ──
+    let lastError: Error | null = null
+
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const result = await signedRequest<BybitOrderResult>(
+          this.state,
+          'POST',
+          '/v5/order/create',
+          body as unknown as Record<string, string | number | boolean | undefined>,
+        )
+
+        // Fetch the full order to return complete state
+        return this.getOrder(result.orderId, params.symbol)
+      } catch (err) {
+        lastError = err as Error
+
+        // Only retry on network errors (timeout, connection lost)
+        // Exchange rejections (10003, 10001 etc.) are NOT retried
+        if (err instanceof NetworkError && attempt === 0) {
+          // Network error — order MAY have been created on exchange
+          // Query by orderLinkId to check
+          try {
+            const existing = await this.getOrderByLinkId(orderLinkId, params.symbol)
+            if (existing) {
+              // Order was created — return it (idempotent recovery)
+              return existing
+            }
+            // Not found — retry placement
+            continue
+          } catch {
+            // Query also failed — retry placement
+            continue
+          }
+        }
+
+        // Non-network error or retries exhausted — throw
+        throw err
+      }
     }
 
-    const result = await signedRequest<BybitOrderResult>(
-      this.state,
-      'POST',
-      '/v5/order/create',
-      body as unknown as Record<string, string | number | boolean | undefined>,
-    )
+    throw lastError ?? new Error('placeOrder failed after retries')
+  }
 
-    // Fetch the full order to return complete state
-    return this.getOrder(result.orderId, params.symbol)
+  /**
+   * Query an order by orderLinkId (client order ID).
+   * Returns the order if found, or undefined if not.
+   */
+  private async getOrderByLinkId(
+    orderLinkId: string,
+    symbol: string,
+  ): Promise<BrokerOrder | undefined> {
+    try {
+      const result = await signedRequest<{ list?: BybitOrderRecord[] }>(
+        this.state,
+        'GET',
+        `/v5/order/realtime?category=linear&symbol=${symbol}&orderLinkId=${orderLinkId}`,
+      )
+      if (result.list && result.list.length > 0) {
+        return mapBybitOrder(result.list[0], 'bybit')
+      }
+      return undefined
+    } catch {
+      return undefined
+    }
   }
 
   async cancelOrder(orderId: string, symbol?: string): Promise<boolean> {
@@ -938,7 +1162,11 @@ class BybitOrderAdapter implements OrderAdapter {
       category: 'linear',
       orderId,
     }
-    if (symbol) params.symbol = symbol
+    if (symbol) {
+      params.symbol = symbol
+    } else {
+      params.settleCoin = 'USDT'
+    }
 
     try {
       const result = await signedRequest<{ list: BybitOrderRecord[] }>(
@@ -960,7 +1188,12 @@ class BybitOrderAdapter implements OrderAdapter {
       category: 'linear',
       openOnly: 1,
     }
-    if (symbol) params.symbol = symbol
+    if (symbol) {
+      params.symbol = symbol
+    } else {
+      // When no symbol specified, use settleCoin to enumerate all linear open orders
+      params.settleCoin = 'USDT'
+    }
 
     const result = await signedRequest<{ list: BybitOrderRecord[] }>(
       this.state,
@@ -1015,7 +1248,11 @@ class BybitPositionAdapter implements PositionAdapter {
     const params: Record<string, string | number | boolean | undefined> = {
       category: 'linear',
     }
-    if (symbol) params.symbol = symbol
+    if (symbol) {
+      params.symbol = symbol
+    } else {
+      params.settleCoin = 'USDT'
+    }
 
     const result = await signedRequest<{ list: BybitPositionRecord[] }>(
       this.state,
@@ -1129,6 +1366,7 @@ export class BybitBrokerAdapter implements BrokerAdapter {
       fillHandlers: [],
       positionHandlers: [],
       balanceHandlers: [],
+      symbolInfo: null,
     }
   }
 

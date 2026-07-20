@@ -156,9 +156,14 @@ export class OrderStateReconciler {
       // Non-fatal
     }
 
+    // 3. Fetch balances from broker
     try {
-      const info = await this.adapter.account.getAccountInfo()
-      balances = info.balances
+      const info = await this.adapter.account.getBalances()
+      if (info) {
+        for (const [asset, bal] of Object.entries(info)) {
+          balances[asset] = bal
+        }
+      }
     } catch {
       // Non-fatal
     }
@@ -291,7 +296,7 @@ export class OrderStateReconciler {
     }
   }
 
-  /** Detect position mismatches between local state and broker snapshot */
+  /** Detect position mismatches between local state and broker snapshot + emit events */
   private detectPositionMismatches(
     localPositions: Position[],
     brokerPositions: BrokerPosition[],
@@ -307,17 +312,27 @@ export class OrderStateReconciler {
       brokerBySymbol.set(p.symbol, p)
     }
 
-    // Positions on broker but not locally
+    // Positions on broker but not locally → emit POSITION_OPENED
     for (const [symbol, bp] of brokerBySymbol) {
       const local = localBySymbol.get(symbol)
-      if (!local) {
+      if (!local && bp.quantity > 0) {
         issues.push({
           type: 'position_mismatch',
           severity: 'warning',
           symbol,
-          detail: `Position ${symbol} exists on broker but not locally: qty=${bp.quantity}, direction=${bp.direction}`,
+          localValue: 'qty=0',
+          brokerValue: `qty=${bp.quantity}, dir=${bp.direction}`,
+          detail: `Position ${symbol} opened on broker while offline: qty=${bp.quantity}, dir=${bp.direction}`,
         })
-      } else if (Math.abs(local.quantity - bp.quantity) > 0.0001) {
+
+        if (this.eventBus) {
+          this.eventBus.emit({
+            type: 'POSITION_OPENED',
+            position: this.brokerPositionToPos(bp, symbol),
+            timestamp: Date.now(),
+          })
+        }
+      } else if (local && Math.abs(local.quantity - bp.quantity) > 0.0001) {
         issues.push({
           type: 'position_mismatch',
           severity: local.quantity === 0 ? 'error' : 'warning',
@@ -326,10 +341,20 @@ export class OrderStateReconciler {
           brokerValue: `qty=${bp.quantity}`,
           detail: `Position quantity mismatch for ${symbol}: local=${local.quantity}, broker=${bp.quantity}`,
         })
+
+        if (this.eventBus && bp.quantity === 0 && local.quantity > 0) {
+          // Position closed on broker
+          this.eventBus.emit({
+            type: 'POSITION_CLOSED',
+            position: local,
+            realizedPnl: bp.realizedPnl ?? 0,
+            timestamp: Date.now(),
+          })
+        }
       }
     }
 
-    // Positions locally but not on broker
+    // Positions locally but not on broker → emit POSITION_CLOSED
     for (const [symbol, lp] of localBySymbol) {
       if (!brokerBySymbol.has(symbol) && lp.quantity > 0) {
         issues.push({
@@ -338,18 +363,43 @@ export class OrderStateReconciler {
           symbol,
           localValue: `qty=${lp.quantity}`,
           brokerValue: 'qty=0',
-          detail: `Position ${symbol} exists locally (qty=${lp.quantity}) but not on broker`,
+          detail: `Position ${symbol} closed on broker while offline`,
         })
+
+        if (this.eventBus) {
+          this.eventBus.emit({
+            type: 'POSITION_CLOSED',
+            position: lp,
+            realizedPnl: 0,
+            timestamp: Date.now(),
+          })
+        }
       }
+    }
+  }
+
+  /** Convert BrokerPosition to Position for event emission */
+  private brokerPositionToPos(bp: BrokerPosition, symbol: string): Position {
+    return {
+      symbol,
+      direction: bp.direction,
+      quantity: bp.quantity,
+      averageEntryPrice: bp.averageEntryPrice,
+      currentPrice: bp.currentPrice,
+      unrealizedPnl: bp.unrealizedPnl,
+      realizedPnl: bp.realizedPnl,
+      openedAt: bp.updatedAt - 1000,
+      updatedAt: bp.updatedAt,
     }
   }
 
   /** Detect significant balance discrepancies */
   private detectBalanceMismatches(
-    localBalances: Record<string, { asset: string; free: number; locked: number }>,
-    brokerBalances: Record<string, BrokerBalance>,
+    localBalances: Record<string, { asset: string; free: number; locked: number }> | undefined,
+    brokerBalances: Record<string, BrokerBalance> | undefined,
     issues: ReconciliationIssue[],
   ): void {
+    if (!brokerBalances || !localBalances) return
     for (const [asset, broker] of Object.entries(brokerBalances)) {
       const local = localBalances[asset]
       if (!local) {

@@ -26,6 +26,7 @@
 import type { OrderRequest, Order, Position, MarketSnapshot, TradeRecord } from '../../execution/types'
 import { OrderStatus } from '../../execution/types'
 import type { MarketEvent, TickerEvent, TradeEvent, KlineEvent } from '../types'
+import { SymbolRegistry } from '../feed/SymbolRegistry'
 
 import { OrderBook } from '../../execution/orders/OrderBook'
 import { OrderMatcher } from '../../execution/orders/OrderMatcher'
@@ -51,6 +52,8 @@ export interface PaperProviderConfig {
     on: (event: string, handler: (event: MarketEvent) => void) => void
     off: (event: string, handler: (event: MarketEvent) => void) => void
   }
+  /** Symbol registry for default prices when no market data available */
+  symbolRegistry?: SymbolRegistry
 }
 
 const PAPER_FILL_POLICY = new FullFillPolicy()
@@ -78,9 +81,11 @@ export class PaperProvider implements ExecutionGateway {
   private startTime = 0
   private lastSnapshot = new Map<string, MarketSnapshot>()
   private feedHandler: ((event: MarketEvent) => void) | null = null
+  private symbolRegistry?: SymbolRegistry
 
   constructor(providerConfig?: PaperProviderConfig) {
     this.providerConfig = providerConfig ?? {}
+    this.symbolRegistry = providerConfig?.symbolRegistry
 
     this.orderBook = new OrderBook()
     this.orderMatcher = new OrderMatcher()
@@ -182,7 +187,12 @@ export class PaperProvider implements ExecutionGateway {
     })
 
     if (request.type === 'market') {
-      const snapshot = this.lastSnapshot.get(request.symbol)
+      let snapshot = this.lastSnapshot.get(request.symbol)
+      if (!snapshot) {
+        // No market data yet — create a synthetic snapshot for immediate fill
+        snapshot = this.createFallbackSnapshot(request.symbol)
+        if (snapshot) this.lastSnapshot.set(request.symbol, snapshot)
+      }
       if (snapshot) this.matchOrder(order, snapshot)
     }
 
@@ -345,6 +355,43 @@ export class PaperProvider implements ExecutionGateway {
     const cash = this.cashLedger.get('USDT')
     const snapshot = this.equityLedger.snapshot(cash.total, positions)
     this.events.emit({ type: 'EQUITY_CHANGED', equity: snapshot, timestamp: Date.now() })
+  }
+
+  // ── Fallback Price for MARKET Orders ──
+
+  /**
+   * Create a synthetic market snapshot when no real-time data is available.
+   * Uses SymbolRegistry defaults or hardcoded prices for common symbols.
+   */
+  private createFallbackSnapshot(symbol: string): MarketSnapshot | undefined {
+    const normalized = symbol.toUpperCase()
+
+    // Known default prices for common symbols
+    const DEFAULT_PRICES: Record<string, number> = {
+      BTCUSDT: 60000,
+      ETHUSDT: 3000,
+      SOLUSDT: 140,
+      XRPUSDT: 0.5,
+      DOGEUSDT: 0.08,
+      ADAUSDT: 0.45,
+      AVAXUSDT: 35,
+      LINKUSDT: 14,
+      MATICUSDT: 0.55,
+      DOTUSDT: 7,
+    }
+
+    const price = DEFAULT_PRICES[normalized]
+    if (!price) return undefined
+
+    const spread = price * 0.001
+    return {
+      symbol: normalized,
+      bid: price - spread,
+      ask: price + spread,
+      last: price,
+      volume: 1000,
+      timestamp: Date.now(),
+    }
   }
 
   // ── Snapshot Conversion ──

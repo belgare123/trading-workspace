@@ -8,6 +8,12 @@
 
 export { ExecutionMode } from './gateway/ExecutionMode'
 export type { ExecutionMode as ExecutionModeType } from './gateway/ExecutionMode'
+export { BybitExecutionGateway } from './gateway/BybitExecutionGateway'
+
+// ── Kill Switch ──
+
+export { ProductionKillSwitch } from './killswitch/ProductionKillSwitch'
+
 export {
   EXECUTION_MODE_LABELS,
   EXECUTION_MODE_COLORS,
@@ -62,6 +68,7 @@ export type { AdapterStats } from './feed/FeedStatistics'
 export type { FeedAdapter, Listener } from './adapters/FeedAdapter'
 export { MockFeedAdapter } from './adapters/MockFeedAdapter'
 export { BinanceFeedAdapter } from './adapters/BinanceFeedAdapter'
+export { BybitFeedAdapter } from './adapters/BybitFeedAdapter'
 
 // ── Cache ──
 

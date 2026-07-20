@@ -58,18 +58,35 @@
 - [x] Metrics: 7 сценариев
 - [x] CertificationRuntime, ScenarioRunner, ScenarioRegistry, CertificationReport
 
-### Sprint 4.9C — Observability Runtime
+### 🏆 Paper Campaign (сейчас)
+- [ ] Paper на Binance Spot (48-72h)
+- [ ] BTCUSDT, ETHUSDT, SOLUSDT
+- [ ] Переподключения сети
+- [ ] Рестарт приложения
+- [ ] Recovery проверен
+- [ ] History непрерывен
+
+### Sprint 4.9C — Observability Runtime (после Paper)
 - [ ] workspace/observability/
 - [ ] Structured logs, tracing, runtime health
-- [ ] Latency, WebSocket lag, dropped events, queue depth
-- [ ] Metrics export (prometheus/console)
+- [ ] Feed latency, Broker RTT, WS reconnect, REST error rate
+- [ ] Queue depth, retry count, rate-limit hits, risk rejects
+- [ ] Reconciliation duration, order lifecycle timing
+- [ ] Metrics export (JSON / Prometheus)
+- [ ] Alerts, dashboards
 
-### Sprint 5.0 — Paper Trading → First Live Trade
-- [ ] Mock → Replay → Paper Binance Spot → Small Live → Long-running → Production
+### Live Readiness Review
+- [ ] Certification Suite: 75/75
+- [ ] Paper Campaign ≥72 часа
+- [ ] Recovery, Kill Switch, Reconciliation, Risk Rules
+- [ ] Нет memory leaks, исключений, рассинхронизации
 
-### Sprint 5.1 — Binance Futures Adapter
+### Sprint 5.0 — First Live Trade
+- [ ] BTCUSDT, 0.001 BTC, одна стратегия
+- [ ] Kill Switch доступен
+- [ ] Постоянный мониторинг
 
-### Sprint 5.2+ — Bybit, OKX, Coinbase
+### Sprint 5.1+ — Long-running Paper → Production → Новые биржи
 
 ---
 

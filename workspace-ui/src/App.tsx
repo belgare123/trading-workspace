@@ -25,6 +25,8 @@ import { useStore } from './store'
 import { useFeatureFlag } from './featureFlags'
 import { ChartSandboxStandalone } from './workspace/chart/demo'
 import { registerLiveModule } from './pages/live/LiveModule'
+import { NotebookPen } from 'lucide-react'
+import { ScreenRegistry } from './runtime/dashboard/screen/ScreenRegistry'
 
 // ── Platform boot — single entry point ─────────────────────────────
 
@@ -45,6 +47,16 @@ if (import.meta.env.DEV && bootReport.validations.errors > 0) {
 
 // Register Live Trading module AFTER PlatformBootstrap (it clears registries)
 registerLiveModule()
+
+// Register Campaign screen synchronously so it appears in nav
+ScreenRegistry.register({
+  id: 'campaign',
+  title: 'Campaign',
+  preset: undefined,
+  icon: NotebookPen,
+  category: 'trading',
+  order: 55,
+})
 
 const queryClient = new QueryClient()
 

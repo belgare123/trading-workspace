@@ -15,6 +15,9 @@ export interface SymbolInfo {
   quantityDecimals: number
   minNotional: number
   minQuantity: number
+  maxQuantity?: number
+  stepSize?: number
+  tickSize?: number
   status: 'active' | 'inactive' | 'halted'
 }
 

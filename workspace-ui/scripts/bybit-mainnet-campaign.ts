@@ -1,24 +1,24 @@
 #!/usr/bin/env node
 /**
- * bybit-testnet-campaign.ts — Bybit TestNet Campaign
+ * bybit-mainnet-campaign.ts — Bybit MainNet Campaign
  *
- * Runs a PaperCampaign on Bybit TestNet with real API keys.
- * Uses BybitBrokerAdapter for order execution on TestNet.
+ * Runs a PaperCampaign on Bybit MainNet with real API keys.
+ * Uses BybitBrokerAdapter for order execution on MainNet.
  *
- * This is a clone of paper-campaign.ts but wired to Bybit TestNet
- * instead of the paper simulator.
+ * This is the production counterpart of bybit-testnet-campaign.ts,
+ * wired to the live Bybit exchange.
  *
  * Usage:
- *   npx tsx scripts/bybit-testnet-campaign.ts [--symbols BTCUSDT,ETHUSDT] [--mode burn-in|full]
+ *   npx tsx scripts/bybit-mainnet-campaign.ts [--symbols BTCUSDT,ETHUSDT] [--mode burn-in|mini|full]
  *
  * Environment:
- *   BYBIT_TESTNET_API_KEY       — Required: Bybit TestNet API key
- *   BYBIT_TESTNET_API_SECRET    — Required: Bybit TestNet API secret
- *   BYBIT_TESTNET_SYMBOLS       — Comma-separated symbols (default: BTCUSDT,ETHUSDT,SOLUSDT)
- *   BYBIT_TESTNET_MODE          — 'burn-in' or 'full' (default: full)
- *   BYBIT_TESTNET_STATE_DIR     — State directory (default: .bybit-testnet-state/)
+ *   BYBIT_API_KEY       — Required: Bybit MainNet API key
+ *   BYBIT_API_SECRET    — Required: Bybit MainNet API secret
+ *   BYBIT_SYMBOLS       — Comma-separated symbols (default: BTCUSDT,ETHUSDT,SOLUSDT)
+ *   BYBIT_MODE          — 'burn-in', 'mini', or 'full' (default: mini)
+ *   BYBIT_STATE_DIR     — State directory (default: .bybit-mainnet-state/)
  *
- * @since 4.9E
+ * @since 4.9F
  */
 
 import { LiveFeedRuntime } from '../src/workspace/live/feed/LiveFeedRuntime'
@@ -65,12 +65,12 @@ async function main() {
   const opts = parseArgs()
 
   // ── Config from env ──
-  const apiKey = requireEnv('BYBIT_TESTNET_API_KEY')
-  const apiSecret = requireEnv('BYBIT_TESTNET_API_SECRET')
-  const mode = (opts.mode ?? process.env.BYBIT_TESTNET_MODE ?? 'full') as 'burn-in' | 'full'
-  const symbols = (opts.symbols ?? process.env.BYBIT_TESTNET_SYMBOLS ?? 'BTCUSDT,ETHUSDT,SOLUSDT')
+  const apiKey = requireEnv('BYBIT_API_KEY')
+  const apiSecret = requireEnv('BYBIT_API_SECRET')
+  const mode = (opts.mode ?? process.env.BYBIT_MODE ?? 'burn-in') as 'burn-in' | 'full'
+  const symbols = (opts.symbols ?? process.env.BYBIT_SYMBOLS ?? 'BTCUSDT,ETHUSDT,SOLUSDT')
     .split(',').map(s => s.trim()).filter(Boolean)
-  const stateDir = opts['state-dir'] ?? process.env.BYBIT_TESTNET_STATE_DIR ?? '.bybit-testnet-state'
+  const stateDir = opts['state-dir'] ?? process.env.BYBIT_STATE_DIR ?? '.bybit-mainnet-state'
 
   // Ensure state directory exists
   const statePath = path.resolve(stateDir)
@@ -79,13 +79,13 @@ async function main() {
   }
 
   console.log('╔══════════════════════════════════════════════════════╗')
-  console.log('║   Bybit TestNet Campaign — Live TestNet Trading    ║')
-  console.log('║   Sprint 4.9E — BybitBrokerAdapter v1              ║')
+  console.log('║   Bybit MainNet Campaign — Live Production Trading  ║')
+  console.log('║   Sprint 4.9F — BybitBrokerAdapter v1 on MainNet    ║')
   console.log('╚══════════════════════════════════════════════════════╝')
   console.log()
-  console.log(`Mode:           ${mode === 'burn-in' ? 'Burn-in only' : 'Burn-in → TestNet Campaign'}`)
+  console.log(`Mode:           ${mode === 'burn-in' ? 'Burn-in only' : 'Burn-in → Full Campaign'}`)
   console.log(`Symbols:        ${symbols.join(', ')}`)
-  console.log(`TestNet API:    ${apiKey.slice(0, 8)}...${apiKey.slice(-4)}`)
+  console.log(`MainNet API:    ${apiKey.slice(0, 8)}...${apiKey.slice(-4)}`)
   console.log(`State dir:      ${statePath}`)
   console.log()
 
@@ -101,20 +101,20 @@ async function main() {
     console.log(`      Subscribed to ${symbol}`)
   }
 
-  // ── 2. BybitBrokerAdapter (TestNet execution) ──
-  console.log('[2/5] Creating BybitBrokerAdapter (TestNet)...')
+  // ── 2. BybitBrokerAdapter (MainNet execution) ──
+  console.log('[2/5] Creating BybitBrokerAdapter (MainNet)...')
   const broker = new BybitBrokerAdapter()
 
   // ── 3. GatewayRuntime + RiskRuntime Chain ──
   console.log('[3/5] Building GatewayRuntime → BybitExecutionGateway → RiskRuntime...')
 
-  const testnetGateway = new BybitExecutionGateway(broker, true) // TestNet
+  const mainnetGateway = new BybitExecutionGateway(broker, false) // MainNet = testnet: false
   gatewayRegistry.register({
     mode: ExecutionMode.Live,
-    create: () => testnetGateway,
+    create: () => mainnetGateway,
   })
 
-  const riskRuntime = new RiskRuntime(testnetGateway, 'bybit-testnet')
+  const riskRuntime = new RiskRuntime(mainnetGateway, 'bybit-mainnet')
   riskRuntime.registry.registerAll(BUILTIN_RISK_RULES)
 
   const gatewayRuntime = new GatewayRuntime()
@@ -132,14 +132,18 @@ async function main() {
   certRuntime.registerBuiltins()
 
   // ── 5. PaperCampaign (reused orchestrator) ──
-  console.log('[5/5] Starting PaperCampaign with Bybit TestNet adapter...')
+  console.log('[5/5] Starting PaperCampaign with Bybit MainNet adapter...')
   console.log()
 
   // Give WS a moment to connect
   await new Promise((r) => setTimeout(r, 3_000))
 
+  const campaignMode = mode === 'burn-in'
+    ? CampaignMode.BurnIn
+    : CampaignMode.FullCampaign
+
   const campaign = new PaperCampaign({
-    mode: mode === 'burn-in' ? CampaignMode.BurnIn : CampaignMode.FullCampaign,
+    mode: campaignMode,
     symbols,
     stateDir: path.join(statePath, 'paper-campaign'),
     onStageChange: (stage) => {
@@ -183,6 +187,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error('\n❌ Bybit TestNet Campaign fatal error:', err)
+  console.error('\n❌ Bybit MainNet Campaign fatal error:', err)
   process.exit(1)
 })

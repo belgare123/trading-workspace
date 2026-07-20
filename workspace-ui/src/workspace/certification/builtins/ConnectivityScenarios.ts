@@ -258,15 +258,20 @@ export function connectivityScenarios(): ScenarioDefinition[] {
       requiresConnection: false,
       execute: async (ctx: ScenarioContext) => {
         try {
-          // Initially disconnected (or reconnected from previous tests)
-          // Verify state transitions
+          // Disconnect first to test a full connect cycle
+          if (ctx.broker.connection.isConnected()) {
+            await ctx.broker.connection.disconnect()
+          }
+
           const stateBefore = ctx.broker.connection.isConnected()
+          ctx.assert(!stateBefore, 'Should be disconnected before connect()')
+
           await ctx.broker.connection.connect()
           const stateAfter = ctx.broker.connection.isConnected()
           ctx.assert(stateAfter, 'Should be connected after connect()')
-          ctx.assert(stateAfter !== stateBefore || !stateBefore, 'State should have changed')
+          ctx.assert(stateAfter !== stateBefore, 'State should have changed after connect()')
 
-          return scenarioPassed('Connection state query works', { wasConnected: stateBefore })
+          return scenarioPassed('Connection state query works')
         } catch (err) {
           return scenarioFailed('State query failed', String(err))
         }
