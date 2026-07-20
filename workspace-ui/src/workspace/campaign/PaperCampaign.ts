@@ -38,6 +38,7 @@ import { CampaignSupervisor, type SupervisorConfig } from './CampaignSupervisor'
 import type { GatewayRuntime } from '../live/gateway/GatewayRuntime'
 import type { LiveFeedRuntime } from '../live/feed/LiveFeedRuntime'
 import type { PaperBrokerAdapter } from '../live/brokers/PaperBrokerAdapter'
+import type { BrokerAdapter } from '../live/live/BrokerAdapter'
 import { CertificationRuntime } from '../certification/CertificationRuntime'
 import type { CertificationReport } from '../certification/CertificationReport'
 import type { ScenarioCategory } from '../certification/ScenarioDefinition'
@@ -63,6 +64,8 @@ export interface PaperCampaignConfig {
   dailyReportIntervalMs?: number
   /** Symbols to campaign */
   symbols: string[]
+  /** Optional: custom state directory (default: os.tmpdir()/paper-campaign) */
+  stateDir?: string
   /** Callback when campaign stage changes */
   onStageChange?: (stage: CampaignStage) => void
   /** Callback on incidents */
@@ -81,7 +84,7 @@ export class PaperCampaign {
   private config: PaperCampaignConfig
   private gateway: GatewayRuntime | null = null
   private feedRuntime: LiveFeedRuntime | null = null
-  private broker: PaperBrokerAdapter | null = null
+  private broker: BrokerAdapter | null = null
   private certRuntime: CertificationRuntime | null = null
 
   // Timer handles
@@ -112,7 +115,7 @@ export class PaperCampaign {
   constructor(config: PaperCampaignConfig) {
     this.config = config
     this.supervisor = new CampaignSupervisor(config.supervisor)
-    this.campaignStateDir = path.join(os.tmpdir(), 'paper-campaign')
+    this.campaignStateDir = config.stateDir ?? path.join(os.tmpdir(), 'paper-campaign')
     try { fs.mkdirSync(this.campaignStateDir, { recursive: true }) } catch { /* best-effort */ }
   }
 
@@ -124,7 +127,7 @@ export class PaperCampaign {
   setComponents(params: {
     gateway: GatewayRuntime
     feedRuntime: LiveFeedRuntime
-    broker: PaperBrokerAdapter
+    broker: BrokerAdapter
     certRuntime: CertificationRuntime
   }): void {
     this.gateway = params.gateway

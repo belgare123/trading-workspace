@@ -12,3 +12,9 @@ export type { ReplayEvent, ReplaySession, ReplayBrokerConfig } from './ReplayBro
 
 export { BinanceSpotBrokerAdapter } from './BinanceSpotBrokerAdapter'
 export type { BinanceSpotConfig, BinanceSymbolFilterInfo, LotSizeFilter, PriceFilter, MinNotionalFilter } from './BinanceSpotBrokerAdapter'
+
+export { PaperBrokerAdapter } from './PaperBrokerAdapter'
+export type { PaperBrokerConfig } from './PaperBrokerAdapter'
+
+export { BybitBrokerAdapter } from './BybitBrokerAdapter'
+export type { BybitConfig } from './BybitBrokerAdapter'
