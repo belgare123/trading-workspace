@@ -20,6 +20,9 @@ import { RiskPipeline } from './RiskPipeline'
 import { buildRiskContext, type RiskContextSource } from './RiskContext'
 import { RiskViolationLog } from '../reports/RiskViolationLog'
 import { RiskEventBus } from '../events/RiskEventBus'
+import { runtimeTelemetry } from '../../live/sli/RuntimeTelemetry'
+
+const SLOW_RULE_THRESHOLD_MS = 50
 
 export { RiskRegistry }
 export { RiskPipeline }
@@ -59,6 +62,8 @@ export class RiskRuntime {
 
   /** Evaluate an order against all enabled risk rules */
   async sendOrder(order: OrderRequest): Promise<RiskDecision> {
+    runtimeTelemetry.risk.evaluationsTotal.record(1)
+
     // 1. Kill switch check
     if (this.killSwitch.active) {
       const decision: RiskDecision = {
@@ -73,15 +78,24 @@ export class RiskRuntime {
         score: 0,
       }
       this.events.emit('risk:reject', { order, decision })
+      runtimeTelemetry.risk.rejectRate.record(1)
       return decision
     }
 
     // 2. Build risk context
+    const contextStart = Date.now()
     const context = buildRiskContext(order, this.source, this.mode)
 
     // 3. Run pipeline
     const activeRules = this.registry.getActive()
     const result = await RiskPipeline.evaluate(activeRules, context)
+    const validationLatency = Date.now() - contextStart
+
+    // Record SLI
+    runtimeTelemetry.risk.validationLatency.record(validationLatency)
+    if (validationLatency > SLOW_RULE_THRESHOLD_MS) {
+      runtimeTelemetry.risk.slowRules.record(1)
+    }
 
     // 4. Log violation
     if (result.decision.violations.length > 0) {
@@ -100,6 +114,7 @@ export class RiskRuntime {
     // 5. Emit event
     if (result.decision.status === 'reject') {
       this.events.emit('risk:reject', { order, decision: result.decision })
+      runtimeTelemetry.risk.rejectRate.record(1)
     } else if (result.decision.status === 'modify') {
       this.events.emit('risk:modify', { order, decision: result.decision })
     } else {

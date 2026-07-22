@@ -86,6 +86,7 @@ export interface BrokerPlacementParams {
   timeInForce?: string
   reduceOnly?: boolean
   clientOrderId?: string
+  postOnly?: boolean
 }
 
 /** Unified order model */

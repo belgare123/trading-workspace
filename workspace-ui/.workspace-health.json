@@ -1,0 +1,27 @@
+{
+  "status": "RUNNING",
+  "uptimeMs": 34249398,
+  "gatewayConnected": true,
+  "safeMode": false,
+  "runtimes": {
+    "feed": "running",
+    "gateway": "running",
+    "risk": "running",
+    "recovery": "running",
+    "strategy": "running",
+    "trade": "running",
+    "history": "running",
+    "killswitch": "running"
+  },
+  "recoveryReport": {
+    "recoveredTrades": 0,
+    "recoveredOrders": 0,
+    "warnings": [
+      "History sync: bus.on is not a function"
+    ],
+    "errors": [],
+    "durationMs": 274,
+    "healthy": true
+  },
+  "timestamp": 1784614769672
+}

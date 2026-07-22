@@ -92,6 +92,19 @@ export class FailureInjector {
     }
   }
 
+  /** Remove all rules for a given scope */
+  removeScope(scope: FailureInjectionScope): void {
+    const removed = this.rules.filter(r => r.scope === scope)
+    this.rules = this.rules.filter(r => r.scope !== scope)
+    if (removed.length > 0) {
+      this.emit({
+        timestamp: Date.now(),
+        type: 'rules_cleared',
+        detail: { scope, count: removed.length },
+      })
+    }
+  }
+
   clearAll(): void {
     this.stopScenario()
     this.rules = []

@@ -341,7 +341,14 @@ export class EventBus {
     }
 
     try {
-      handler(event)
+      const result = handler(event)
+      // Catch async handler rejections (EventHandler type is () => void,
+      // but TypeScript allows assigning async () => Promise<void> to void)
+      if (result instanceof Promise) {
+        result.catch((err) => {
+          console.error(`[EventBus] Error in async handler for '${event.topic}':`, err)
+        })
+      }
     } catch (err) {
       console.error(`[EventBus] Error in handler for '${event.topic}':`, err)
     }

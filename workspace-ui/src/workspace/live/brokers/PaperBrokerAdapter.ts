@@ -133,9 +133,29 @@ export class PaperBrokerAdapter implements BrokerAdapter {
 
   /** Seed base asset so sell orders can execute */
   seedBaseAssets(): void {
+    const initialBalance = this.config.initialBalance
+    const symbolCount = this.config.symbols.length
+    const basePerSymbol = initialBalance / symbolCount
+
+    // Default prices for common USDT pairs (mirrors PaperProvider's defaults)
+    const DEFAULT_PRICES: Record<string, number> = {
+      BTCUSDT: 60000,
+      ETHUSDT: 3000,
+      SOLUSDT: 140,
+      XRPUSDT: 0.5,
+      DOGEUSDT: 0.08,
+      ADAUSDT: 0.45,
+      AVAXUSDT: 35,
+      LINKUSDT: 14,
+      MATICUSDT: 0.55,
+      DOTUSDT: 7,
+    }
+
     for (const symbol of this.config.symbols) {
+      const price = DEFAULT_PRICES[symbol.toUpperCase()] ?? 1
+      const quantity = Math.round((basePerSymbol / price) * 1_000_000) / 1_000_000
       // Add balance without clearing existing USDT seed
-      this.paper.cashLedger.addBalance(symbol, 10_000)
+      this.paper.cashLedger.addBalance(symbol, quantity || 1)
     }
   }
 

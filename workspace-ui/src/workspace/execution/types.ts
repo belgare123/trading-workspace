@@ -38,6 +38,7 @@ export interface OrderRequest {
   timeInForce?: TimeInForce
   clientId?: string
   timestamp: number
+  postOnly?: boolean
 }
 
 export interface Order {

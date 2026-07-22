@@ -181,6 +181,18 @@ async function runCampaign() {
   const { ExecutionMode } = await import('../src/workspace/live/gateway/ExecutionMode')
 
   const state = loadState()
+
+  // Allow overriding entry price via env (bypasses file path issues)
+  const envEntryPrice = process.env.CAMPAIGN_ENTRY_PRICE
+  if (envEntryPrice && !isNaN(parseFloat(envEntryPrice))) {
+    state.currentPosition = {
+      direction: 'long',
+      quantity: parseFloat(process.env.CAMPAIGN_ENTRY_QTY || '5'),
+      entryPrice: parseFloat(envEntryPrice),
+    }
+    log(`📌 Env override: currentPosition set to ${state.currentPosition.quantity} XRP @ ${state.currentPosition.entryPrice}`)
+  }
+
   state.status = 'running'
   state.startedAt = new Date().toISOString()
   saveState(state)
@@ -222,9 +234,11 @@ async function runCampaign() {
   // ── 3. Main strategy loop ──
 
   log('Starting strategy loop...')
-
-  let entryPrice = 0
   let loopCount = 0
+  let entryPrice = 0
+  let lastBuyMs = 0           // last buy attempt timestamp (ms)
+  let buySignalActive = false // true after first signal, reset on cooldown expiry
+  const BUY_COOLDOWN_MS = 300_000  // 5 min between buy attempts
 
   const shutdown = async () => {
     log('=== SHUTDOWN RECEIVED ===')
@@ -243,6 +257,20 @@ async function runCampaign() {
     entryPrice = state.currentPosition.entryPrice
   }
 
+  /**
+   * Promise timeout helper — prevents hangs on WebSocket/REST calls
+   */
+  async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+    let timer: ReturnType<typeof setTimeout>
+    const result = await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
+      }),
+    ]).finally(() => clearTimeout(timer!))
+    return result
+  }
+
   while (true) {
     loopCount++
     const loopStart = Date.now()
@@ -254,17 +282,26 @@ async function runCampaign() {
         continue
       }
 
-      await gateway.refresh()
-      const positions = await gateway.getPositions()
-      const activePos = Array.isArray(positions)
-        ? positions.find(p => p.symbol === SYMBOL && p.quantity > 0)
+      log('▶️ about to call gateway.refresh()')
+      await withTimeout(gateway.refresh(), 20000, 'gateway.refresh')
+      log('✅ gateway.refresh() done')
+      // Use cached positions from refresh() — direct API call may hang
+      const positions = (gateway as any)['localExecutionPositions'] ?? []
+      const livePos = Array.isArray(positions)
+        ? positions.find((p: any) => p.symbol === SYMBOL && p.quantity > 0)
         : null
+      const activePos = livePos || (state.currentPosition ? {
+        symbol: SYMBOL,
+        direction: 'long',
+        quantity: state.currentPosition.quantity,
+        avgPrice: state.currentPosition.entryPrice || price,
+      } : null)
 
       // Fetch market data
-      const [price, closes] = await Promise.all([
+      const [price, closes] = await withTimeout(Promise.all([
         getPrice(SYMBOL),
         getKlines(SYMBOL, '60', 20),
-      ])
+      ]), 20000, 'market data')
       const sma20 = closes.length > 0
         ? closes.reduce((a, b) => a + b, 0) / closes.length
         : price
@@ -277,6 +314,7 @@ async function runCampaign() {
       if (!state.dailyPnl[today]) state.dailyPnl[today] = 0
 
       if (activePos) {
+        if (buySignalActive) buySignalActive = false
         if (entryPrice === 0) entryPrice = price
 
         const pnlPct = activePos.direction === 'long'
@@ -298,7 +336,7 @@ async function runCampaign() {
             type: 'MARKET', quantity: activePos.quantity,
             reduceOnly: true, timeInForce: 'IOC', timestamp: Date.now(),
           })
-          log(`🟢 TP order: ${result.status}`)
+          log(`🟢 TP order: ${result.accepted ? 'accepted' : 'failed'}`)
 
           const pnl = pnlPct / 100 * (activePos.quantity * entryPrice)
           state.trades.push({
@@ -321,7 +359,7 @@ async function runCampaign() {
             type: 'MARKET', quantity: activePos.quantity,
             reduceOnly: true, timeInForce: 'IOC', timestamp: Date.now(),
           })
-          log(`🔴 SL order: ${result.status}`)
+          log(`🔴 SL order: ${result.accepted ? 'accepted' : 'failed'}`)
 
           const pnl = pnlPct / 100 * (activePos.quantity * entryPrice)
           state.trades.push({
@@ -336,34 +374,87 @@ async function runCampaign() {
           entryPrice = 0
           state.currentPosition = null
           saveState(state)
+        } else {
+          log(`ℹ️ Position in state (${activePos.quantity} ${SYMBOL}) — PnL: ${pnlPct.toFixed(2)}%, waiting for TP/SL`)
         }
       } else {
-        state.currentPosition = null
+        // Don't clear currentPosition if we already have one (position may not appear in getPositions)
+        if (!state.currentPosition) {
+          state.currentPosition = null
+        }
 
-        // Check signal
-        if (price > 0 && sma20 > 0 && price > sma20) {
-          const qty = Math.floor((POSITION_SIZE_USDT / price) * 10) / 10
-          if (qty >= 0.1) {
-            log(`🟢 BUY: ${qty} ${SYMBOL} @ ${price.toFixed(4)}`)
-            const result = await gateway.placeOrder({
-              id: `buy-${Date.now()}`, strategyId: 'campaign', symbol: SYMBOL,
-              side: 'buy', type: 'MARKET', quantity: qty,
-              timeInForce: 'IOC', timestamp: Date.now(),
-            })
-            log(`🟢 BUY order: ${result.status}`)
-
-            entryPrice = price
-            state.currentPosition = { direction: 'long', quantity: qty, entryPrice }
-            state.trades.push({
-              time: new Date().toISOString(),
-              type: 'buy', symbol: SYMBOL,
-              side: 'buy', quantity: qty, price,
-            })
+        // Check signal — skip if we already have a position in state
+        if (state.currentPosition) {
+          log(`ℹ️ Position in state (${state.currentPosition.quantity} ${SYMBOL}) — waiting for TP/SL`)
+        } else if (price > 0 && sma20 > 0 && price > sma20) {
+          // Cooldown check first — don't log signal if in cooldown
+          if (Date.now() - lastBuyMs < BUY_COOLDOWN_MS) {
+            if (!buySignalActive) {
+              buySignalActive = true
+              log(`⏳ Cooldown ${Math.ceil((BUY_COOLDOWN_MS - (Date.now() - lastBuyMs)) / 60000)}m — signal held`)
+            }
+            entryPrice = 0
+            state.currentPosition = null
             saveState(state)
-          } else {
-            log(`⚠️ Qty ${qty} too small`)
+            await new Promise(r => setTimeout(r, CHECK_INTERVAL_MS))
+            continue
           }
+          buySignalActive = false
+
+          const qty2 = 5  // fixed safe qty, always > min notional 5 USDT
+          log(`🟢 BUY: ${qty2} ${SYMBOL} @ ${price.toFixed(4)} (${(qty2 * price).toFixed(2)} USDT)`)
+
+          const result = await gateway.placeOrder({
+            id: `buy-${Date.now()}`, strategyId: 'campaign', symbol: SYMBOL,
+            side: 'buy', type: 'MARKET', quantity: qty2,
+            timeInForce: 'IOC', timestamp: Date.now(),
+          })
+          lastBuyMs = Date.now()
+          const buyOk = result && (result.accepted === true)
+          log(`🟢 BUY order: ${buyOk ? 'accepted' : 'failed'}`)
+
+          if (!buyOk) {
+            log(`❌ Buy not accepted (${result.message || 'unknown reason'}), waiting cooldown`)
+            entryPrice = 0
+            state.currentPosition = null
+            saveState(state)
+            await new Promise(r => setTimeout(r, CHECK_INTERVAL_MS))
+            continue
+          }
+
+          // Wait longer for position to appear (up to 30s)
+          let posVerified = false
+          for (let attempt = 0; attempt < 30; attempt++) {
+            await new Promise(r => setTimeout(r, 1000))
+            await gateway.refresh()
+            const posAfter = await gateway.getPositions()
+            const filled = Array.isArray(posAfter) ? posAfter.find(p => p.symbol === SYMBOL && p.quantity > 0) : null
+            if (filled) {
+              entryPrice = filled.avgPrice || price
+              state.currentPosition = { direction: 'long', quantity: filled.quantity, entryPrice }
+              posVerified = true
+              log(`✅ Position opened: ${filled.quantity} ${SYMBOL} @ ${entryPrice.toFixed(4)}`)
+              break
+            }
+          }
+
+          if (!posVerified) {
+            log(`⚠️ Buy sent but position not detected yet — assuming position exists`)
+            entryPrice = price
+            state.currentPosition = { direction: 'long', quantity: qty2, entryPrice }
+          }
+
+          state.trades.push({
+            time: new Date().toISOString(),
+            type: 'buy', symbol: SYMBOL,
+            side: 'buy', quantity: qty2, price,
+          })
+          saveState(state)
         } else if (price > 0 && sma20 > 0) {
+          if (buySignalActive) {
+            buySignalActive = false
+            log(`↩️ Signal reset — price < SMA`)
+          }
           log(`ℹ️ Price ${price.toFixed(4)} < SMA ${sma20.toFixed(4)} — hold`)
         }
       }

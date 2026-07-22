@@ -11,11 +11,11 @@
  */
 
 import type { ExecutionGateway } from './ExecutionGateway'
-import type { GatewayConfig, GatewayStatus, OrderResult } from './ExecutionGateway'
+import type { GatewayConfig, GatewayStatus, OrderResult, AccountInfo } from './ExecutionGateway'
 import { ExecutionMode } from './ExecutionMode'
 import type { OrderRequest, Order, Position, Fill } from '../../execution/types'
 import type { BybitBrokerAdapter } from '../brokers/BybitBrokerAdapter'
-import type { BrokerPlacementParams, BrokerOrder, BrokerBalance } from '../live/types'
+import type { BrokerPlacementParams, BrokerOrder } from '../live/types'
 import type { RiskContextSource } from '../../risk/runtime/RiskContext'
 import type { RiskPosition, RiskAccount } from '../../risk/types'
 import type { ExecutionEventBus } from '../../execution/events/ExecutionEventBus'
@@ -33,16 +33,17 @@ class GatewayLocalStateProvider implements LocalStateProvider {
   getBalances() { return this.gw['cachedBalances'] }
 }
 
-export class BybitExecutionGateway implements ExecutionGateway, RiskContextSource {
+export class BybitExecutionGateway implements ExecutionGateway {
   readonly id = 'bybit-gateway'
   readonly mode = ExecutionMode.Live
 
   private broker: BybitBrokerAdapter
-  private config: GatewayConfig | null = null
   private startTime = 0
   private activeOrderCount = 0
   private openPositionCount = 0
   private readonly testnet: boolean
+  /** Credentials stored from constructor (used when connect() doesn't provide them) */
+  private _storedCredentials: GatewayConfig['credentials'] | null = null
 
   // ── State Reconciliation ──
   readonly reconciler: OrderStateReconciler
@@ -78,6 +79,14 @@ export class BybitExecutionGateway implements ExecutionGateway, RiskContextSourc
     this.testnet = testnet
     this.eventBus = eventBus
 
+    // Preserve credentials passed via GatewayConfig in testnet param
+    // (overload: testnet can be a GatewayConfig object with credentials)
+    if (typeof testnet !== 'boolean' && testnet && 'credentials' in testnet) {
+      const cfg = testnet as unknown as GatewayConfig
+      this._storedCredentials = cfg.credentials ?? null
+      this.testnet = cfg.mode === 'paper' || cfg.mode === 'simulation'
+    }
+
     // Create reconciler + recovery runtime
     this.localStateProvider = new GatewayLocalStateProvider(this)
     this.reconciler = new OrderStateReconciler(
@@ -106,9 +115,8 @@ export class BybitExecutionGateway implements ExecutionGateway, RiskContextSourc
   // ── ExecutionGateway Lifecycle ──
 
   async connect(config: GatewayConfig): Promise<void> {
-    this.config = config
     this.startTime = Date.now()
-    const creds = config.credentials ?? {}
+    const creds = config.credentials ?? this._storedCredentials ?? {}
     await this.broker.connection.connect(
       creds.apiKey ?? '',
       creds.apiSecret ?? '',
@@ -206,31 +214,32 @@ export class BybitExecutionGateway implements ExecutionGateway, RiskContextSourc
       this.openPositionCount = positions.length
       this.localExecutionPositions = positions.map(p => ({
         symbol: p.symbol,
-        direction: p.side,
-        quantity: p.size,
-        averageEntryPrice: p.avgPrice,
-        currentPrice: p.avgPrice,
+        direction: p.direction,
+        quantity: p.quantity,
+        averageEntryPrice: p.averageEntryPrice,
+        currentPrice: p.averageEntryPrice,
         unrealizedPnl: p.unrealizedPnl,
         realizedPnl: p.realizedPnl ?? 0,
-        liquidationPrice: p.liquidationPrice ?? 0,
-        leverage: p.leverage ?? 1,
-        margin: 0,
+        openedAt: p.updatedAt,
         updatedAt: p.updatedAt,
       }))
 
       const posMap = new Map<string, RiskPosition>()
       for (const p of positions) {
-        if (p.size > 0) {
+        if (p.quantity > 0) {
           posMap.set(p.symbol, {
             symbol: p.symbol,
-            size: p.size,
-            side: p.side,
-            entryPrice: p.avgPrice,
-            markPrice: p.avgPrice,
+            direction: p.direction,
+            quantity: p.quantity,
+            averageEntryPrice: p.averageEntryPrice,
+            currentPrice: p.averageEntryPrice,
             unrealizedPnl: p.unrealizedPnl,
+            realizedPnl: p.realizedPnl ?? 0,
             leverage: p.leverage ?? 1,
+            liquidationPrice: p.liquidationPrice,
+            marginUsed: p.margin ?? 0,
           })
-          this.cachedPrices.set(p.symbol, p.avgPrice)
+          this.cachedPrices.set(p.symbol, p.averageEntryPrice)
         }
       }
       this.cachedPositions = posMap
@@ -267,7 +276,6 @@ export class BybitExecutionGateway implements ExecutionGateway, RiskContextSourc
   }
 
   async disconnect(): Promise<void> {
-    this.config = null
     await this.broker.connection.disconnect()
   }
 
@@ -298,17 +306,18 @@ export class BybitExecutionGateway implements ExecutionGateway, RiskContextSourc
 
       return {
         accepted: true,
-        orderId: result.id,
-        fills: result.executedQuantity > 0
+        orderId: result.brokerOrderId,
+        fills: result.filledQuantity > 0
           ? [{
-              id: `${result.id}-fill`,
-              orderId: result.id,
+              id: `${result.brokerOrderId}-fill`,
+              orderId: result.brokerOrderId,
               symbol: result.symbol,
               side: result.side,
-              quantity: result.executedQuantity,
+              quantity: result.filledQuantity,
               price: result.averagePrice ?? result.price,
               commission: 0,
               commissionAsset: 'USDT',
+              slippage: 0,
               timestamp: result.updatedAt ?? Date.now(),
             } satisfies Fill]
           : undefined,
@@ -346,7 +355,7 @@ export class BybitExecutionGateway implements ExecutionGateway, RiskContextSourc
     if (request.side !== undefined) params.side = request.side
 
     try {
-      const result = await this.broker.orders.amendOrder(orderId, params)
+      const result = await this.broker.orders.replaceOrder(orderId, params)
       // Refresh local order
       try {
         const updated = await this.broker.orders.getOrder(orderId)
@@ -357,7 +366,7 @@ export class BybitExecutionGateway implements ExecutionGateway, RiskContextSourc
       } catch { /* ignore refresh failure */ }
       return {
         accepted: true,
-        orderId: result.id,
+        orderId: result.brokerOrderId,
       }
     } catch (err) {
       return {
@@ -380,20 +389,23 @@ export class BybitExecutionGateway implements ExecutionGateway, RiskContextSourc
     return brokerOrders.map(o => this.toOrder(o))
   }
 
-  async getPositions(): Promise<Position[]> {
+  async getPositions(): Promise<Position[]>
+  async getPositions(strategyId: string): Promise<Position[] | Map<string, RiskPosition>>
+  async getPositions(strategyId?: string): Promise<Position[] | Map<string, RiskPosition>> {
+    if (strategyId !== undefined) {
+      return this.cachedPositions
+    }
     const positions = await this.broker.positions.getPositions()
     if (!positions) return []
     return positions.map(p => ({
       symbol: p.symbol,
-      direction: p.side,
-      quantity: p.size,
-      averageEntryPrice: p.avgPrice,
-      currentPrice: p.avgPrice,
+      direction: p.direction,
+      quantity: p.quantity,
+      averageEntryPrice: p.averageEntryPrice,
+      currentPrice: p.averageEntryPrice,
       unrealizedPnl: p.unrealizedPnl,
       realizedPnl: p.realizedPnl ?? 0,
-      liquidationPrice: p.liquidationPrice ?? 0,
-      leverage: p.leverage ?? 1,
-      margin: 0,
+      openedAt: p.updatedAt,
       updatedAt: p.updatedAt,
     }))
   }
@@ -403,26 +415,18 @@ export class BybitExecutionGateway implements ExecutionGateway, RiskContextSourc
     if (!pos) return null
     return {
       symbol: pos.symbol,
-      direction: pos.side,
-      quantity: pos.size,
-      averageEntryPrice: pos.avgPrice,
-      currentPrice: pos.avgPrice,
+      direction: pos.direction,
+      quantity: pos.quantity,
+      averageEntryPrice: pos.averageEntryPrice,
+      currentPrice: pos.averageEntryPrice,
       unrealizedPnl: pos.unrealizedPnl,
       realizedPnl: pos.realizedPnl ?? 0,
-      liquidationPrice: pos.liquidationPrice ?? 0,
-      leverage: pos.leverage ?? 1,
-      margin: 0,
+      openedAt: pos.updatedAt,
       updatedAt: pos.updatedAt,
     }
   }
 
-  async getBalance(): Promise<{
-    totalEquity: number
-    balances: Record<string, { free: number; locked: number }>
-    unrealizedPnl: number
-    realizedPnl: number
-    mode: string
-  }> {
+  async getBalance(): Promise<AccountInfo> {
     const balances = await this.broker.account.getBalances()
     const mapped: Record<string, { free: number; locked: number }> = {}
     let totalEquity = 0
@@ -443,7 +447,7 @@ export class BybitExecutionGateway implements ExecutionGateway, RiskContextSourc
 
   // ── Events (passthrough to broker private WS) ──
 
-  on(event: string, listener: (...args: unknown[]) => void): void {
+  on(_event: string, _listener: (...args: unknown[]) => void): void {
     // BybitBrokerAdapter doesn't use legacy on/off
   }
 
@@ -451,11 +455,7 @@ export class BybitExecutionGateway implements ExecutionGateway, RiskContextSourc
     // No-op
   }
 
-  // ── RiskContextSource ──
-
-  getPositions(_strategyId: string): Map<string, RiskPosition> {
-    return this.cachedPositions
-  }
+  // ── RiskContextSource (sync, no arg overload) ──
 
   getAccount(_strategyId: string): RiskAccount | undefined {
     return this.cachedAccount
@@ -488,23 +488,23 @@ export class BybitExecutionGateway implements ExecutionGateway, RiskContextSourc
 
   private toOrder(o: BrokerOrder): Order {
     return {
-      id: o.clientOrderId ?? o.id,
-      brokerOrderId: o.id,
+      id: o.clientOrderId ?? o.brokerOrderId,
+      strategyId: '',
       symbol: o.symbol,
       side: o.side,
       type: o.type as Order['type'],
       price: o.price,
       quantity: o.quantity,
-      executedQuantity: o.executedQuantity,
-      remainingQuantity: o.remainingQuantity,
-      status: o.status,
-      timeInForce: o.timeInForce as Order['timeInForce'],
-      reduceOnly: o.reduceOnly,
-      createdAt: o.createdAt,
-      updatedAt: o.updatedAt,
+      filledQuantity: o.filledQuantity,
       averagePrice: o.averagePrice,
       commission: o.commission,
-      commissionAsset: o.commissionAsset,
+      stopPrice: o.stopPrice,
+      status: o.status as Order['status'],
+      createdAt: o.createdAt,
+      updatedAt: o.updatedAt,
+      reduceOnly: o.reduceOnly,
+      timeInForce: o.timeInForce as Order['timeInForce'],
+      clientId: o.clientOrderId,
     }
   }
 }

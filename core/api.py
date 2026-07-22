@@ -10,10 +10,14 @@ Core API — контракты для всех компонентов сист�
 
 from __future__ import annotations
 
+import asyncio
+import logging
 import time
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import Any, Callable, Coroutine, Protocol, runtime_checkable
+
+logger = logging.getLogger(__name__)
 
 # ══════════════════════════════════════════════
 #  Version
@@ -220,17 +224,51 @@ class MarketDataBus:
     (FeatureEngine, StateEngine, Scanner).
     """
 
-    def __init__(self) -> None:
+    def __init__(self, metrics_registry: Any = None) -> None:
         self._subscriptions: dict[str, list[Handler]] = {}
         self._started = False
+        self._metrics_registry = metrics_registry
+        self._events_total: Any = None
+        self._errors_total: Any = None
+
+    def _init_metrics(self) -> None:
+        if self._metrics_registry is None or self._events_total is not None:
+            return
+        self._events_total = self._metrics_registry.counter(
+            "market_data_bus_events_total",
+            "Total events published through MarketDataBus",
+            labels={"channel": "total"},
+        )
+        self._errors_total = self._metrics_registry.counter(
+            "market_data_bus_errors_total",
+            "Event handler errors per channel",
+            labels={"channel": "unknown"},
+        )
 
     async def publish(self, event: Event) -> None:
         channel = event.channel
+        self._init_metrics()
+        if self._metrics_registry is not None:
+            self._metrics_registry.inc(
+                "market_data_bus_events_total",
+                labels={"channel": channel},
+            )
         for handler in self._subscriptions.get(channel, []):
             try:
                 await handler(event)
+            except asyncio.CancelledError:
+                raise
             except Exception:
-                pass
+                logger.exception(
+                    "Event handler failed for channel '%s' (handler=%s)",
+                    channel,
+                    getattr(handler, "__name__", str(handler)),
+                )
+                if self._metrics_registry is not None:
+                    self._metrics_registry.inc(
+                        "market_data_bus_errors_total",
+                        labels={"channel": channel},
+                    )
 
     def subscribe(self, channel: str, handler: Handler) -> None:
         if channel not in self._subscriptions:
@@ -250,9 +288,21 @@ class MarketDataBus:
         self._subscriptions.clear()
 
 
+_default_bus: MarketDataBus | None = None
+
+
 def get_bus() -> MarketDataBus:
-    """Получить глобальный MarketDataBus."""
-    return MarketDataBus()
+    """Получить глобальный MarketDataBus (singleton)."""
+    global _default_bus
+    if _default_bus is None:
+        _default_bus = MarketDataBus()
+    return _default_bus
+
+
+def set_bus_registry(registry: Any) -> None:
+    """Привязать метрики к глобальной шине (из bootstrap)."""
+    bus = get_bus()
+    bus._metrics_registry = registry
 
 @dataclass
 class Opportunity:

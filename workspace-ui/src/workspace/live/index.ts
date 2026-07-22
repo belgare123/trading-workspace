@@ -175,3 +175,18 @@ export type { BrokerClockConfig } from './live/BrokerClock'
 
 export { RateLimiter, RateLimitExceeded } from './live/RateLimiter'
 export type { RateLimitConfig, OperationType } from './live/RateLimiter'
+
+// ── SLI / RuntimeTelemetry (Sprint 6.3) ──
+
+export { RuntimeTelemetry, runtimeTelemetry } from './sli/RuntimeTelemetry'
+export { SliCollector } from './sli/SliCollector'
+export type { SliCollectorConfig } from './sli/SliCollector'
+export type {
+  SliDescriptor,
+  SliMetricKind,
+  SliPercentiles,
+  SliMetric,
+  SliRuntimeSnapshot,
+  SliSystemSnapshot,
+} from './sli/SliTypes'
+export { createSliMiddleware } from './sli/SliApiServer'

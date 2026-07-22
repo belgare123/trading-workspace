@@ -41,7 +41,7 @@ class Scheduler:
         self._running = True
         for t in self._tasks:
             if t.run_immediately:
-                asyncio.create_task(self._run_and_schedule(t))
+                t._task = asyncio.create_task(self._run_and_schedule(t))
             else:
                 t._task = asyncio.create_task(self._loop(t))
         logger.info("Scheduler started with %d tasks", len(self._tasks))

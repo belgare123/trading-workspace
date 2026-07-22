@@ -141,6 +141,7 @@ class ClusteringEngine:
         try:
             dnas = store.get_recent(limit=2000)
         except Exception:
+            logger.exception("Failed to load recent DNA vectors from store")
             return [], []
 
         vectors = []

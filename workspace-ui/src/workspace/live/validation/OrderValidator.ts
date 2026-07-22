@@ -33,16 +33,22 @@ export class ValidationError extends Error {
 // In production, SymbolRegistry should be populated from exchange info.
 
 const DEFAULT_SYMBOL_RULES: Record<string, Partial<SymbolInfo>> = {
-  BTCUSDT: { minQuantity: 0.001, quantityDecimals: 3, priceDecimals: 1, minNotional: 5, stepSize: 0.001, tickSize: 0.1 },
-  ETHUSDT: { minQuantity: 0.01, quantityDecimals: 3, priceDecimals: 2, minNotional: 5, stepSize: 0.001, tickSize: 0.01 },
-  SOLUSDT: { minQuantity: 0.1, quantityDecimals: 1, priceDecimals: 2, minNotional: 5, stepSize: 0.1, tickSize: 0.01 },
-  XRPUSDT: { minQuantity: 0.1, quantityDecimals: 0, priceDecimals: 3, minNotional: 5, stepSize: 0.1, tickSize: 0.001 },
-  DOGEUSDT: { minQuantity: 1, quantityDecimals: 0, priceDecimals: 4, minNotional: 5, stepSize: 1, tickSize: 0.0001 },
-  ADAUSDT: { minQuantity: 1, quantityDecimals: 0, priceDecimals: 3, minNotional: 5, stepSize: 1, tickSize: 0.001 },
-  AVAXUSDT: { minQuantity: 0.01, quantityDecimals: 2, priceDecimals: 2, minNotional: 5, stepSize: 0.01, tickSize: 0.01 },
-  LINKUSDT: { minQuantity: 0.01, quantityDecimals: 2, priceDecimals: 2, minNotional: 5, stepSize: 0.01, tickSize: 0.01 },
+  // Verified against Bybit linear API (2026-07-20)
+  // ── priceScale=2 ──
+  BTCUSDT: { minQuantity: 0.001, quantityDecimals: 3, priceDecimals: 2, minNotional: 5, stepSize: 0.001, tickSize: 0.1 },
+  ETHUSDT: { minQuantity: 0.01, quantityDecimals: 3, priceDecimals: 2, minNotional: 5, stepSize: 0.01, tickSize: 0.01 },
+  // ── priceScale=3 ──
+  SOLUSDT: { minQuantity: 0.1, quantityDecimals: 1, priceDecimals: 3, minNotional: 5, stepSize: 0.1, tickSize: 0.01 }, // tick=0.010 → 0.01
+  AVAXUSDT: { minQuantity: 0.1, quantityDecimals: 1, priceDecimals: 3, minNotional: 5, stepSize: 0.1, tickSize: 0.001 },
+  LINKUSDT: { minQuantity: 0.1, quantityDecimals: 1, priceDecimals: 3, minNotional: 5, stepSize: 0.1, tickSize: 0.001 },
+  // ── priceScale=4 ──
+  XRPUSDT: { minQuantity: 0.1, quantityDecimals: 1, priceDecimals: 4, minNotional: 5, stepSize: 0.1, tickSize: 0.0001 },
+  ADAUSDT: { minQuantity: 1, quantityDecimals: 0, priceDecimals: 4, minNotional: 5, stepSize: 1, tickSize: 0.0001 },
+  DOTUSDT: { minQuantity: 0.1, quantityDecimals: 1, priceDecimals: 4, minNotional: 5, stepSize: 0.1, tickSize: 0.0001 },
+  // ── priceScale=5 ──
+  DOGEUSDT: { minQuantity: 1, quantityDecimals: 0, priceDecimals: 5, minNotional: 5, stepSize: 1, tickSize: 0.00001 },
+  // ── Legacy/other ──
   MATICUSDT: { minQuantity: 1, quantityDecimals: 0, priceDecimals: 4, minNotional: 5, stepSize: 1, tickSize: 0.0001 },
-  DOTUSDT: { minQuantity: 0.1, quantityDecimals: 1, priceDecimals: 2, minNotional: 5, stepSize: 0.1, tickSize: 0.01 },
 }
 
 export class OrderValidator {
@@ -159,8 +165,15 @@ export class OrderValidator {
 
     // Check stepSize (quantity precision)
     if (info.stepSize != null && info.stepSize > 0) {
-      const remainder = (quantity * 1e10) % (info.stepSize * 1e10)
-      if (Math.abs(remainder) > 1e-6) {
+      // Use scaled integers to avoid floating-point precision issues
+      const scale = Math.max(
+        Math.ceil(Math.abs(Math.log10(info.stepSize))),
+        Math.ceil(Math.abs(Math.log10(quantity))),
+      ) + 2
+      const factor = Math.pow(10, scale)
+      const qtyScaled = Math.round(quantity * factor)
+      const stepScaled = Math.round(info.stepSize * factor)
+      if (qtyScaled % stepScaled !== 0) {
         throw new ValidationError(
           'QTY_PRECISION',
           `Quantity ${quantity} does not match stepSize ${info.stepSize} for ${symbol}. ` +
@@ -180,8 +193,14 @@ export class OrderValidator {
 
       // Check tickSize (price precision)
       if (info.tickSize != null && info.tickSize > 0) {
-        const remainder = (price * 1e10) % (info.tickSize * 1e10)
-        if (Math.abs(remainder) > 1e-6) {
+        const scale = Math.max(
+          Math.ceil(Math.abs(Math.log10(info.tickSize))),
+          Math.ceil(Math.abs(Math.log10(price))),
+        ) + 2
+        const factor = Math.pow(10, scale)
+        const priceScaled = Math.round(price * factor)
+        const tickScaled = Math.round(info.tickSize * factor)
+        if (priceScaled % tickScaled !== 0) {
           throw new ValidationError(
             'PRICE_PRECISION',
             `Price ${price} does not match tickSize ${info.tickSize} for ${symbol}. ` +

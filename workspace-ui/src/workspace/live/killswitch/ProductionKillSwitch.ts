@@ -166,7 +166,7 @@ export class ProductionKillSwitch {
               strategyId: 'kill-switch',
               symbol: pos.symbol,
               side: pos.direction === 'long' ? 'sell' : 'buy',
-              type: 'MARKET',
+              type: 'market',
               quantity: pos.quantity,
               reduceOnly: true,
               timeInForce: 'IOC',

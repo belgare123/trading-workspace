@@ -29,7 +29,7 @@ from core.app.bootstrap import (
 from core.app.health import HealthRegistry, HealthStatus
 from core.app.lifecycle import Lifecycle, LifecycleStage
 from core.app.phases import Phase
-from core.di.container import Container
+from core.di.container import Container, _log_task_exception
 
 if TYPE_CHECKING:
     from core.services import IService
@@ -63,6 +63,9 @@ class Application:
         self._services: dict[str, IService] = {}
         self._shutdown_event = asyncio.Event()
         self._shutdown_timeout: float = 10.0
+        # Metrics counters (lazy init via _init_metrics)
+        self._metrics: dict[str, Any] = {}
+        self._metrics_inited = False
 
     # ── Свойства ──
 
@@ -81,6 +84,52 @@ class Application:
     def get(self, name: str, default: Any = None) -> Any:
         """Получить компонент из контейнера (default если нет)."""
         return self.container.get(name, default)
+
+    def _init_metrics(self) -> None:
+        """Lazy-init counters из MetricsRegistry в контейнере."""
+        if self._metrics_inited:
+            return
+        self._metrics_inited = True
+        reg = self.container.get("metrics_registry", None)
+        if reg is None:
+            return
+        self._metrics["reconnect_total"] = reg.counter(
+            "gateway_reconnect_total",
+            "Total WebSocket reconnection attempts",
+        )
+        self._metrics["gateway_errors_total"] = reg.counter(
+            "gateway_errors_total",
+            "Total gateway errors (API/auth/WS failures)",
+        )
+        self._metrics["strategy_exceptions_total"] = reg.counter(
+            "strategy_exceptions_total",
+            "Total unhandled strategy exceptions",
+        )
+        self._metrics["runtime_restart_total"] = reg.counter(
+            "runtime_restart_total",
+            "Total runtime restarts / recovery cycles",
+        )
+
+    def inc_gateway_error(self, amount: float = 1.0) -> None:
+        """Increment gateway error counter (call from bridge/TS)."""
+        self._init_metrics()
+        reg = self.container.get("metrics_registry", None)
+        if reg is not None:
+            reg.inc("gateway_errors_total", amount)
+
+    def inc_reconnect(self, amount: float = 1.0) -> None:
+        """Increment reconnect counter (call from bridge/TS)."""
+        self._init_metrics()
+        reg = self.container.get("metrics_registry", None)
+        if reg is not None:
+            reg.inc("gateway_reconnect_total", amount)
+
+    def inc_strategy_exception(self, amount: float = 1.0) -> None:
+        """Increment strategy exception counter."""
+        self._init_metrics()
+        reg = self.container.get("metrics_registry", None)
+        if reg is not None:
+            reg.inc("strategy_exceptions_total", amount)
 
     # ── Bootstrap — регистрация компонентов ──
 
@@ -517,7 +566,8 @@ class Application:
     def _signal_handler_sync(self, signum, frame) -> None:
         """Sync обработчик для Windows."""
         logger.info("[app] Signal %s received, initiating shutdown...", signum)
-        asyncio.create_task(self._async_shutdown_from_signal())
+        task = asyncio.create_task(self._async_shutdown_from_signal())
+        task.add_done_callback(_log_task_exception)
 
     async def _async_shutdown_from_signal(self) -> None:
         self._shutdown_event.set()
@@ -568,6 +618,17 @@ class Application:
                         "heatmap_volume": f"{h.top_volume[0]['symbol']} {h.top_volume[0]['volume_usdt']/1_000_000:.1f}M"
                         if h.top_volume else "?",
                     }
+
+                # Log metrics counters
+                self._init_metrics()
+                reg = self.container.get("metrics_registry", None)
+                if reg is not None:
+                    reconn = reg.counter("gateway_reconnect_total").value()
+                    gw_err = reg.counter("gateway_errors_total").value()
+                    logger.info(
+                        "[health] metrics: reconnects=%d gateway_errors=%d",
+                        reconn, gw_err,
+                    )
             except Exception:
                 logger.exception("[health] ticker error")
 

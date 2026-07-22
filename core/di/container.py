@@ -268,8 +268,9 @@ class Container:
     # ── Фоновые задачи ──
 
     def create_task(self, coro, name: str = "") -> asyncio.Task:
-        """Создать фоновую задачу."""
+        """Создать фоновую задачу с логированием исключений."""
         task = asyncio.create_task(coro, name=name)
+        task.add_done_callback(_log_task_exception)
         self._ticker_tasks.append(task)
         return task
 
@@ -297,4 +298,14 @@ class Container:
             f"named={len(names)}, "
             f"tasks={len(self._ticker_tasks)}, "
             f"phase={self._current_phase.name if self._current_phase else 'none'})"
+        )
+
+
+def _log_task_exception(task: asyncio.Task) -> None:
+    """Логировать необработанное исключение фоновой задачи."""
+    if not task.cancelled() and task.exception() is not None:
+        logger.exception(
+            "Background task '%s' failed: %s",
+            task.get_name(),
+            task.exception(),
         )

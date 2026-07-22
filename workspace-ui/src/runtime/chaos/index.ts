@@ -80,6 +80,22 @@ export { createBybitCategoryClassifier } from './privateWsClassifier'
 export { NativeWebSocketFactory, ChaosWebSocketFactory } from './WebSocketFactory'
 export type { IWebSocketFactory } from './WebSocketFactory'
 
+// Campaign Engine (6.6.6)
+export { CampaignEngine, CampaignTimelineBuilder } from './campaign/CampaignEngine'
+export type {
+  AssertSpec,
+  CampaignStepDef,
+  CampaignAssertion,
+  CampaignAssertionStatus,
+  CampaignStepResult,
+  SLOResult,
+  CampaignContext,
+  CampaignDependencies,
+  CampaignEvent,
+  CampaignReport,
+  CampaignConfig,
+} from './campaign/CampaignEngine'
+
 // Chaos Trace (6.6.2a)
 export { ChaosTraceRuntime } from './ChaosTraceRuntime'
 export type { ChaosTraceRuntimeOptions, ChaosTraceRuntimeStats, ChaosTraceExport } from './ChaosTraceRuntime'
