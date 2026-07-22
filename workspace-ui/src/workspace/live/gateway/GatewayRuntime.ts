@@ -19,12 +19,93 @@ import type { ExecutionMode } from './ExecutionMode'
 import { gatewayRegistry } from './GatewayRegistry'
 import type { OrderRequest, Order, Position } from '../../execution/types'
 import type { RiskRuntime } from '../../risk/runtime/RiskRuntime'
+import { runtimeTelemetry } from '../sli/RuntimeTelemetry'
+import {
+  GatewayState,
+  deriveState,
+  isTransitionAllowed,
+  type TransportHealth,
+  createGatewayHealthCheck,
+  describeDegradation,
+} from './GatewayState'
+import type { HealthAggregator } from '../../runtime/observability/HealthAggregator'
 
 export class GatewayRuntime {
   private gateway: ExecutionGateway | null = null
   private config: GatewayConfig | null = null
   private connected = false
   private startTime = 0
+
+  // ── Transport State Machine ──
+
+  private _transportHealth: TransportHealth = {
+    restOnline: false,
+    publicWsOnline: false,
+    privateWsOnline: false,
+  }
+  private _state: GatewayState = GatewayState.Disconnected
+  private _lastState: GatewayState = GatewayState.Disconnected
+  private _stateChangeCount = 0
+
+  // ── State Machine API ──
+
+  /** Get current gateway state */
+  getState(): GatewayState {
+    return this._state
+  }
+
+  /** Get current transport health */
+  getTransportHealth(): TransportHealth {
+    return { ...this._transportHealth }
+  }
+
+  /** Get number of state changes since init */
+  getStateChangeCount(): number {
+    return this._stateChangeCount
+  }
+
+  /**
+   * Update transport health and derive new state.
+   * Respects transition rules — throws on forbidden transition.
+   */
+  updateTransportHealth(health: Partial<TransportHealth>): void {
+    const updated: TransportHealth = {
+      ...this._transportHealth,
+      ...health,
+    }
+    const newState = deriveState(updated)
+    if (!isTransitionAllowed(this._state, newState)) {
+      throw new Error(
+        `[GatewayRuntime] Forbidden transition: ${this._state} → ${newState} ` +
+        `(trigger: ${describeDegradation(updated)}). ` +
+        `Use updateTransportHealth() with intermediate states.`,
+      )
+    }
+    this._transportHealth = updated
+    this._applyStateTransition()
+  }
+
+  /** Register health check with HealthAggregator */
+  registerHealthCheck(healthAggregator: HealthAggregator): void {
+    healthAggregator.register('gateway', createGatewayHealthCheck(
+      () => this._state,
+      () => this._transportHealth,
+    ))
+  }
+
+  // ── Private: State Transition ──
+
+  private _applyStateTransition(): void {
+    const prev = this._state
+    this._state = deriveState(this._transportHealth)
+
+    if (prev !== this._state) {
+      this._stateChangeCount++
+      runtimeTelemetry.gateway.reconnectCount.record(this._stateChangeCount)
+    }
+
+    this.connected = this._state !== GatewayState.Disconnected
+  }
 
   /** Optional risk runtime for pre-trade checks */
   public riskRuntime: RiskRuntime | null = null
@@ -49,6 +130,17 @@ export class GatewayRuntime {
     await this.gateway.connect(this.config)
     this.connected = true
     this.startTime = Date.now()
+    runtimeTelemetry.gateway.reconnectCount.reset()
+    runtimeTelemetry.gateway.openRequests.set(0)
+    runtimeTelemetry.gateway.errorRate.reset()
+
+    // Set transport health after successful connect
+    this._transportHealth = {
+      restOnline: true,
+      publicWsOnline: true,
+      privateWsOnline: true,
+    }
+    this._applyStateTransition()
   }
 
   /**
@@ -56,6 +148,29 @@ export class GatewayRuntime {
    */
   useRiskRuntime(runtime: RiskRuntime): void {
     this.riskRuntime = runtime
+  }
+
+  /**
+   * Connect using an existing ExecutionGateway instance (bypasses registry).
+   * Used when the gateway is created externally (e.g., via WorkspaceBuilder.withGateway()).
+   */
+  async use(gateway: ExecutionGateway): Promise<void> {
+    this.gateway = gateway
+    this.config = {
+      mode: gateway.mode,
+      ...(this.config ?? {}),
+    }
+    await this.gateway.connect(this.config)
+    this.connected = true
+    this.startTime = Date.now()
+
+    // Set transport health after use()
+    this._transportHealth = {
+      restOnline: true,
+      publicWsOnline: true,
+      privateWsOnline: true,
+    }
+    this._applyStateTransition()
   }
 
   /**
@@ -67,6 +182,12 @@ export class GatewayRuntime {
     }
     this.gateway = null
     this.connected = false
+    this._transportHealth = {
+      restOnline: false,
+      publicWsOnline: false,
+      privateWsOnline: false,
+    }
+    this._applyStateTransition()
   }
 
   /**
@@ -101,23 +222,38 @@ export class GatewayRuntime {
   async placeOrder(request: OrderRequest): Promise<OrderResult> {
     const gateway = this.getGateway()
 
-    // Pre-trade risk check
-    if (this.riskRuntime) {
-      const decision = await this.riskRuntime.sendOrder(request)
-      if (decision.status === 'reject') {
-        return {
-          accepted: false,
-          orderId: request.id,
-          message: `Risk rejected: ${decision.violations.map((v) => v.message).join('; ')}`,
+    runtimeTelemetry.gateway.openRequests.inc()
+
+    const start = Date.now()
+    try {
+      // Pre-trade risk check
+      if (this.riskRuntime) {
+        const decision = await this.riskRuntime.sendOrder(request)
+        if (decision.status === 'reject') {
+          runtimeTelemetry.gateway.openRequests.dec()
+          runtimeTelemetry.gateway.errorRate.record(1)
+          return {
+            accepted: false,
+            orderId: request.id,
+            message: `Risk rejected: ${decision.violations.map((v) => v.message).join('; ')}`,
+          }
+        }
+        // Use modified order if risk returned one
+        if (decision.order) {
+          request = decision.order
         }
       }
-      // Use modified order if risk returned one
-      if (decision.order) {
-        request = decision.order
-      }
-    }
 
-    return gateway.placeOrder(request)
+      const result = await gateway.placeOrder(request)
+      const latency = Date.now() - start
+      runtimeTelemetry.gateway.requestLatency.record(latency)
+      runtimeTelemetry.gateway.openRequests.dec()
+      return result
+    } catch (err) {
+      runtimeTelemetry.gateway.openRequests.dec()
+      runtimeTelemetry.gateway.errorRate.record(1)
+      throw err
+    }
   }
 
   /**
