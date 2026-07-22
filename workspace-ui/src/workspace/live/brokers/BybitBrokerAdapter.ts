@@ -43,6 +43,8 @@ import {
   classifyBrokerError,
 } from '../live/BrokerError'
 import { BrokerClock } from '../live/BrokerClock'
+import { NativeWebSocketFactory } from '../../../runtime/chaos/index.ts'
+import type { IWebSocketFactory } from '../../../runtime/chaos/index.ts'
 
 // ═══════════════════════════════════════════════
 // Constants
@@ -81,10 +83,12 @@ interface BybitState {
   clock: BrokerClock
 
   // REST client state
+  fetchFn: typeof globalThis.fetch
   lastServerTimeSync: number
 
   // Private WS
   privateWs: BybitPrivateWsClient | null
+  wsFactory: IWebSocketFactory
 
   // Subscriber lists
   orderHandlers: Array<(order: BrokerOrder) => void>
@@ -213,7 +217,7 @@ async function fetchInstruments(state: BybitState, symbols: string[]): Promise<v
   for (const symbol of symbols) {
     try {
       const url = `${baseUrl}/v5/market/instruments-info?category=linear&symbol=${symbol}`
-      const res = await fetch(url, { signal: AbortSignal.timeout(10_000) })
+      const res = await state.fetchFn(url, { signal: AbortSignal.timeout(10_000) })
       const text = await res.json()
       if (text.retCode !== 0) continue
       const list = text.result?.list ?? []
@@ -382,7 +386,7 @@ async function signedRequest<T>(
 
   let res: Response
   try {
-    res = await fetch(url, {
+    res = await state.fetchFn(url, {
       method,
       headers,
       body: isGet ? undefined : payload,
@@ -410,10 +414,11 @@ async function signedRequest<T>(
   return parseBybitResponse<T>(text)
 }
 
-async function publicRequest<T>(method: string, url: string): Promise<T> {
+async function publicRequest<T>(method: string, url: string, state?: BybitState): Promise<T> {
+  const fetchFn = state?.fetchFn ?? fetch
   let res: Response
   try {
-    res = await fetch(url, {
+    res = await fetchFn(url, {
       method,
       signal: AbortSignal.timeout(10_000),
     })
@@ -517,25 +522,28 @@ function mapBybitOrderStatus(status: string): BrokerOrder['status'] {
   }
 }
 
-function mapBybitOrder(rec: BybitOrderRecord, adapterId: string): BrokerOrder {
+function mapBybitOrder(rec: BybitOrderRecord, _adapterId: string): BrokerOrder {
   const executedQty = parseFloat(rec.cumExecQty)
   const totalQty = parseFloat(rec.qty)
+  const executedValue = parseFloat(rec.cumExecValue)
   return {
-    id: rec.orderId,
+    brokerOrderId: rec.orderId,
     clientOrderId: rec.orderLinkId || undefined,
     symbol: rec.symbol,
     side: rec.side.toLowerCase() === 'buy' ? 'buy' : 'sell',
-    type: rec.orderType.toLowerCase() as BrokerOrder['type'],
+    type: rec.orderType.toLowerCase(),
     price: parseFloat(rec.price),
     quantity: totalQty,
-    executedQuantity: executedQty,
-    remainingQuantity: Math.max(0, totalQty - executedQty),
-    status: mapBybitOrderStatus(rec.orderStatus),
-    timeInForce: rec.timeInForce as BrokerOrder['timeInForce'],
+    filledQuantity: executedQty,
+    averagePrice: executedQty > 0 ? executedValue / executedQty : 0,
+    commission: parseFloat(rec.cumExecFee),
+    commissionAsset: undefined,
+    stopPrice: parseFloat(rec.stopLoss ?? '0') || undefined,
+    timeInForce: rec.timeInForce,
     reduceOnly: rec.reduceOnly,
+    status: mapBybitOrderStatus(rec.orderStatus),
     createdAt: parseInt(rec.createdTime, 10),
     updatedAt: parseInt(rec.updatedTime, 10),
-    brokerAdapterId: adapterId,
   }
 }
 
@@ -543,9 +551,10 @@ function mapBybitPosition(rec: BybitPositionRecord): BrokerPosition {
   const size = Math.abs(parseFloat(rec.size))
   return {
     symbol: rec.symbol,
-    side: parseFloat(rec.size) > 0 ? 'long' : parseFloat(rec.size) < 0 ? 'short' : 'flat',
-    size,
-    avgPrice: parseFloat(rec.avgPrice),
+    direction: parseFloat(rec.size) > 0 ? 'long' : 'short',
+    quantity: size,
+    averageEntryPrice: parseFloat(rec.avgPrice),
+    currentPrice: parseFloat(rec.avgPrice),
     unrealizedPnl: parseFloat(rec.unrealisedPnl),
     realizedPnl: parseFloat(rec.cumRealisedPnl),
     leverage: parseFloat(rec.leverage),
@@ -573,6 +582,7 @@ class BybitPrivateWsClient {
   private state_: WsState = 'idle'
   private ws: WebSocket | null = null
   private config: Required<BybitConfig>
+  private wsFactory: IWebSocketFactory
   private reconnectAttempt = 0
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
   private pingTimer: ReturnType<typeof setInterval> | null = null
@@ -591,9 +601,14 @@ class BybitPrivateWsClient {
 
   private adapterId: string
 
-  constructor(config: Required<BybitConfig>, adapterId: string) {
+  constructor(
+    config: Required<BybitConfig>,
+    adapterId: string,
+    wsFactory?: IWebSocketFactory,
+  ) {
     this.config = config
     this.adapterId = adapterId
+    this.wsFactory = wsFactory ?? new NativeWebSocketFactory()
   }
 
   get state(): WsState {
@@ -611,7 +626,7 @@ class BybitPrivateWsClient {
 
     return new Promise<void>((resolve, reject) => {
       const url = this.config.wsPrivateUrl
-      const ws = new WebSocket(url)
+      const ws = this.wsFactory.createWebSocket(url)
       this.ws = ws
 
       ws.onopen = async () => {
@@ -807,14 +822,15 @@ class BybitPrivateWsClient {
 
   private mapBybitFill(rec: Record<string, unknown>): BrokerFill {
     return {
+      id: String(rec.execId ?? ''),
       orderId: String(rec.orderId ?? ''),
-      fillId: String(rec.execId ?? ''),
+      brokerOrderId: String(rec.orderId ?? ''),
       symbol: String(rec.symbol ?? ''),
       side: String(rec.side ?? '').toLowerCase() as 'buy' | 'sell',
-      price: parseFloat(String(rec.execPrice ?? '0')),
       quantity: parseFloat(String(rec.execQty ?? '0')),
-      fee: parseFloat(String(rec.execFee ?? '0')),
-      feeAsset: String(rec.feeCurrency ?? ''),
+      price: parseFloat(String(rec.execPrice ?? '0')),
+      commission: parseFloat(String(rec.execFee ?? '0')),
+      commissionAsset: String(rec.feeCurrency ?? '') || undefined,
       timestamp: parseInt(String(rec.execTime ?? '0'), 10),
     }
   }
@@ -897,7 +913,7 @@ class BybitConnectionAdapter implements ConnectionAdapter {
     // Verify connectivity: fetch server time
     try {
       const timeUrl = `${config.restBaseUrl}/v5/market/time`
-      const result = await publicRequest<{ timeSecond: string }>('GET', timeUrl)
+      const result = await publicRequest<{ timeSecond: string }>('GET', timeUrl, this.state)
       const serverTime = parseInt(result.timeSecond, 10)
       if (!isNaN(serverTime)) {
         this.state.clock.sync(serverTime * 1000) // ms
@@ -915,7 +931,7 @@ class BybitConnectionAdapter implements ConnectionAdapter {
     }
 
     // Connect private WS
-    this.state.privateWs = new BybitPrivateWsClient(config, 'bybit')
+    this.state.privateWs = new BybitPrivateWsClient(config, 'bybit', this.state.wsFactory)
     const ws = this.state.privateWs
 
     ws.onOrder = (order) => {
@@ -956,7 +972,7 @@ class BybitConnectionAdapter implements ConnectionAdapter {
 
   async getServerTime(): Promise<number> {
     const timeUrl = `${this.state.config.restBaseUrl}/v5/market/time`
-    const result = await publicRequest<{ timeSecond: string }>('GET', timeUrl)
+    const result = await publicRequest<{ timeSecond: string }>('GET', timeUrl, this.state)
     return parseInt(result.timeSecond, 10) * 1000
   }
 }
@@ -1033,7 +1049,7 @@ class BybitOrderAdapter implements OrderAdapter {
         )
 
         // Fetch the full order to return complete state
-        return this.getOrder(result.orderId, params.symbol)
+        return this.getOrder(result.orderId, params.symbol) ?? (() => { throw new Error(`Order ${result.orderId} not found after placement`) })()
       } catch (err) {
         lastError = err as Error
 
@@ -1114,7 +1130,7 @@ class BybitOrderAdapter implements OrderAdapter {
     let count = 0
     for (const order of openOrders) {
       try {
-        await this.cancelOrder(order.id, order.symbol)
+        await this.cancelOrder(order.brokerOrderId, order.symbol)
         count++
       } catch {
         // Skip failed cancellations
@@ -1146,7 +1162,7 @@ class BybitOrderAdapter implements OrderAdapter {
       body as unknown as Record<string, string | number | boolean | undefined>,
     )
 
-    return this.getOrder(result.orderId, params.symbol ?? '')
+    return this.getOrder(result.orderId, params.symbol ?? '') ?? (() => { throw new Error(`Amend order ${result.orderId} not found`) })()
   }
 
   async replaceOrder(
@@ -1266,7 +1282,7 @@ class BybitPositionAdapter implements PositionAdapter {
   async getPosition(symbol: string): Promise<BrokerPosition | null> {
     const positions = await this.getPositions(symbol)
     // For linear USDT perpetual, there's one position per symbol
-    return positions.find((p) => p.size > 0) ?? null
+    return positions.find((p) => p.quantity > 0) ?? null
   }
 
   subscribePositions(handler: (pos: BrokerPosition) => void): () => void {
@@ -1347,19 +1363,27 @@ export class BybitBrokerAdapter implements BrokerAdapter {
 
   // Market data — reuse existing BybitFeedAdapter instead
 
-  constructor() {
-    this.state = this.createInitialState()
+  constructor(
+    fetchFn?: typeof globalThis.fetch,
+    wsFactory?: IWebSocketFactory,
+  ) {
+    this.state = this.createInitialState(fetchFn, wsFactory)
     this.connection = new BybitConnectionAdapter(this.state)
     this.orders = new BybitOrderAdapter(this.state)
     this.positions = new BybitPositionAdapter(this.state)
     this.account = new BybitAccountAdapter(this.state)
   }
 
-  private createInitialState(): BybitState {
+  private createInitialState(
+    fetchFn?: typeof globalThis.fetch,
+    wsFactory?: IWebSocketFactory,
+  ): BybitState {
     return {
       connected: false,
       config: { ...DEFAULTS, apiKey: '', apiSecret: '' },
       clock: new BrokerClock(),
+      fetchFn: fetchFn ?? fetch,
+      wsFactory: wsFactory ?? new NativeWebSocketFactory(),
       lastServerTimeSync: 0,
       privateWs: null,
       orderHandlers: [],
