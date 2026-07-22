@@ -123,13 +123,36 @@ export class FailureInjector {
 
   /**
    * Find all rules matching the given context.
+   * Supports hierarchical scope matching:
+   * - GLOBAL matches everything
+   * - PRIVATE_WS (umbrella) matches any private_ws.* sub-scope
+   * - Specific scopes (PRIVATE_WS_EXECUTION, REST, etc.) match exact only
    */
   matchingRules(context: InjectionContext): InjectionRule[] {
     return this.rules.filter(r => {
       if (!r.matches(context)) return false
-      if (r.scope === FailureInjectionScope.GLOBAL) return true
-      return r.scope === context.scope
+      return this.scopeMatches(r.scope, context.scope)
     })
+  }
+
+  /**
+   * Check whether a rule scope matches a context scope hierarchically.
+   */
+  private scopeMatches(
+    ruleScope: FailureInjectionScope,
+    contextScope: FailureInjectionScope,
+  ): boolean {
+    // GLOBAL matches everything
+    if (ruleScope === FailureInjectionScope.GLOBAL) return true
+    // Exact match
+    if (ruleScope === contextScope) return true
+    // Umbrella: PRIVATE_WS matches any private_ws.* sub-scope
+    if (
+      ruleScope === FailureInjectionScope.PRIVATE_WS &&
+      typeof contextScope === 'string' &&
+      contextScope.startsWith('private_ws.')
+    ) return true
+    return false
   }
 
   /**

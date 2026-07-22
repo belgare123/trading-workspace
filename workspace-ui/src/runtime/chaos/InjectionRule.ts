@@ -18,8 +18,23 @@ export enum FailureInjectionScope {
   REST = 'rest',
   /** Public WebSocket (market data feed) */
   PUBLIC_WS = 'public_ws',
-  /** Private WebSocket (orders, positions, account) */
+  /** Private WebSocket (umbrella — matches any private WS sub-scope) */
   PRIVATE_WS = 'private_ws',
+
+  // ── Private WS semantic categories (6.6.4) ──
+  /** Order execution reports (ACK, cancel/replace confirm) */
+  PRIVATE_WS_EXECUTION = 'private_ws.execution',
+  /** Order updates and status changes */
+  PRIVATE_WS_ORDER = 'private_ws.order',
+  /** Fill events (trades) — idempotency critical */
+  PRIVATE_WS_FILL = 'private_ws.fill',
+  /** Position updates */
+  PRIVATE_WS_POSITION = 'private_ws.position',
+  /** Wallet / balance updates */
+  PRIVATE_WS_WALLET = 'private_ws.wallet',
+  /** Account-level events */
+  PRIVATE_WS_ACCOUNT = 'private_ws.account',
+
   /** Order placement / cancellation */
   ORDERS = 'orders',
   /** Position queries */
