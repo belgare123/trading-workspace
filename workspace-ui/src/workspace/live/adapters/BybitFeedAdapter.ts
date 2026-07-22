@@ -26,6 +26,8 @@ import type {
   OrderBookEvent,
   KlineInterval,
 } from '../types'
+import type { IWebSocketFactory } from '../../../runtime/chaos/WebSocketFactory'
+import { NativeWebSocketFactory } from '../../../runtime/chaos/WebSocketFactory'
 
 interface BybitWsMessage {
   topic: string
@@ -59,12 +61,14 @@ export class BybitFeedAdapter implements FeedAdapter {
   private connectReject: ((err: Error) => void) | null = null
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
   private manualDisconnect = false
+  private wsFactory: IWebSocketFactory
 
   get isConnected(): boolean {
     return this._state === 'open'
   }
 
-  constructor(baseUrl?: string) {
+  constructor(factory?: IWebSocketFactory, baseUrl?: string) {
+    this.wsFactory = factory ?? new NativeWebSocketFactory()
     this.baseUrl = baseUrl ?? BYBIT_WS_URL
   }
 
@@ -135,8 +139,8 @@ export class BybitFeedAdapter implements FeedAdapter {
 
     this._state = 'connecting'
 
-    const ws = new WebSocket(this.baseUrl)
-    this.ws = ws
+    const ws = this.wsFactory.createWebSocket(this.baseUrl)
+    this.ws = ws as unknown as WebSocket
 
     ws.onopen = () => {
       if (ws !== this.ws) return // stale connection
@@ -331,7 +335,7 @@ export class BybitFeedAdapter implements FeedAdapter {
 
   private emitTicker(data: Record<string, unknown>, timestamp: number): void {
     const event: TickerEvent = {
-      symbol: (data.symbol as string).replace('USDT', '/USDT'),
+      symbol: data.symbol as string,
       price: parseFloat((data.lastPrice as string) ?? '0'),
       change24h: parseFloat((data.price24hPcnt as string) ?? '0'),
       volume24h: parseFloat((data.volume24h as string) ?? '0'),
@@ -350,7 +354,7 @@ export class BybitFeedAdapter implements FeedAdapter {
     if (trades.length > 0) {
       const t = trades[trades.length - 1]
       const event: TradeEvent = {
-        symbol: (t.symbol as string).replace('USDT', '/USDT'),
+        symbol: t.symbol as string,
         tradeId: String(t.id ?? ''),
         price: parseFloat((t.price as string) ?? '0'),
         quantity: parseFloat((t.size as string) ?? '0'),
@@ -363,7 +367,7 @@ export class BybitFeedAdapter implements FeedAdapter {
 
   private emitKline(data: Record<string, unknown>, timestamp: number): void {
     const event: KlineEvent = {
-      symbol: (data.symbol as string).replace('USDT', '/USDT'),
+      symbol: data.symbol as string,
       interval: '1m' as KlineInterval,
       open: parseFloat((data.open as string) ?? '0'),
       high: parseFloat((data.high as string) ?? '0'),
@@ -371,7 +375,7 @@ export class BybitFeedAdapter implements FeedAdapter {
       close: parseFloat((data.close as string) ?? '0'),
       volume: parseFloat((data.volume as string) ?? '0'),
       timestamp: (data.timestamp as number) ?? timestamp,
-      closed: (data.confirm as boolean) ?? false,
+      closed: data.confirm === 'true',
     }
     this.emit({ type: 'market:kline', data: event })
   }
@@ -386,7 +390,7 @@ export class BybitFeedAdapter implements FeedAdapter {
     }
 
     const event: OrderBookEvent = {
-      symbol: (data.symbol as string).replace('USDT', '/USDT'),
+      symbol: data.symbol as string,
       bids: convert(data.b),
       asks: convert(data.a),
       firstUpdateId: (data.u as number) ?? 0,
