@@ -71,6 +71,10 @@ export type { RandomSource } from './RandomSource'
 // Wrappers
 export { wrapFetch } from './WrappedFetch'
 export { WrappedWebSocket } from './WrappedWebSocket'
+export type { CategoryClassifier } from './WrappedWebSocket'
+
+// Private WS Classifier (6.6.4)
+export { createBybitCategoryClassifier } from './privateWsClassifier'
 
 // WebSocket Factory (6.6.3a)
 export { NativeWebSocketFactory, ChaosWebSocketFactory } from './WebSocketFactory'

@@ -31,12 +31,17 @@ type WsMessageListener = ((event: MessageEvent) => void) | null
 type WsErrorListener = ((event: Event) => void) | null
 type WsCloseListener = ((event: CloseEvent) => void) | null
 
+/** Classifies a parsed WS message into a FailureInjectionScope category */
+export type CategoryClassifier = (message: unknown) => FailureInjectionScope
+
 /** WebSocket-like API but with chaos injection support */
 export class WrappedWebSocket {
   private injector: FailureInjector
   private _url: string
   private protocols?: string | string[]
   private traceObserver: IFailureObserver | null
+  private categoryClassifier?: CategoryClassifier
+  private baseScope: FailureInjectionScope
 
   private rawSocket: WebSocket | null = null
   private state: WsState = 'closed'
@@ -62,11 +67,30 @@ export class WrappedWebSocket {
     injector: FailureInjector,
     traceObserver?: IFailureObserver,
     protocols?: string | string[],
+    /**
+     * Optional category classifier for per-message scope resolution.
+     * When set, each incoming message is parsed and the classifier maps
+     * it to a specific FailureInjectionScope (e.g. PRIVATE_WS_ORDER,
+     * PRIVATE_WS_EXECUTION). When absent, the URL-based heuristic
+     * or baseScope is used for all messages.
+     */
+    categoryClassifier?: CategoryClassifier,
+    /**
+     * Base scope to use when the classifier is absent or returns undefined.
+     * Auto-detected from URL when omitted: private → PRIVATE_WS, else PUBLIC_WS.
+     */
+    baseScope?: FailureInjectionScope,
   ) {
     this._url = url
     this.injector = injector
     this.traceObserver = traceObserver ?? null
     this.protocols = protocols
+    this.categoryClassifier = categoryClassifier
+    this.baseScope = baseScope ?? (
+      url.includes('private')
+        ? FailureInjectionScope.PRIVATE_WS
+        : FailureInjectionScope.PUBLIC_WS
+    )
   }
 
   // ── Standard WebSocket API ──
@@ -107,11 +131,8 @@ export class WrappedWebSocket {
   async connect(): Promise<void> {
     if (this.state === 'open' || this.state === 'connecting') return
 
-    const scope = this.url.includes('private') ? FailureInjectionScope.PRIVATE_WS
-      : FailureInjectionScope.PUBLIC_WS
-
     const context = {
-      scope,
+      scope: this.baseScope,
       url: this.url,
       timestamp: Date.now(),
     }
@@ -143,11 +164,8 @@ export class WrappedWebSocket {
 
   send(data: string | ArrayBuffer | Blob | ArrayBufferView): void {
     if (this.rawSocket && this.state === 'open') {
-      const scope = this.url.includes('private') ? FailureInjectionScope.PRIVATE_WS
-        : FailureInjectionScope.PUBLIC_WS
-
       const context = {
-        scope,
+        scope: this.baseScope,
         url: this.url,
         timestamp: Date.now(),
       }
@@ -211,8 +229,10 @@ export class WrappedWebSocket {
       }
 
       ws.onmessage = (event: MessageEvent) => {
+        const msgScope = this.resolveMessageScope(event.data)
         const action = this.injector.evaluateSync({
           ...context,
+          scope: msgScope,
           timestamp: Date.now(),
         })
 
@@ -279,6 +299,24 @@ export class WrappedWebSocket {
   private fireError(error: Error): void {
     if (this.onerror) {
       this.onerror(new Event('error'))
+    }
+  }
+
+  /**
+   * Resolve the FailureInjectionScope for an incoming message.
+   * When a categoryClassifier is set, parse the message and classify it.
+   * Falls back to baseScope on parse failure or when no classifier.
+   */
+  private resolveMessageScope(data: unknown): FailureInjectionScope {
+    if (!this.categoryClassifier) return this.baseScope
+
+    try {
+      const parsed = typeof data === 'string'
+        ? JSON.parse(data)
+        : data
+      return this.categoryClassifier(parsed)
+    } catch {
+      return this.baseScope
     }
   }
 
