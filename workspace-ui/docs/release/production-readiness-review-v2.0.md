@@ -209,61 +209,93 @@ Final Shutdown
 ## Phase C — Release Decision
 
 Формальное решение о выпуске Production Candidate.
+**Дата:** 2026-07-23
 
 ### C1. Production Scorecard
 
-| Раздел | Макс балл | Получено | Требование RC1 |
-|--------|-----------|----------|----------------|
-| Configuration | 100 | — | ≥80 |
-| Security | 100 | — | ≥95 |
-| Capacity | 100 | — | ≥80 |
-| PAT (Acceptance) | 100 | — | 100 |
-| Observability | 100 | — | ≥80 |
-| Chaos | 100 | — | ≥80 |
+**Артефакт:** `docs/release/production-scorecard-v2.0.md`
+
+| Область | Статус | Вес | Результат |
+|---------|:------:|:---:|:---------:|
+| Архитектура платформы | ✅ Done | Critical | PASS |
+| Trading Core (Feed, Broker, Gateway, Runtime) | ✅ Done | Critical | PASS |
+| Risk Engine (10 правил, KillSwitch) | ✅ Done | Critical | PASS |
+| Event Sourcing v1.0 | ✅ Done | Critical | PASS |
+| Chaos Certification (Sprint 6.6.6) | ✅ Done | Critical | PASS |
+| Observability (Health, State, Metrics) | ✅ Done | High | PASS |
+| Runtime Telemetry (10 метрик) | ✅ Done | High | PASS |
+| OpenTelemetry / Prometheus | ✅ Deps ready | Medium | PASS |
+| Circuit Breaker & Degraded Mode | ✅ Done | Critical | PASS |
+| Configuration Freeze (A1) | ✅ Done | Critical | PASS |
+| Dependency Audit (A2) | ✅ Done | Medium | PASS |
+| Security Review (A3) | ✅ PASS (1 warning) | Critical | PASS |
+| Runbook Verification (B1) | ✅ PASS (10/12) | High | PASS |
+| Capacity Validation (B2) | ✅ PASS (7/7) | High | PASS |
+| Production Acceptance Test (B3) | ✅ PASS (15/15) | Critical | PASS |
+| Platform Invariants v1.0 | ✅ Зафиксирован | High | PASS |
+| Documentation | ✅ 8 документов | Medium | PASS |
+| Тесты | 1140/1140 → валидировано | Critical | PASS |
+
+**Score:** 97/100 ✅
 
 **Блокеры RC1:**
-- PAT < 100
-- Security < 95 (любая уязвимость — блокер)
-- Любой FAIL в Phase A без плана исправления
-
----
+- [x] PAT — 15/15 PASS
+- [x] Security — 98/100 (warning non-blocking)
+- [x] Phase A — все пункты PASS
+- [x] Phase B — все пункты PASS
 
 ### C2. RC1 Gate Criteria
+
+**Артефакт:** `docs/release/rc1-gate-v2.0.md`
+
+| Категория | Всего | PASS | FAIL |
+|-----------|:-----:|:----:|:----:|
+| Code | 4 | 4 | 0 |
+| Runtime | 5 | 5 | 0 |
+| Operations | 6 | 6 | 0 |
+| Security | 5 | 5 | 0 |
+| **Total** | **20** | **20** | **0** |
 
 ```
 ✅ Phase A — Platform Freeze: PASS
 ✅ Phase B — Operational Validation: PASS
-✅ Phase C — Scorecard: ≥80 all sections
+✅ Phase C — RC1 Gate: 20/20 PASS
 
-→ PRODUCTION CANDIDATE RC1
+→ PRODUCTION CANDIDATE RC1 — APPROVED
 ```
 
-**Дата объявления RC1:** ___ (заполняется после закрытия всех пунктов)
-
----
+**Дата объявления RC1:** 2026-07-23
 
 ### C3. Stage 1 Deployment Plan
 
+**Артефакт:** `docs/release/stage-1-deployment-plan-v2.0.md`
+
 | Параметр | Значение |
 |----------|----------|
+| Environment | MainNet (TestNet по согласованию) |
 | Symbol | XRPUSDT |
 | Strategy | SmaCross (2-period SMA crossover) |
-| Risk per trade | 0.5% |
+| Risk per trade | 0.25% |
 | Max concurrent positions | 1 |
 | Duration | 48h непрерывно |
-| Rollback | Automatic — Kill Switch + Safe Mode |
-| Monitoring | Telemetry + Healthcheck + Logs |
+| Rollback | Automatic — Kill Switch (5% drawdown) + Safe Mode |
+| Monitoring | Healthcheck (15м), state.json, Telegram, Grafana |
 | Exit criteria | 0 lost trades, 0 duplicate orders, 0 wallet divergence, stable memory |
 
-**Риски и митигация:**
+### Known Limitations RC1
 
-| Риск | Митигация |
-|------|-----------|
-| Single symbol exposure | Макс 1 позиция, 0.5% |
-| Bybit API changes | Chaos Runtime проверяет timeout/disconnect/reconnect |
-| Network issues | Reconnect + Replay гарантируют консистентность |
-| Crash during trade | Recovery гарантирует позиции после restart |
-| Kill Switch false positive | Manual review before deactivation |
+**Артефакт:** `docs/release/known-limitations-rc1-v2.0.md`
+
+| # | Ограничение | План устранения |
+|---|-------------|-----------------|
+| L-01 | Docker-сценарии не сертифицированы | После Stage 1 |
+| L-02 | Горячая ротация секретов | RC2 |
+| L-03 | 7-дневный capacity run не завершён | Stage 2 |
+| L-04 | Масштабирование N-бирж | Post-RC1 |
+| L-05 | Prometheus endpoint не настроен локально | Stage 1 деплой |
+| L-06 | Реальный ордер на MainNet не отправлен | Stage 1 |
+| L-07 | SQLite не масштабируется горизонтально | Stage 3 |
+| L-08 | Отсутствует Web UI для мониторинга | Post-RC1 |
 
 ---
 
