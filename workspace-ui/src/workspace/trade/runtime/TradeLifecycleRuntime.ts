@@ -114,7 +114,11 @@ export class TradeLifecycleRuntime {
         }
         break
       case 'OrderFilled':
-        this.handleFilled(trade)
+        if (event.fill) {
+          this.handleFilled(trade, event.fill)
+        } else {
+          this.handleFilled(trade)
+        }
         break
       case 'OrderCancelled':
         this.handleCancelled(trade)
@@ -245,7 +249,7 @@ export class TradeLifecycleRuntime {
     }
   }
 
-  private handleFilled(trade: Trade): void {
+  private handleFilled(trade: Trade, fill?: Fill): void {
     if (this.isEntryPhase(trade)) {
       this.entryController.onFilled(trade)
       if (trade.status === TradeStatus.Managing) {
@@ -253,14 +257,20 @@ export class TradeLifecycleRuntime {
         this.eventBus.emit(createTradeLifecycleEvent(trade, TradeEventType.TradeModified))
       }
     } else if (this.isExitPhase(trade)) {
-      // If trade still has open quantity after partial fills, force close remaining
-      if (trade.openQuantity > 0 && !trade.isTerminal) {
-        // This should not happen in normal flow — filled means order fully filled
-        // If it does, add synthetic fill for remaining quantity
-        trade.reject('unexpected filled before all exit quantity filled')
-        this.eventBus.emit(createTradeLifecycleEvent(trade, TradeEventType.TradeErrored))
-      } else if (trade.isTerminal) {
-        this.eventBus.emit(createTradeLifecycleEvent(trade, TradeEventType.TradeClosed))
+      if (fill) {
+        this.exitController.onPartialExitFill(trade, fill)
+        this.eventBus.emit(createTradeLifecycleEvent(trade, TradeEventType.TradeExitPartial))
+        if (trade.isTerminal) {
+          this.eventBus.emit(createTradeLifecycleEvent(trade, TradeEventType.TradeClosed))
+        }
+      } else {
+        // Fallback: no fill object — reject if still open
+        if (trade.openQuantity > 0 && !trade.isTerminal) {
+          trade.reject('unexpected filled before all exit quantity filled')
+          this.eventBus.emit(createTradeLifecycleEvent(trade, TradeEventType.TradeErrored))
+        } else if (trade.isTerminal) {
+          this.eventBus.emit(createTradeLifecycleEvent(trade, TradeEventType.TradeClosed))
+        }
       }
     }
   }

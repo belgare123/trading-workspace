@@ -272,6 +272,13 @@ describe('PaperBrokerAdapter', () => {
   // ── Connect / Disconnect ──
 
   it('connect() starts feed, subscribes symbols, connects paper, seeds assets', async () => {
+    // When seedBaseAssets is enabled, connect() should call addBalance for each symbol
+    adapter = new PaperBrokerAdapter(mockFeedRuntime as any, {
+      initialBalance: 10_000,
+      symbols: ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'],
+      seedBaseAssets: true,
+    })
+    ;(adapter as any).paper = mockPaper
     await adapter.connection.connect()
     expect(mockFeedRuntime.start).toHaveBeenCalled()
     expect(mockFeedRuntime.subscribe).toHaveBeenCalledTimes(3)

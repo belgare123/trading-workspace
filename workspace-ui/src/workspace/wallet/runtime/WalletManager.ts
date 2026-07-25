@@ -10,7 +10,7 @@ import type {
 } from '../types'
 import type { Trade } from '../../trade/Trade'
 
-export { IWalletManager } from '../types'
+export type { IWalletManager } from '../types'
 
 /**
  * WalletManager — владелец капитала.

@@ -46,6 +46,15 @@ export interface PaperBrokerConfig {
   slippageValue?: number
   /** Symbols to subscribe to from the feed */
   symbols?: string[]
+  /**
+   * Seed base asset balances for sell orders (default: false).
+   * When true, each configured symbol gets a starting balance equal to
+   * initialBalance / symbolCount / price, allowing sells without a prior buy.
+   * Use ONLY for specialized tests (reduceOnly, commission, stress).
+   * For Paper Campaign / Certification / Nightly Regression leave false
+   * so the ledger starts clean (USDT only) matching real exchange behavior.
+   */
+  seedBaseAssets?: boolean
 }
 
 export class PaperBrokerAdapter implements BrokerAdapter {
@@ -85,6 +94,7 @@ export class PaperBrokerAdapter implements BrokerAdapter {
       commissionRate: 0.001,
       slippageValue: 0,
       symbols: ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'],
+      seedBaseAssets: false,
       ...config,
     }
 
@@ -302,8 +312,10 @@ class PaperConnectionAdapter implements ConnectionAdapter {
       symbols: this.owner.config.symbols,
     })
 
-    // Seed base asset balances for sell orders
-    this.owner.seedBaseAssets()
+    // Seed base asset balances for sell orders (opt-in, default off — see #seedBaseAssets)
+    if (this.owner.config.seedBaseAssets) {
+      this.owner.seedBaseAssets()
+    }
 
     this.owner.connected = true
   }
