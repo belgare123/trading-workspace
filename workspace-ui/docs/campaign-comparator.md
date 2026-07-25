@@ -54,6 +54,8 @@ Comparator не просто выводит два набора чисел — �
 - Возможность сравнить кампании разной длительности (нормализация per-trade)
 - Простота: два JSON-файла → один diff
 
+**Источник данных:** `tradeStats` из `CampaignSnapshotData.trading.tradeStats` (M2-01). Все метрики (win rate, profit factor, expectancy и т.д.) приходят готовыми — Comparator не пересчитывает их.
+
 ---
 
 ## 3. Diff-формат
