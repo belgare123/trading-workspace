@@ -314,10 +314,15 @@ export class PaperProvider implements ExecutionGateway {
 
     for (const fill of result.fills) {
       this.cashLedger.applyFill(fill)
-      this.tradeLedger.record(fill, order, 0)
+
+      // Calculate realized PnL: diff in position's cumulative PnL before/after fill
+      const prevPos = this.positionRuntime.getPosition(fill.symbol)
+      const position = this.positionRuntime.applyFill(fill, order)
+      const realizedPnl = position.realizedPnl - (prevPos?.realizedPnl ?? 0)
+
+      this.tradeLedger.record(fill, order, realizedPnl)
 
       const updated = this.orderBook.update(order.id, (o) => fillOrder(o, fill.quantity, fill.price, fill.commission))
-      this.positionRuntime.applyFill(fill, order)
 
       const tradeRecord: TradeRecord = {
         id: fill.id,
@@ -326,7 +331,7 @@ export class PaperProvider implements ExecutionGateway {
         quantity: fill.quantity,
         price: fill.price,
         commission: fill.commission,
-        realizedPnl: 0,
+        realizedPnl,
         timestamp: fill.timestamp,
         strategyId: order.strategyId,
         orderId: order.id,

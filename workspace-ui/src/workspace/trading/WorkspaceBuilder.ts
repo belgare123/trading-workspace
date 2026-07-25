@@ -248,7 +248,7 @@ function createDefaultRuntimes(
   gateway.useRiskRuntime(risk)
 
   // ── StrategyRuntime ──
-  const strategy = new StrategyRuntime({} as unknown as ExecutionContext)
+  const strategy = new StrategyRuntime({ state: {} } as unknown as ExecutionContext)
   if (strategyDef) {
     // Register in the singleton registry so StrategyRuntime.add can resolve it
     StrategyRegistry.register(strategyDef)

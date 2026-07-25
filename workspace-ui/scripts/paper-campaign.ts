@@ -1,45 +1,382 @@
 #!/usr/bin/env node
-/* paper-campaign.ts — Paper Campaign bootstrap (Stage 1 WSL) */
-import { PaperBrokerAdapter } from '../src/workspace/live/brokers/PaperBrokerAdapter'
-import { PaperExecutionGateway } from '../src/workspace/live/gateway/PaperExecutionGateway'
-import { BUILTIN_RISK_RULES } from '../src/workspace/risk/builtins'
-import { WorkspaceBuilder } from '../src/workspace/trading'
-import { PaperCampaign } from '../src/workspace/campaign/PaperCampaign'
-import { CampaignMode } from '../src/workspace/campaign/types'
-import { CampaignReporter } from '../src/workspace/campaign/CampaignReporter'
+/**
+ * paper-campaign.ts — Phase 2 Paper Campaign (Operational Validation)
+ *
+ * Flow:
+ *   Bybit WebSocket → LiveFeedRuntime → StrategyRuntime.tick()
+ *     → signal event → PaperBrokerAdapter.placeOrder()
+ *     → PaperProvider → TradeJournal / CashLedger
+ *
+ * Architecture:
+ *   - We create the LiveFeedRuntime with BybitFeedAdapter EXTERNALLY
+ *   - Pass broker + gateway to WorkspaceBuilder (which creates its own feed)
+ *   - The campaign uses ws.feed (no adapter, just for lifecycle)
+ *   - Our external feed sends data; broker/gateway share it via PaperBrokerAdapter
+ *   - Bypasses broken orderManager.on() via direct PaperBrokerAdapter.placeOrder()
+ *
+ * @since Phase 2 — RC1
+ */
+
+/* eslint-disable @typescript-eslint/no-unused-vars, @typescript-eslint/no-explicit-any */
+
 import { LiveFeedRuntime } from '../src/workspace/live/feed/LiveFeedRuntime'
 import { BybitFeedAdapter } from '../src/workspace/live/adapters/BybitFeedAdapter'
+import { PaperBrokerAdapter } from '../src/workspace/live/brokers/PaperBrokerAdapter'
+import { PaperExecutionGateway } from '../src/workspace/live/gateway/PaperExecutionGateway'
+import { WorkspaceBuilder } from '../src/workspace/trading/WorkspaceBuilder'
+import { StrategyRegistry } from '../src/workspace/strategy/registry/StrategyRegistry'
+import { SmaCross } from '../src/workspace/strategy/definitions/SmaCross'
+import type { StrategySignal, StrategyInstanceData } from '../src/workspace/strategy/types'
+import type { StrategyBar } from '../src/workspace/strategy/definition'
+import type { MarketEvent } from '../src/workspace/live/feed/MarketEventBus'
+import { PaperCampaign, type PaperCampaignConfig } from '../src/workspace/campaign/PaperCampaign'
+import { CampaignMode } from '../src/workspace/campaign/types'
 import { CertificationRuntime } from '../src/workspace/certification/CertificationRuntime'
+import type { BrokerOrder } from '../src/workspace/live/brokers/BrokerAdapter'
 
-const mode = (process.env.MODE ?? 'full') as 'burn-in' | 'full'
-const symbols = (process.env.SYMBOLS ?? 'XRPUSDT').split(',').map(s => s.trim())
+// ════════════════════════════════════════
+// Configuration
+// ════════════════════════════════════════
+
+const SYMBOLS = ['BTCUSDT' as const]
+const SYMBOL = SYMBOLS[0]
+const TIMEFRAME = '1m'   // matches BybitFeedAdapter's kline.1. subscription
+const INITIAL_BALANCE = 10_000
+const FAST_PERIOD = 5     // fast SMA bars
+const SLOW_PERIOD = 15    // slow SMA bars (first signal after ~15 min)
+
+const CAMPAIGN_MODE = process.env.CAMPAIGN_MODE as CampaignMode | undefined
+const SMOKE_MODE = process.env.SMOKE_MODE === 'true'
+
+console.log('╔══════════════════════════════════════════════════════╗')
+console.log('║   Paper Campaign — Phase 2 Operational Validation   ║')
+console.log('╚══════════════════════════════════════════════════════╝')
+console.log()
+console.log(`Symbol:      ${SYMBOL}`)
+console.log(`Timeframe:   ${TIMEFRAME}`)
+console.log(`SmaCross:    ${FAST_PERIOD}/${SLOW_PERIOD}`)
+console.log(`Initial:     ${INITIAL_BALANCE} USDT`)
+console.log(`Mode:        ${SMOKE_MODE ? 'SMOKE (2h)' : CAMPAIGN_MODE ?? 'FULL'} `)
+console.log()
+
+// ════════════════════════════════════════
+// 1. Create Feed + Adapter (External)
+// ════════════════════════════════════════
+
 const feed = new LiveFeedRuntime()
-for (const s of symbols) { feed.useAdapter(new BybitFeedAdapter()); await feed.subscribe(s) }
+const bybitAdapter = new BybitFeedAdapter()
+await feed.useAdapter(bybitAdapter)
+console.log('[feed] BybitFeedAdapter connected')
 
-const broker = new PaperBrokerAdapter(feed, { symbols, initialBalance: 10000, commissionRate: 0.001 })
+// ════════════════════════════════════════
+// 2. Create Broker + Gateway
+// ════════════════════════════════════════
+
+const broker = new PaperBrokerAdapter(feed, {
+  initialBalance: INITIAL_BALANCE,
+  commissionRate: 0.001,
+  slippageValue: 0,
+  symbols: [...SYMBOLS],
+  seedBaseAssets: true,  // seed BTC for sell orders
+})
 const gateway = new PaperExecutionGateway(broker)
+console.log('[broker] PaperBrokerAdapter ready')
+console.log('[gw]     PaperExecutionGateway ready')
+
+// ════════════════════════════════════════
+// 3. Build Workspace
+// ════════════════════════════════════════
 
 const ws = await new WorkspaceBuilder()
-  .withConfig({ name: 'stage1-paper', mode: 'paper' as any, symbols })
+  .withConfig({
+    symbols: [...SYMBOLS],
+    mode: 'paper' as any,
+    name: 'paper-campaign',
+  })
   .withGateway(gateway)
   .withBroker(broker)
-  .withRisk(BUILTIN_RISK_RULES)
+  // NOTE: No .withFeed() — BybitFeedAdapter is registered on our external feed
+  // No .withStrategy() — we register SmaCross manually after build
   .build()
-await ws.start()
 
-const c = new PaperCampaign({
-  mode: mode === 'burn-in' ? CampaignMode.BurnIn : CampaignMode.FullCampaign,
-  symbols,
-  onStageChange: s => console.log('\n[Campaign] Stage →', s),
-  onDailyReport: r => CampaignReporter.printDailyReport(r),
-  onBurnInComplete: r => CampaignReporter.printBurnInResult(r),
-  onFinalReport: r => CampaignReporter.printFinalReport(r),
+console.log('[ws] Workspace built')
+
+// ════════════════════════════════════════
+// 4. Subscribe to Market Data (on OUR feed)
+// ════════════════════════════════════════
+
+for (const s of SYMBOLS) {
+  await feed.subscribe(s)
+}
+console.log(`[feed] Subscribed to ${SYMBOLS.join(', ')}`)
+
+// ════════════════════════════════════════
+// 5. Connect Gateway + Start Workspace
+// ════════════════════════════════════════
+
+// ws.start() calls gatewayRuntime.use(executionGateway)
+// → PaperExecutionGateway.connect() → PaperConnectionAdapter.connect()
+//   → feedRuntime.start() (idempotent — our external feed)
+//   → feedRuntime.subscribe(symbol) (idempotent — already subscribed)
+//   → paper.connect({...}) (seeds PaperProvider, subscribes broker to feed bus)
+const recovery = await ws.start()
+console.log(`[ws] Started (recovery: ${recovery?.recovered ?? 0} trades)`)
+
+// ════════════════════════════════════════
+// 6. Register SmaCross Strategy
+// ════════════════════════════════════════
+
+const smaCross = new SmaCross()
+StrategyRegistry.register(smaCross)
+
+const strategyId = ws.strategy.add(
+  smaCross.id,
+  smaCross.name,
+  SYMBOL,
+  TIMEFRAME,
+  { fastPeriod: FAST_PERIOD, slowPeriod: SLOW_PERIOD },
+)
+ws.strategy.start(strategyId)
+console.log(`[strategy] SmaCross registered: ${smaCross.name} on ${SYMBOL} @ ${TIMEFRAME} (${FAST_PERIOD}/${SLOW_PERIOD})`)
+console.log(`[strategy] Instance ID: ${strategyId}`)
+
+// ════════════════════════════════════════
+// 7. Bridge: Market Data → Strategy
+// ════════════════════════════════════════
+
+let klineCount = 0
+let barCount = 0
+let signalCount = 0
+let orderCount = 0
+let lastSignal: StrategySignal | null = null
+
+feed.bus.on('market:kline', (event: MarketEvent) => {
+  if (event.type !== 'market:kline') return
+  if (event.data.symbol !== SYMBOL) return
+
+  klineCount++
+
+  const bar: StrategyBar = {
+    open: event.data.open,
+    high: event.data.high,
+    low: event.data.low,
+    close: event.data.close,
+    volume: event.data.volume,
+    timestamp: event.data.timestamp,
+  }
+
+  barCount++
+  const signal = ws.strategy.tick(strategyId, bar)
+  if (signal !== null) {
+    signalCount++
+    lastSignal = signal
+    console.log(`[strategy] 🎯 Signal #${signalCount}: ${signal.direction.toUpperCase()} price=${bar.close.toFixed(2)} ts=${new Date(event.data.timestamp).toISOString()}`)
+  }
 })
-c.setComponents({
+
+console.log('[bridge] market:kline → StrategyRuntime.tick() connected')
+
+// ════════════════════════════════════════
+// 8. Bridge: Strategy Signal → Paper Broker
+// ════════════════════════════════════════
+
+// We use ws.strategy.on('signal') which fires AFTER tick() emits the event
+ws.strategy.on('signal', ((signal: StrategySignal, inst: StrategyInstanceData) => {
+  if (signal.direction === 'buy') {
+    console.log(`[bridge] 📈 BUY signal: ${inst.symbol} price=${signal.price}`)
+    placeBuyOrder(inst.symbol, signal).catch(err => {
+      console.error(`[bridge] ❌ BUY failed: ${err instanceof Error ? err.message : String(err)}`)
+    })
+  } else if (signal.direction === 'sell' || signal.direction === 'close') {
+    console.log(`[bridge] 📉 CLOSE signal: ${inst.symbol}`)
+    placeCloseOrder(inst.symbol).catch(err => {
+      console.error(`[bridge] ❌ CLOSE failed: ${err instanceof Error ? err.message : String(err)}`)
+    })
+  }
+}) as any)
+
+console.log('[bridge] StrategyRuntime signal → PaperBroker ready')
+
+// ════════════════════════════════════════
+// 9. Order Execution
+// ════════════════════════════════════════
+
+async function getCurrentPrice(symbol: string): Promise<number> {
+  return 0
+}
+
+async function placeBuyOrder(symbol: string, signal: StrategySignal): Promise<void> {
+  const price = signal.price ?? (await getCurrentPrice(symbol))
+  if (price <= 0) {
+    console.error(`[bridge] Cannot place BUY — invalid price: ${price}`)
+    return
+  }
+
+  const quantity = Math.max(0.001, (INITIAL_BALANCE * 0.5) / price)
+
+  const result = await broker.orders.placeOrder({
+    symbol,
+    side: 'buy',
+    type: 'market',
+    quantity,
+    price,
+    timeInForce: 'gtc',
+    strategyId: strategyId,
+    clientOrderId: `buy_${Date.now()}`,
+  } as any)
+
+  if (result.brokerOrderId) {
+    orderCount++
+    console.log(`[bridge] ✅ BUY filled: ${result.filledQuantity} @ ${result.averagePrice?.toFixed(2) ?? 'market'} order=${result.brokerOrderId}`)
+  }
+}
+
+async function placeCloseOrder(symbol: string): Promise<void> {
+  // Look up current position from broker
+  let positionQty = 0
+  let currentPosition: any = null
+  try {
+    const positions = await broker.positions.getPositions()
+    currentPosition = positions.find((p: any) => p.symbol === symbol)
+    if (currentPosition) positionQty = Math.abs(currentPosition.quantity ?? 0)
+  } catch (err) {
+    throw new Error(`Cannot close ${symbol}: failed to fetch position — ${err instanceof Error ? err.message : String(err)}`)
+  }
+
+  if (!currentPosition || positionQty <= 0) {
+    throw new Error(`Cannot close ${symbol}: no open position found (already flat)`)
+  }
+
+  // Invariant: close quantity must match open position quantity
+  if (Math.abs(positionQty - currentPosition.quantity) > 1e-12) {
+    console.warn(
+      `[bridge] ⚠️ Close quantity mismatch: computed=${positionQty.toFixed(8)} position=${currentPosition.quantity.toFixed(8)}`
+    )
+  }
+
+  const result = await broker.orders.placeOrder({
+    symbol,
+    side: 'sell',
+    type: 'market',
+    quantity: positionQty,
+    price: 0,
+    timeInForce: 'gtc',
+    strategyId: strategyId,
+    clientOrderId: `close_${Date.now()}`,
+  } as any)
+
+  if (result.brokerOrderId) {
+    orderCount++
+    console.log(`[bridge] ✅ CLOSE filled: ${result.filledQuantity} @ ${result.averagePrice?.toFixed(2) ?? 'market'} order=${result.brokerOrderId}`)
+  }
+}
+
+// ════════════════════════════════════════
+// 10. PaperCampaign Orchestrator
+// ════════════════════════════════════════
+
+const campaignConfig: PaperCampaignConfig = {
+  symbols: [...SYMBOLS],
+  mode: CAMPAIGN_MODE ?? (SMOKE_MODE ? CampaignMode.BurnIn : CampaignMode.FullCampaign),
+  // Smoke mode: very short burn-in (10 min default for PaperCampaign is 24h, override here)
+  ...(SMOKE_MODE ? {
+    burnInDurationMs: 2 * 60 * 60 * 1000,   // 2 hours
+    campaignDurationMs: 2 * 60 * 60 * 1000,  // 2 hours total (skip full campaign)
+  } : {}),
+  // Callbacks
+  onStageChange: (stage) => {
+    console.log(`[campaign] Stage → ${stage}`)
+  },
+  onIncident: (incident) => {
+    console.log(`[campaign] ⚠️ Incident: [${incident.severity}] ${incident.message}`)
+  },
+}
+
+const campaign = new PaperCampaign(campaignConfig)
+campaign.setComponents({
   gateway: ws.gateway,
-  feedRuntime: feed,
-  broker: ws.broker!,
+  feedRuntime: ws.feed,
+  broker,
   certRuntime: new CertificationRuntime(),
 })
-for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => c.requestStop())
-await c.start()
+
+// ════════════════════════════════════════
+// 11. TradeJournal Monitor
+// ════════════════════════════════════════
+
+function logTradeStats(): void {
+  try {
+    const tradeLedger = (broker.paper as any).tradeLedger
+    const trades = tradeLedger?.all() ?? []
+    let totalPnl = 0
+    let totalFees = 0
+    for (const t of trades) {
+      if (typeof t.realizedPnl === 'number') totalPnl += t.realizedPnl
+      if (typeof t.commission === 'number') totalFees += t.commission
+    }
+
+    const cashLedger = (broker.paper as any).cashLedger
+    const balance = cashLedger?.free?.('USDT') ?? 0
+
+    const equityLedger = (broker.paper as any).equityLedger
+    const latest = equityLedger?.latest?.()
+    const equity = latest?.totalEquity ?? 0
+
+    const journal = (broker.paper as any).journal
+    const entries = journal?.getAll() ?? []
+
+    console.log()
+    console.log('┌─── Trade Stats ────────────────────────────────┐')
+    console.log(`│ USDT free:       ${String(balance.toFixed(2)).padStart(12)}  │`)
+    console.log(`│ Equity:          ${String(equity.toFixed(2)).padStart(12)}  │`)
+    console.log(`│ Realised PnL:    ${String(totalPnl.toFixed(2)).padStart(12)}  │`)
+    console.log(`│ Total Fees:      ${String(totalFees.toFixed(2)).padStart(12)}  │`)
+    console.log(`│ Journal entries: ${String(entries.length).padStart(8)}  │`)
+    console.log(`│ Trades recorded: ${String(trades.length).padStart(8)}  │`)
+    console.log(`│ Klines recv:     ${String(klineCount).padStart(8)}  │`)
+    console.log(`│ Bars processed:  ${String(barCount).padStart(8)}  │`)
+    console.log(`│ Signals:         ${String(signalCount).padStart(8)}  │`)
+    console.log(`│ Orders executed: ${String(orderCount).padStart(8)}  │`)
+    console.log('└────────────────────────────────────────────────┘')
+    console.log()
+  } catch (err) {
+    console.error('[stats] TradeJournal stats error:', err)
+  }
+}
+
+// Log stats every 5 minutes in the background
+const statsInterval = setInterval(logTradeStats, 5 * 60 * 1000)
+
+// ════════════════════════════════════════
+// 12. Start Campaign
+// ════════════════════════════════════════
+
+console.log()
+console.log('════════════════════════════════════════════════════════')
+console.log('   Starting Campaign...')
+console.log('════════════════════════════════════════════════════════')
+console.log()
+
+// Wait for enough klines before signal (slow period = 15 min)
+console.log(`[init] Awaiting first signal — slow period ${SLOW_PERIOD} bars ≈ ${SLOW_PERIOD} min`)
+console.log(`[init] Use SMOKE_MODE=true for 2h test, or CAMPAIGN_MODE=FullCampaign for 7d`)
+console.log()
+
+// Handle graceful shutdown
+process.on('SIGINT', () => {
+  console.log('\n[shutdown] Received SIGINT — stopping campaign...')
+  campaign.requestStop()
+  clearInterval(statsInterval)
+})
+process.on('SIGTERM', () => {
+  console.log('\n[shutdown] Received SIGTERM — stopping campaign...')
+  campaign.requestStop()
+  clearInterval(statsInterval)
+})
+
+try {
+  await campaign.start()
+} catch (err) {
+  console.error('[campaign] Fatal error:', err)
+  process.exit(1)
+}

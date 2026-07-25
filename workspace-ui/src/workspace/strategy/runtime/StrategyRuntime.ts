@@ -137,6 +137,9 @@ export class StrategyRuntime {
     const def = StrategyRegistry.get(inst.definitionId)
     if (!def) return null
 
+    // Load instance state into context before strategy handler
+    this._ctx.state = inst.state
+
     const signal = def.onBar(
       {
         bar,
@@ -146,9 +149,11 @@ export class StrategyRuntime {
       this._ctx,
     )
 
+    // Persist any state mutations made by the strategy back to the instance
+    inst.state = this._ctx.state
+
     if (signal) {
       inst.signals.push(signal)
-      inst.state = this._ctx.state
       inst.updatedAt = Date.now()
       this._emit('signal', signal, inst)
     }

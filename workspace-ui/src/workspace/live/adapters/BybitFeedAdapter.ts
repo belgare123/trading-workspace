@@ -245,7 +245,7 @@ export class BybitFeedAdapter implements FeedAdapter {
       if (types.has('ticker')) topics.push(`tickers.${symbol}`)
       if (types.has('trade')) topics.push(`publicTrade.${symbol}`)
       if (types.has('kline')) topics.push(`kline.1.${symbol}`)
-      if (types.has('orderbook')) topics.push(`orderbook.25.${symbol}`)
+      if (types.has('orderbook')) topics.push(`orderbook.50.${symbol}`)
     }
 
     if (topics.length > 0 && this._state === 'open') {
@@ -327,7 +327,9 @@ export class BybitFeedAdapter implements FeedAdapter {
     } else if (topic.startsWith('publicTrade.')) {
       this.emitTrades(data, timestamp)
     } else if (topic.startsWith('kline.')) {
-      this.emitKline(data, timestamp)
+      // Extract symbol from topic: "kline.1.BTCUSDT" → "BTCUSDT"
+      const symbol = topic.split('.').pop() ?? ''
+      this.emitKline(data, timestamp, symbol)
     } else if (topic.startsWith('orderbook.25.') || topic.startsWith('orderbook.50.')) {
       this.emitOrderBook(data, timestamp)
     }
@@ -347,35 +349,36 @@ export class BybitFeedAdapter implements FeedAdapter {
   }
 
   private emitTrades(data: Record<string, unknown>, timestamp: number): void {
-    const trades = data.data as Array<Record<string, unknown>> | undefined
-    if (!Array.isArray(trades)) return
+    // Bybit v5 returns trade data as an array [{...}]
+    const trades = Array.isArray(data) ? data : data.data as Array<Record<string, unknown>> | undefined
+    if (!Array.isArray(trades) || trades.length === 0) return
 
     // Emit last trade only (the most recent)
-    if (trades.length > 0) {
-      const t = trades[trades.length - 1]
-      const event: TradeEvent = {
-        symbol: t.symbol as string,
-        tradeId: String(t.id ?? ''),
-        price: parseFloat((t.price as string) ?? '0'),
-        quantity: parseFloat((t.size as string) ?? '0'),
-        side: (t.side as string) === 'Sell' ? 'sell' : 'buy',
-        timestamp: (t.timestamp as number) ?? timestamp,
-      }
-      this.emit({ type: 'market:trade', data: event })
+    const t = trades[trades.length - 1] as Record<string, unknown>
+    const event: TradeEvent = {
+      symbol: (t.s ?? t.symbol) as string,
+      tradeId: String(t.i ?? t.id ?? ''),
+      price: parseFloat(((t.p ?? t.price) as string) ?? '0'),
+      quantity: parseFloat((t.size as string) ?? '0'),
+      side: (t.S as string) === 'Sell' ? 'sell' : (t.side as string) === 'Sell' ? 'sell' : 'buy',
+      timestamp: (t.T ?? t.timestamp) as number ?? timestamp,
     }
+    this.emit({ type: 'market:trade', data: event })
   }
 
-  private emitKline(data: Record<string, unknown>, timestamp: number): void {
+  private emitKline(data: Record<string, unknown>, timestamp: number, symbolOverride?: string): void {
+    // Bybit v5 returns kline data as an array [{...}]; symbol is NOT in the data, only in the topic
+    const k = Array.isArray(data) ? (data[0] as Record<string, unknown>) ?? {} : data
     const event: KlineEvent = {
-      symbol: data.symbol as string,
+      symbol: symbolOverride ?? (k.symbol as string),
       interval: '1m' as KlineInterval,
-      open: parseFloat((data.open as string) ?? '0'),
-      high: parseFloat((data.high as string) ?? '0'),
-      low: parseFloat((data.low as string) ?? '0'),
-      close: parseFloat((data.close as string) ?? '0'),
-      volume: parseFloat((data.volume as string) ?? '0'),
-      timestamp: (data.timestamp as number) ?? timestamp,
-      closed: data.confirm === 'true',
+      open: parseFloat((k.open as string) ?? '0'),
+      high: parseFloat((k.high as string) ?? '0'),
+      low: parseFloat((k.low as string) ?? '0'),
+      close: parseFloat((k.close as string) ?? '0'),
+      volume: parseFloat((k.volume as string) ?? '0'),
+      timestamp: (k.timestamp as number) ?? timestamp,
+      closed: k.confirm === 'true',
     }
     this.emit({ type: 'market:kline', data: event })
   }
