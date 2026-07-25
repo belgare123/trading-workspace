@@ -37,6 +37,7 @@ import { CampaignSnapshotWriter } from '../src/workspace/campaign/CampaignSnapsh
 import { CampaignMetricsCollector } from '../src/workspace/campaign/CampaignMetricsCollector'
 import { CertificationRuntime } from '../src/workspace/certification/CertificationRuntime'
 import type { BrokerOrder } from '../src/workspace/live/brokers/BrokerAdapter'
+import * as path from 'path'
 
 // ════════════════════════════════════════
 // Configuration
@@ -320,7 +321,7 @@ const metricsProvider = new CampaignMetricsProvider({
 })
 
 const metricsWriter = new CampaignSnapshotWriter({
-  directory: path.join(campaign.campaignStateDir, 'metrics'),
+  stateDir: path.join(campaign.campaignStateDir, 'metrics'),
 })
 
 const metricsCollector = new CampaignMetricsCollector(

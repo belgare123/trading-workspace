@@ -122,6 +122,10 @@ export class PaperProvider implements ExecutionGateway {
     }
 
     this.journal.record({ type: 'info', timestamp: Date.now(), message: `Paper trading started — balance: ${initialBalance} USDT` })
+
+    // Initial equity snapshot so metrics collector has data from tick 1
+    const initPositions = this.positionRuntime.getPositions()
+    this.equityLedger.snapshot(initialBalance, initPositions)
   }
 
   async disconnect(): Promise<void> {

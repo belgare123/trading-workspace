@@ -28,7 +28,7 @@ import type {
 export interface ExecutionMetricsSource {
   tradeLedger: { all(): TradeRecord[]; readonly totalRealizedPnl: number; readonly totalCommission: number }
   cashLedger: { free(asset: string): number }
-  equityLedger: { current: { totalEquity: number } }
+  equityLedger: { latest(): { totalEquity: number } | undefined }
   positionRuntime: { getPositions(): Position[]; getPosition(symbol: string): Position | undefined }
   orderBook: { all(): any[] }
 }
@@ -83,7 +83,7 @@ export class CampaignMetricsProvider {
     const exec = this.config.execution
     const trades = exec.tradeLedger.all()
     const positions = exec.positionRuntime.getPositions()
-    const equity = exec.equityLedger.current
+    const equity = exec.equityLedger.latest()
     const freeBalance = exec.cashLedger.free('USDT')
 
     // Calculate per-trade metrics
@@ -111,7 +111,7 @@ export class CampaignMetricsProvider {
       if (p.direction === 'flat') return s
       return s + p.quantity * (p.currentPrice || lastPrice)
     }, 0)
-    const exposurePct = equity.totalEquity > 0
+    const exposurePct = equity && equity.totalEquity > 0
       ? (totalNotional / equity.totalEquity) * 100
       : 0
 
@@ -122,7 +122,7 @@ export class CampaignMetricsProvider {
 
     return {
       freeBalance,
-      equity: round2(equity.totalEquity),
+      equity: equity ? round2(equity.totalEquity) : 0,
       realisedPnl: round2(exec.tradeLedger.totalRealizedPnl),
       unrealisedPnl: round2(unrealisedPnl),
       totalFees: round2(exec.tradeLedger.totalCommission),
