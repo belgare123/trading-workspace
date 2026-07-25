@@ -31,6 +31,10 @@ import type { StrategyBar } from '../src/workspace/strategy/definition'
 import type { MarketEvent } from '../src/workspace/live/feed/MarketEventBus'
 import { PaperCampaign, type PaperCampaignConfig } from '../src/workspace/campaign/PaperCampaign'
 import { CampaignMode } from '../src/workspace/campaign/types'
+import { createCampaignContext } from '../src/workspace/campaign/CampaignContext'
+import { CampaignMetricsProvider } from '../src/workspace/campaign/CampaignMetricsProvider'
+import { CampaignSnapshotWriter } from '../src/workspace/campaign/CampaignSnapshotWriter'
+import { CampaignMetricsCollector } from '../src/workspace/campaign/CampaignMetricsCollector'
 import { CertificationRuntime } from '../src/workspace/certification/CertificationRuntime'
 import type { BrokerOrder } from '../src/workspace/live/brokers/BrokerAdapter'
 
@@ -301,6 +305,32 @@ campaign.setComponents({
 })
 
 // ════════════════════════════════════════
+// 10b. Campaign Metrics Collector
+// ════════════════════════════════════════
+
+const campaignContext = createCampaignContext({
+  exchange: 'bybit',
+  strategy: 'SmaCross',
+  mode: SMOKE_MODE ? 'smoke' : CAMPAIGN_MODE === 'BurnIn' ? 'burn-in' : 'campaign',
+})
+
+const metricsProvider = new CampaignMetricsProvider({
+  execution: (broker.paper as any),
+  health: () => campaign.supervisor.getHealth(),
+})
+
+const metricsWriter = new CampaignSnapshotWriter({
+  directory: path.join(campaign.campaignStateDir, 'metrics'),
+})
+
+const metricsCollector = new CampaignMetricsCollector(
+  campaignContext,
+  metricsProvider,
+  metricsWriter,
+  { intervalMs: 60_000, tickOnStart: true },
+)
+
+// ════════════════════════════════════════
 // 11. TradeJournal Monitor
 // ════════════════════════════════════════
 
@@ -363,20 +393,37 @@ console.log(`[init] Use SMOKE_MODE=true for 2h test, or CAMPAIGN_MODE=FullCampai
 console.log()
 
 // Handle graceful shutdown
+let shuttingDown = false
 process.on('SIGINT', () => {
+  if (shuttingDown) return
+  shuttingDown = true
   console.log('\n[shutdown] Received SIGINT — stopping campaign...')
   campaign.requestStop()
+  metricsCollector.stop()
   clearInterval(statsInterval)
 })
 process.on('SIGTERM', () => {
+  if (shuttingDown) return
+  shuttingDown = true
   console.log('\n[shutdown] Received SIGTERM — stopping campaign...')
   campaign.requestStop()
+  metricsCollector.stop()
   clearInterval(statsInterval)
 })
+
+// Start metrics collection alongside the campaign
+metricsCollector.start()
+console.log(`[metrics] Collector started → ${metricsWriter.directory}`)
 
 try {
   await campaign.start()
 } catch (err) {
   console.error('[campaign] Fatal error:', err)
   process.exit(1)
+} finally {
+  // Ensure collector is stopped when campaign ends
+  if (metricsCollector.isRunning) {
+    metricsCollector.stop()
+  }
+  clearInterval(statsInterval)
 }
