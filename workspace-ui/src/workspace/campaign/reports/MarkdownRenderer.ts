@@ -12,17 +12,15 @@ import { renderEquityCurve, renderDrawdownCurve } from './AsciiCharts'
 
 export class MarkdownRenderer {
   private readonly thousands = (n: number): string => {
-    if (Math.abs(n) >= 1_000_000) return (n / 1_000_000).toFixed(2) + 'M'
-    if (Math.abs(n) >= 1_000) return (n / 1_000).toFixed(2) + 'K'
-    return n.toFixed(2)
+    const abs = Math.abs(n)
+    if (abs >= 1_000_000) return (abs / 1_000_000).toFixed(2) + 'M'
+    if (abs >= 1_000) return (abs / 1_000).toFixed(2) + 'K'
+    return abs.toFixed(2)
   }
 
   private fmt = (n: number): string => {
-    const prefix = n >= 0 ? '+' : ''
-    const abs = Math.abs(n)
-    if (abs >= 1_000_000) return `${prefix}${(abs / 1_000_000).toFixed(2)}M`
-    if (abs >= 1_000) return `${prefix}${(abs / 1_000).toFixed(2)}K`
-    return `${prefix}${abs.toFixed(2)}`
+    if (n >= 0) return `+${this.thousands(n)}`
+    return `-${this.thousands(Math.abs(n))}`
   }
 
   private fmtPct = (n: number): string => {
@@ -74,16 +72,24 @@ export class MarkdownRenderer {
         lines.push(`| Wins / Losses | ${t.winningTrades}W / ${t.losingTrades}L |`)
         lines.push(`| Win Rate | ${(t.winRate * 100).toFixed(1)}% |`)
         lines.push(`| Profit Factor | ${t.profitFactor.toFixed(2)} |`)
-        lines.push(`| Gross Profit | $${this.fmt(t.grossProfit)} |`)
-        lines.push(`| Gross Loss | $${this.fmt(t.grossLoss)} |`)
+        lines.push(`| Gross Profit (winners) | $${this.fmt(t.grossProfit)} |`)
+        lines.push(`| Gross Loss (losers) | $${this.fmt(t.grossLoss)} |`)
         lines.push(`| Expectancy | $${this.fmt(t.expectancy)} |`)
         lines.push(`| Avg Win | $${this.fmt(t.averageWin)} |`)
         lines.push(`| Avg Loss | $${this.fmt(t.averageLoss)} |`)
         lines.push(`| Max Win Streak | ${t.maxWinStreak} |`)
         lines.push(`| Max Loss Streak | ${t.maxLossStreak} |`)
       }
-      lines.push(`| Net PnL | $${this.fmt(t.netPnl)} |`)
-      lines.push(`| Total Fees | $${this.fmt(t.totalFees)} |`)
+      // Gross/Net breakdown
+      lines.push(`| Gross PnL (price spread) | $${this.fmt(t.grossPnL)} |`)
+      lines.push(`| Total Fees | $${this.fmt(-t.totalFees)} |`)
+      lines.push(`| **Net PnL (after fees)** | **$${this.fmt(t.netPnl)}** |`)
+      const invariantDelta = Math.abs(t.grossPnL - t.totalFees - t.netPnl)
+      if (invariantDelta < 0.01) {
+        lines.push(`| ✅ Invariant: Gross − Fees == Net | $${this.fmt(t.grossPnL)} − $${this.fmt(t.totalFees)} == $${this.fmt(t.netPnl)} |`)
+      } else {
+        lines.push(`| ⚠️ Invariant: Gross − Fees == Net | Δ = $${invariantDelta.toFixed(2)} (mismatch) |`)
+      }
       lines.push(`| Largest Winner | $${this.fmt(t.largestWinner)} |`)
       lines.push(`| Largest Loser | $${this.fmt(t.largestLoser)} |`)
       lines.push('')
@@ -269,7 +275,7 @@ export class MarkdownRenderer {
     checks.push({
       name: 'Fee accounting active',
       pass: feesOK,
-      detail: data.trading ? `$${this.fmt(data.trading.totalFees)}` : 'N/A',
+      detail: data.trading ? `$${this.fmt(-data.trading.totalFees)}` : 'N/A',
     })
 
     // Invariant checks pass

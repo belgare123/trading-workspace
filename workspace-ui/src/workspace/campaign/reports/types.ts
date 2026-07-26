@@ -39,8 +39,11 @@ export interface TradingSummary {
   losingTrades: number
   winRate: number
   profitFactor: number
+  /** Gross PnL from price spreads (before fees) — derived from realisedPnl / TradeLedger */
+  grossPnL: number
   grossProfit: number
   grossLoss: number
+  /** Net PnL after fees: grossPnL - totalFees */
   netPnl: number
   totalFees: number
   expectancy: number
