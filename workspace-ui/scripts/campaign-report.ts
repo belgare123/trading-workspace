@@ -28,6 +28,7 @@ function parseArgs(): {
   watch?: boolean
   burnIn?: boolean
   listCampaigns?: boolean
+  campaignId?: string
 } {
   const args = process.argv.slice(2)
   const parsed: ReturnType<typeof parseArgs> = {
@@ -65,6 +66,10 @@ function parseArgs(): {
       case '-l':
         parsed.listCampaigns = true
         break
+      case '--campaign-id':
+      case '-c':
+        parsed.campaignId = args[++i]
+        break
       case '--help':
       case '-h':
         printHelp()
@@ -99,6 +104,7 @@ Options:
   --before <ts|ISO>      Include snapshots before this timestamp
   --last <N>h|m|s        Include only last N hours/minutes/seconds of data
   --burnin, -b           Auto-select the longest-running campaign (burn-in)
+  --campaign-id, -c <id> Select a specific campaign by ID
   --list-campaigns, -l   List discovered campaign runs and exit
   --output, -o <file>    Write report to file instead of stdout
   --watch, -w            Watch mode: regenerate report every 60s
@@ -135,6 +141,7 @@ async function main(): Promise<void> {
   function generateAndOutput(): void {
     const filter: any = {}
     if (opts.burnIn) filter.burnIn = true
+    if (opts.campaignId) filter.campaignId = opts.campaignId
     if (opts.after) filter.after = opts.after
     if (opts.before) filter.before = opts.before
     if (opts.last) {
