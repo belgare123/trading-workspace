@@ -64,6 +64,18 @@ export class CampaignSnapshot {
       averageHoldTimeSec: round0(t.averageHoldTimeSec),
       averageCommission: round4(t.averageCommission),
       averageSlippage: round4(t.averageSlippage),
+      // Trade Stats (M2-01)
+      winningTrades: Math.round(t.winningTrades),
+      losingTrades: Math.round(t.losingTrades),
+      winRate: round4(t.winRate),
+      profitFactor: round2(t.profitFactor),
+      totalGrossProfit: round2(t.totalGrossProfit),
+      totalGrossLoss: round2(t.totalGrossLoss),
+      averageWin: round2(t.averageWin),
+      averageLoss: round2(t.averageLoss),
+      expectancy: round2(t.expectancy),
+      maxWinStreak: Math.round(t.maxWinStreak),
+      maxLossStreak: Math.round(t.maxLossStreak),
     }
   }
 

@@ -41,6 +41,13 @@ interface Dashboard {
   lastEventAge: string
   snapshotCount: number
   lastSnapshotAge: string
+  // Trade Stats (M2-01)
+  averageWin: number
+  averageLoss: number
+  expectancy: number
+  maxWinStreak: number
+  maxLossStreak: number
+  profitFactorNumeric: number
 }
 
 function parseArgs(): { dir: string; watch: boolean; interval: number } {
@@ -88,6 +95,9 @@ function collectDashboard(dir: string): Dashboard {
     feedStatus: '?', brokerStatus: '?', strategyStatus: '?',
     certResult: '?', memoryMB: 0, reconnects: 0, exceptions: 0,
     lastEventAge: '?', snapshotCount: 0, lastSnapshotAge: '?',
+    // Trade Stats (M2-01)
+    averageWin: 0, averageLoss: 0, expectancy: 0,
+    maxWinStreak: 0, maxLossStreak: 0, profitFactorNumeric: 0,
   }
 
   // ── Campaign state.json ──
@@ -130,9 +140,17 @@ function collectDashboard(dir: string): Dashboard {
           d.winRate = `${((t.winningTrades / total) * 100).toFixed(1)}%`
         }
 
-        if (t.totalGrossProfit && t.totalGrossLoss && t.totalGrossLoss > 0) {
+        if (t.totalGrossProfit && t.totalGrossLoss && t.totalGrossLoss < 0) {
           d.profitFactor = (t.totalGrossProfit / Math.abs(t.totalGrossLoss)).toFixed(2)
         }
+
+        // Trade Stats (M2-01) — extended fields
+        d.averageWin = t.averageWin ?? 0
+        d.averageLoss = t.averageLoss ?? 0
+        d.expectancy = t.expectancy ?? 0
+        d.maxWinStreak = t.maxWinStreak ?? 0
+        d.maxLossStreak = t.maxLossStreak ?? 0
+        d.profitFactorNumeric = t.profitFactor ?? 0
       }
 
       if (m.health) {
@@ -178,6 +196,10 @@ function render(d: Dashboard): string {
     `  Win / Loss      │ ${d.winCount}W / ${d.lossCount}L${' '.repeat(28 - String(d.winCount + d.lossCount).length)}│`,
     `  Win Rate        │ ${d.winRate.padEnd(36)}│`,
     `  Profit Factor   │ ${d.profitFactor.padEnd(36)}│`,
+    '──────────────────────────────────────────────────────',
+    `  Avg Win / Loss  │ ${fmtUsd(d.averageWin)} / ${fmtUsd(d.averageLoss)}${' '.repeat(16)}│`,
+    `  Expectancy      │ ${fmtUsd(d.expectancy).padEnd(36)}│`,
+    `  Max Streak      │ ${String(d.maxWinStreak).padStart(2)}W / ${String(d.maxLossStreak).padEnd(2)}L${' '.repeat(27)}│`,
     '──────────────────────────────────────────────────────',
     `  Feed            │ ${statusIcon(d.feedStatus)} ${d.feedStatus.padEnd(31)}│`,
     `  Broker          │ ${statusIcon(d.brokerStatus)} ${d.brokerStatus.padEnd(31)}│`,

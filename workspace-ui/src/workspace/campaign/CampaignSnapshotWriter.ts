@@ -57,11 +57,23 @@ export class CampaignSnapshotWriter {
     return this.stateDir
   }
 
+  /** Ensure the state directory exists (recreate if deleted at runtime) */
+  private ensureDir(): void {
+    if (!fs.existsSync(this.stateDir)) {
+      try {
+        fs.mkdirSync(this.stateDir, { recursive: true })
+      } catch {
+        // Best-effort
+      }
+    }
+  }
+
   /**
    * Overwrite state.json with a pretty-printed snapshot.
    * This is the "live" file consumed by the frontend or external tools.
    */
   writeState(snapshot: CampaignSnapshotData): void {
+    this.ensureDir()
     const statePath = path.join(this.stateDir, 'state.json')
     const tmpPath = statePath + '.tmp'
 
@@ -87,6 +99,7 @@ export class CampaignSnapshotWriter {
    * Automatically rotates the log when it exceeds maxLogBytes.
    */
   appendSnapshot(snapshot: CampaignSnapshotData): void {
+    this.ensureDir()
     try {
       // Check rotation before writing
       this.maybeRotate()

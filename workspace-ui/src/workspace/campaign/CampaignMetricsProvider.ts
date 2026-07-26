@@ -120,6 +120,43 @@ export class CampaignMetricsProvider {
       return p.quantity > max ? p.quantity : max
     }, 0)
 
+    // ── Trade Stats (M2-01) ──
+    const winningCount = winners.length
+    const losingCount = losers.length
+    const totalClosed = winningCount + losingCount
+    const winRate = totalClosed > 0 ? winningCount / totalClosed : 0
+    const lossRate = totalClosed > 0 ? losingCount / totalClosed : 0
+
+    const totalGrossProfit = winners.reduce((s, t) => s + t.realizedPnl, 0)
+    const totalGrossLoss = losers.reduce((s, t) => s + t.realizedPnl, 0) // already negative
+    const absGrossLoss = Math.abs(totalGrossLoss)
+
+    const profitFactor = absGrossLoss > 0 ? totalGrossProfit / absGrossLoss : 0
+    const averageWin = winningCount > 0 ? totalGrossProfit / winningCount : 0
+    const averageLoss = losingCount > 0 ? totalGrossLoss / losingCount : 0
+
+    // Expectancy: (winRate * avgWin) - (lossRate * |avgLoss|)
+    const expectancy = (winRate * averageWin) - (lossRate * Math.abs(averageLoss))
+
+    // Streaks: sort trades chronologically, then count consecutive wins/losses
+    let maxWinStreak = 0
+    let maxLossStreak = 0
+    let currentWinStreak = 0
+    let currentLossStreak = 0
+
+    const sortedClosed = [...closedTrades].sort((a, b) => a.timestamp - b.timestamp)
+    for (const t of sortedClosed) {
+      if (t.realizedPnl > 0) {
+        currentWinStreak++
+        currentLossStreak = 0
+        if (currentWinStreak > maxWinStreak) maxWinStreak = currentWinStreak
+      } else if (t.realizedPnl < 0) {
+        currentLossStreak++
+        currentWinStreak = 0
+        if (currentLossStreak > maxLossStreak) maxLossStreak = currentLossStreak
+      }
+    }
+
     return {
       freeBalance,
       equity: equity ? round2(equity.totalEquity) : 0,
@@ -137,6 +174,18 @@ export class CampaignMetricsProvider {
       averageHoldTimeSec: closedTrades.length > 0 ? Math.round(totalHoldTimeSec / closedTrades.length) : 0,
       averageCommission: trades.length > 0 ? round4(exec.tradeLedger.totalCommission / trades.length) : 0,
       averageSlippage: this.calculateAverageSlippage(trades),
+      // Trade Stats (M2-01)
+      winningTrades: winningCount,
+      losingTrades: losingCount,
+      winRate: round4(winRate),
+      profitFactor: isFinite(profitFactor) ? round2(profitFactor) : 0,
+      totalGrossProfit: round2(totalGrossProfit),
+      totalGrossLoss: round2(totalGrossLoss),
+      averageWin: round2(averageWin),
+      averageLoss: round2(averageLoss),
+      expectancy: round2(isFinite(expectancy) ? expectancy : 0),
+      maxWinStreak,
+      maxLossStreak,
     }
   }
 

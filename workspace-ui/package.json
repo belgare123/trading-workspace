@@ -11,7 +11,12 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "certify": "npx tsx scripts/certify.ts",
-    "paper-campaign": "npx tsx scripts/certify.ts --symbols BTCUSDT,ETHUSDT,SOLUSDT"
+    "paper-campaign": "npx tsx scripts/paper-campaign.ts",
+    "campaign-tail": "npx tsx scripts/campaign-tail.ts",
+    "report": "npx tsx scripts/campaign-report.ts --burnin",
+    "report:last": "npx tsx scripts/campaign-report.ts --last",
+    "report:watch": "npx tsx scripts/campaign-report.ts --burnin --watch",
+    "report:campaigns": "npx tsx scripts/campaign-report.ts --list-campaigns"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.101.2",

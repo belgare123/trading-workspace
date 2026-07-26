@@ -50,6 +50,29 @@ export interface TradingSnapshot {
   averageCommission: number
   /** Average slippage per trade in quote currency */
   averageSlippage: number
+  // ── Trade Stats (M2-01) ──
+  /** Number of winning closed trades */
+  winningTrades: number
+  /** Number of losing closed trades */
+  losingTrades: number
+  /** Win rate (0-1), 0 if no closed trades */
+  winRate: number
+  /** Profit factor (grossProfit / |grossLoss|), 0 if no closed trades */
+  profitFactor: number
+  /** Total gross profit from winners */
+  totalGrossProfit: number
+  /** Total gross loss from losers (negative number) */
+  totalGrossLoss: number
+  /** Average profit per winning trade */
+  averageWin: number
+  /** Average loss per losing trade (negative number) */
+  averageLoss: number
+  /** Expected PnL per trade: (winRate * avgWin) - (lossRate * |avgLoss|) */
+  expectancy: number
+  /** Maximum consecutive winning trades */
+  maxWinStreak: number
+  /** Maximum consecutive losing trades */
+  maxLossStreak: number
 }
 
 // ── Runtime Metrics ──
