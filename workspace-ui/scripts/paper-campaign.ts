@@ -38,6 +38,7 @@ import { CampaignMetricsCollector } from '../src/workspace/campaign/CampaignMetr
 import { CertificationRuntime } from '../src/workspace/certification/CertificationRuntime'
 import type { BrokerOrder } from '../src/workspace/live/brokers/BrokerAdapter'
 import * as path from 'path'
+import { writeFileSync, unlinkSync } from 'fs'
 
 // ════════════════════════════════════════
 // Configuration
@@ -154,12 +155,15 @@ let barCount = 0
 let signalCount = 0
 let orderCount = 0
 let lastSignal: StrategySignal | null = null
+const lastPrice: Record<string, number> = {}
 
 feed.bus.on('market:kline', (event: MarketEvent) => {
   if (event.type !== 'market:kline') return
   if (event.data.symbol !== SYMBOL) return
 
   klineCount++
+
+  lastPrice[event.data.symbol] = event.data.close
 
   const bar: StrategyBar = {
     open: event.data.open,
@@ -207,7 +211,10 @@ console.log('[bridge] StrategyRuntime signal → PaperBroker ready')
 // ════════════════════════════════════════
 
 async function getCurrentPrice(symbol: string): Promise<number> {
-  return 0
+  if (lastPrice[symbol] !== undefined && lastPrice[symbol] > 0) {
+    return lastPrice[symbol]
+  }
+  throw new Error(`Cannot determine current price for ${symbol} — no signal.price and no kline data received yet`)
 }
 
 async function placeBuyOrder(symbol: string, signal: StrategySignal): Promise<void> {
@@ -393,33 +400,52 @@ console.log(`[init] Awaiting first signal — slow period ${SLOW_PERIOD} bars �
 console.log(`[init] Use SMOKE_MODE=true for 2h test, or CAMPAIGN_MODE=FullCampaign for 7d`)
 console.log()
 
+let pidPath: string | null = null
+
+function writePidFile(stateDir: string): void {
+  pidPath = path.join(stateDir, 'campaign.pid')
+  writeFileSync(pidPath, String(process.pid), 'utf8')
+  console.log(`[campaign] PID ${process.pid} → ${pidPath}`)
+}
+
+function cleanupPidFile(): void {
+  if (pidPath) {
+    try { unlinkSync(pidPath) } catch { /* ok */ }
+    pidPath = null
+  }
+}
+
 // Handle graceful shutdown
 let shuttingDown = false
-process.on('SIGINT', () => {
+const doShutdown = () => {
   if (shuttingDown) return
   shuttingDown = true
-  console.log('\n[shutdown] Received SIGINT — stopping campaign...')
   campaign.requestStop()
   metricsCollector.stop()
   clearInterval(statsInterval)
+  cleanupPidFile()
+}
+process.on('SIGINT', () => {
+  console.log('\n[shutdown] Received SIGINT — stopping campaign...')
+  doShutdown()
 })
 process.on('SIGTERM', () => {
-  if (shuttingDown) return
-  shuttingDown = true
   console.log('\n[shutdown] Received SIGTERM — stopping campaign...')
-  campaign.requestStop()
-  metricsCollector.stop()
-  clearInterval(statsInterval)
+  doShutdown()
 })
 
 // Start metrics collection alongside the campaign
 metricsCollector.start()
 console.log(`[metrics] Collector started → ${metricsWriter.directory}`)
 
+// Write PID file for health check
+writePidFile(campaign.campaignStateDir)
+
 try {
   await campaign.start()
 } catch (err) {
   console.error('[campaign] Fatal error:', err)
+  cleanupPidFile()
   process.exit(1)
 } finally {
   // Ensure collector is stopped when campaign ends
@@ -427,4 +453,5 @@ try {
     metricsCollector.stop()
   }
   clearInterval(statsInterval)
+  cleanupPidFile()
 }

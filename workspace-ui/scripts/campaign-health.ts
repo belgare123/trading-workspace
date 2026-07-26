@@ -15,7 +15,6 @@
 import { existsSync, readFileSync, statSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
-import { execSync } from 'child_process'
 
 // ── Config ──
 
@@ -64,37 +63,23 @@ function stalenessMs(filePath: string): number {
   }
 }
 
-function findPaperCampaignPids(): number[] {
+function readCampaignPid(dir: string): number | null {
+  const pidPath = join(dir, 'campaign.pid')
   try {
-    if (process.platform === 'win32') {
-      const out = execSync(
-        'wmic process where "commandline like \'%paper-campaign%\'" get processid /format:csv 2>nul',
-        { encoding: 'utf8', timeout: 5_000 },
-      )
-      return out
-        .split('\n')
-        .map(l => l.trim())
-        .filter(l => l && !l.startsWith('Node'))
-        .map(l => {
-          const parts = l.split(',')
-          const pid = parts[parts.length - 1]?.trim()
-          return parseInt(pid, 10)
-        })
-        .filter((pid): pid is number => !isNaN(pid))
-    } else {
-      const out = execSync('ps aux 2>/dev/null', { encoding: 'utf8', timeout: 5_000 })
-      return out
-        .split('\n')
-        .filter(l => l.includes('paper-campaign'))
-        .filter(l => l.includes('tsx') || l.includes('node'))
-        .map(l => {
-          const parts = l.trim().split(/\s+/)
-          return parseInt(parts[1], 10)
-        })
-        .filter((pid): pid is number => !isNaN(pid))
-    }
+    const raw = readFileSync(pidPath, 'utf8').trim()
+    const pid = parseInt(raw, 10)
+    return isNaN(pid) ? null : pid
   } catch {
-    return []
+    return null
+  }
+}
+
+function isPidAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch {
+    return false
   }
 }
 
@@ -109,11 +94,13 @@ function runHealthCheck(): HealthReport {
   const snapshotsPath = join(metricsDir, 'snapshots.jsonl')
 
   // ── 1. Process liveness ──
-  const pids = findPaperCampaignPids()
-  if (pids.length > 0) {
-    checks.push(ok('process.alive', `PID(s): ${pids.join(', ')}`))
+  const pid = readCampaignPid(dir)
+  if (pid !== null && isPidAlive(pid)) {
+    checks.push(ok('process.alive', `PID ${pid}`))
+  } else if (pid !== null) {
+    checks.push(fail('process.alive', `PID ${pid} found in campaign.pid but process is dead`))
   } else {
-    checks.push(fail('process.alive', 'No paper-campaign process found'))
+    checks.push(fail('process.alive', 'campaign.pid not found — campaign may not be running'))
   }
 
   // ── 2. State file freshness ──
@@ -171,14 +158,18 @@ function runHealthCheck(): HealthReport {
       }
 
       // ── 8. Invariants ──
-      if (snap.invariants?.all !== undefined) {
-        const violated = Object.entries(snap.invariants).filter(
-          ([k, v]) => k !== 'all' && typeof v === 'object' && v && !(v as any).ok,
-        )
-        if (violated.length === 0) {
-          checks.push(ok('metrics.invariants', `all ${snap.invariants.all ?? 0} passed`))
+      if (snap.invariants) {
+        const invariants = snap.invariants as Record<string, { ok: boolean }>
+        const entries = Object.entries(invariants)
+        const violated = entries.filter(([, v]) => typeof v === 'object' && v && !v.ok)
+        if (entries.length > 0) {
+          if (violated.length === 0) {
+            checks.push(ok('metrics.invariants', `all ${entries.length} passed`))
+          } else {
+            checks.push(fail('metrics.invariants', `${violated.length} invariant(s) violated: ${violated.map(([k]) => k).join(', ')}`))
+          }
         } else {
-          checks.push(fail('metrics.invariants', `${violated.length} invariant(s) violated: ${violated.map(([k]) => k).join(', ')}`))
+          checks.push(ok('metrics.invariants', 'not collected yet'))
         }
       } else {
         // invariants object not present yet — not a failure if collector just started
@@ -204,8 +195,8 @@ function runHealthCheck(): HealthReport {
       }
 
       // ── 10. Campaign context consistency ──
-      if (snap.context?.id) {
-        checks.push(ok('metrics.context', `campaign=${snap.context.id}`))
+      if (snap.campaign?.id) {
+        checks.push(ok('metrics.context', `campaign=${snap.campaign.id}`))
       }
 
       // ── 11. Snapshots JSONL growing ──

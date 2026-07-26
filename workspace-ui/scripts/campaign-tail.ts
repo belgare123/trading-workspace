@@ -159,7 +159,7 @@ function collectDashboard(dir: string): Dashboard {
 
 function render(d: Dashboard): string {
   const statusIcon = (s: string) =>
-    s === 'healthy' ? '✅' : s === 'degraded' ? '⚠️' : s === '? ' ? '⏳' : '❌'
+    s === 'healthy' ? '✅' : s === 'degraded' ? '⚠️' : s === '?' ? '⏳' : '❌'
 
   const lines: string[] = [
     '',
