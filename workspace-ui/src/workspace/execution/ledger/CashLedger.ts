@@ -47,16 +47,14 @@ export class CashLedger {
 
   /** Process a fill: debit quote, credit base */
   applyFill(fill: Fill): void {
-    const quoteCost = fill.price * fill.quantity + fill.commission
-
     if (fill.side === 'buy') {
-      // Debit quote currency, credit base
-      this.debit(fill.commissionAsset, quoteCost)
+      // Debit quote currency (cost + commission), credit base
+      this.debit(fill.commissionAsset, fill.price * fill.quantity + fill.commission)
       this.credit(fill.symbol, fill.quantity)
     } else {
-      // Debit base, credit quote currency
+      // Debit base, credit quote currency (proceeds - commission)
       this.debit(fill.symbol, fill.quantity)
-      this.credit(fill.commissionAsset, quoteCost - fill.commission)
+      this.credit(fill.commissionAsset, fill.price * fill.quantity - fill.commission)
     }
   }
 

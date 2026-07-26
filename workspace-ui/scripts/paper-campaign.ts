@@ -46,10 +46,10 @@ import { writeFileSync, unlinkSync } from 'fs'
 
 const SYMBOLS = ['BTCUSDT' as const]
 const SYMBOL = SYMBOLS[0]
-const TIMEFRAME = '1m'   // matches BybitFeedAdapter's kline.1. subscription
+const TIMEFRAME = '15m'
 const INITIAL_BALANCE = 10_000
-const FAST_PERIOD = 5     // fast SMA bars
-const SLOW_PERIOD = 15    // slow SMA bars (first signal after ~15 min)
+const FAST_PERIOD = 5
+const SLOW_PERIOD = 15
 
 const CAMPAIGN_MODE = process.env.CAMPAIGN_MODE as CampaignMode | undefined
 const SMOKE_MODE = process.env.SMOKE_MODE === 'true'
@@ -70,7 +70,7 @@ console.log()
 // ════════════════════════════════════════
 
 const feed = new LiveFeedRuntime()
-const bybitAdapter = new BybitFeedAdapter()
+const bybitAdapter = new BybitFeedAdapter(undefined, undefined, '15')
 await feed.useAdapter(bybitAdapter)
 console.log('[feed] BybitFeedAdapter connected')
 

@@ -42,6 +42,8 @@ type WsState = 'idle' | 'connecting' | 'open' | 'closing' | 'closed'
 
 export class BybitFeedAdapter implements FeedAdapter {
   readonly id = 'bybit'
+  /** Kline interval for WebSocket subscription (1, 3, 5, 15, 30, 60, etc.) */
+  readonly klineInterval: string = '1'
 
   private listeners = new Map<string, Set<Listener>>()
   private ws: WebSocket | null = null
@@ -67,9 +69,10 @@ export class BybitFeedAdapter implements FeedAdapter {
     return this._state === 'open'
   }
 
-  constructor(factory?: IWebSocketFactory, baseUrl?: string) {
+  constructor(factory?: IWebSocketFactory, baseUrl?: string, klineInterval?: string) {
     this.wsFactory = factory ?? new NativeWebSocketFactory()
     this.baseUrl = baseUrl ?? BYBIT_WS_URL
+    if (klineInterval) this.klineInterval = klineInterval
   }
 
   async connect(): Promise<void> {
@@ -244,7 +247,7 @@ export class BybitFeedAdapter implements FeedAdapter {
     for (const [symbol, types] of this.subscribedSymbols.entries()) {
       if (types.has('ticker')) topics.push(`tickers.${symbol}`)
       if (types.has('trade')) topics.push(`publicTrade.${symbol}`)
-      if (types.has('kline')) topics.push(`kline.1.${symbol}`)
+      if (types.has('kline')) topics.push(`kline.${this.klineInterval}.${symbol}`)
       if (types.has('orderbook')) topics.push(`orderbook.50.${symbol}`)
     }
 
@@ -261,7 +264,7 @@ export class BybitFeedAdapter implements FeedAdapter {
     const topics: string[] = []
     if (types.has('ticker')) topics.push(`tickers.${symbol}`)
     if (types.has('trade')) topics.push(`publicTrade.${symbol}`)
-    if (types.has('kline')) topics.push(`kline.1.${symbol}`)
+    if (types.has('kline')) topics.push(`kline.${this.klineInterval}.${symbol}`)
     if (types.has('orderbook')) topics.push(`orderbook.25.${symbol}`)
 
     if (topics.length > 0) {
@@ -278,7 +281,7 @@ export class BybitFeedAdapter implements FeedAdapter {
       const topics = [
         `tickers.${symbol}`,
         `publicTrade.${symbol}`,
-        `kline.1.${symbol}`,
+        `kline.${this.klineInterval}.${symbol}`,
         `orderbook.25.${symbol}`,
       ]
       this.send({
