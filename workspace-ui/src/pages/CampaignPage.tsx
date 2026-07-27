@@ -262,6 +262,7 @@ export function CampaignPage() {
   const [state, setState] = useState<any>(null)
   const [snapshots, setSnapshots] = useState<Snapshot[]>([])
   const [realTrades, setRealTrades] = useState<RealTrade[]>([])
+  const [dockerLogs, setDockerLogs] = useState<Array<{id: number; time: string | null; text: string}>>([])
   const [tab, setTab] = useState<'dashboard' | 'trades' | 'charts' | 'logs'>('dashboard')
   const [filter, setFilter] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -274,11 +275,13 @@ export function CampaignPage() {
       fetchJson<any>('/api/campaign/state'),
       fetchJson<Snapshot[]>('/api/campaign/snapshots?limit=500'),
       fetchJson<RealTrade[]>('/api/campaign/real-trades'),
-    ]).then(([s, snaps, r]) => {
+      fetchJson<Array<{id: number; time: string | null; text: string}>>('/api/campaign/docker-logs?lines=300'),
+    ]).then(([s, snaps, r, logs]) => {
       if (k !== key.current) return
       setState(s)
       if (snaps) setSnapshots(snaps)
       if (r) setRealTrades(r)
+      if (logs) setDockerLogs(logs)
       setError(null)
     }).catch(() => { if (k === key.current) setError('Failed to load campaign data') })
   }, [])
@@ -555,40 +558,99 @@ export function CampaignPage() {
 
         {/* ═══ LOGS ═══ */}
         {tab === 'logs' && (
-          <div style={{
-            background: '#111125', border: '1px solid #2a2a4a',
-            borderRadius: 8, padding: 14,
-          }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {/* Incidents */}
             <div style={{
-              fontSize: 11, color: '#888', marginBottom: 8, fontWeight: 600,
-              textTransform: 'uppercase', letterSpacing: 0.5,
+              background: '#111125', border: '1px solid #2a2a4a',
+              borderRadius: 8, padding: 14,
             }}>
-              ⚡ Events & Incidents
-            </div>
-            {(!state?.incidents || state.incidents.length === 0) ? (
-              <div style={{ fontSize: 12, color: '#666', padding: '16px 0', textAlign: 'center' }}>
-                ✅ No incidents recorded
+              <div style={{
+                fontSize: 11, color: '#888', marginBottom: 8, fontWeight: 600,
+                textTransform: 'uppercase', letterSpacing: 0.5,
+              }}>
+                ⚡ Incidents
               </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {state.incidents.slice(-50).reverse().map((inc: any) => (
-                  <div key={inc.id} style={{
-                    display: 'flex', alignItems: 'flex-start', gap: 8,
-                    padding: '6px 10px', borderRadius: 6, fontSize: 12,
-                    borderLeft: `3px solid ${inc.severity === 'critical' ? '#ef4444' : inc.severity === 'warning' ? '#eab308' : '#3b82f6'}`,
-                    background: inc.severity === 'critical' ? 'rgba(239,68,68,0.08)' : 'transparent',
-                  }}>
-                    <span>{inc.severity === 'critical' ? '🔴' : inc.severity === 'warning' ? '🟡' : '🔵'}</span>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ color: '#ccc' }}>{inc.message}</div>
-                      <div style={{ fontSize: 10, color: '#666', marginTop: 2 }}>
-                        {inc.type} · {time(inc.timestamp)}
+              {(!state?.incidents || state.incidents.length === 0) ? (
+                <div style={{ fontSize: 12, color: '#666', padding: '4px 0' }}>
+                  ✅ No incidents recorded
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {state.incidents.slice(-50).reverse().map((inc: any) => (
+                    <div key={inc.id} style={{
+                      display: 'flex', alignItems: 'flex-start', gap: 8,
+                      padding: '6px 10px', borderRadius: 6, fontSize: 12,
+                      borderLeft: `3px solid ${inc.severity === 'critical' ? '#ef4444' : inc.severity === 'warning' ? '#eab308' : '#3b82f6'}`,
+                      background: inc.severity === 'critical' ? 'rgba(239,68,68,0.08)' : 'transparent',
+                    }}>
+                      <span>{inc.severity === 'critical' ? '🔴' : inc.severity === 'warning' ? '🟡' : '🔵'}</span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ color: '#ccc' }}>{inc.message}</div>
+                        <div style={{ fontSize: 10, color: '#666', marginTop: 2 }}>
+                          {inc.type} · {time(inc.timestamp)}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Docker container logs */}
+            <div style={{
+              background: '#0d0d1a', border: '1px solid #2a2a4a',
+              borderRadius: 8, fontFamily: "'Cascadia Code', 'Fira Code', monospace",
+              fontSize: 11, lineHeight: 1.6,
+            }}>
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '8px 14px', borderBottom: '1px solid #2a2a4a',
+                background: '#111125',
+              }}>
+                <span style={{ color: '#888', fontWeight: 600, fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  🖥️ Container Logs ({dockerLogs.length} lines)
+                </span>
+                <span style={{ fontSize: 10, color: '#555' }}>paper-campaign</span>
               </div>
-            )}
+              <div style={{
+                padding: '4px 0', maxHeight: 500, overflowY: 'auto',
+              }}>
+                {dockerLogs.length === 0 ? (
+                  <div style={{ padding: '16px 14px', color: '#555', textAlign: 'center' }}>
+                    No logs available — container may not be running
+                  </div>
+                ) : (
+                  dockerLogs.slice().reverse().map(log => {
+                    const level = log.text.includes('ERROR') || log.text.includes('FATAL')
+                      ? '#ef4444'
+                      : log.text.includes('WARN') || log.text.includes('⚠️')
+                        ? '#eab308'
+                        : log.text.includes('✅') || log.text.includes('📈') || log.text.includes('take_profit')
+                          ? '#22c55e'
+                          : log.text.includes('📉') || log.text.includes('stop_loss') || log.text.includes('❌')
+                            ? '#f97316'
+                            : log.text.startsWith('[strategy]') || log.text.includes('🎯')
+                              ? '#60a5fa'
+                              : log.text.startsWith('[Burn-in]')
+                                ? '#a78bfa'
+                                : '#6b7280'
+                    return (
+                      <div key={log.id} style={{
+                        padding: '1px 14px', display: 'flex', gap: 8,
+                        borderBottom: '1px solid rgba(255,255,255,0.03)',
+                      }}>
+                        <span style={{ color: '#444', whiteSpace: 'nowrap', userSelect: 'none' }}>
+                          {log.time ? log.time.slice(11, 19) : '--:--:--'}
+                        </span>
+                        <span style={{ color: level, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                          {log.text}
+                        </span>
+                      </div>
+                    )
+                  })
+                )}
+              </div>
+            </div>
           </div>
         )}
 

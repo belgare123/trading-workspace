@@ -248,6 +248,29 @@ function campaignApiMiddleware(): Connect.NextHandleFunction {
       return
     }
 
+    // GET /api/campaign/docker-logs?lines=200 — raw container logs
+    if (url.startsWith('/api/campaign/docker-logs')) {
+      const urlObj = new URL(url, 'http://localhost')
+      const lines = parseInt(urlObj.searchParams.get('lines') || '200', 10)
+      try {
+        const output = execSync(`docker logs --tail ${lines} --timestamps paper-campaign 2>&1`, {
+          timeout: 3000, encoding: 'utf-8',
+        })
+        const parsed = output.trim().split('\n').filter(Boolean).map((line, i) => {
+          // Docker --timestamps prefixes each line with "2026-07-27T10:54:39.123456789Z "
+          const tsMatch = line.match(/^(\d{4}-\d{2}-\d{2}T[\d:.]+Z)\s+(.*)$/)
+          if (tsMatch) {
+            return { id: i, time: tsMatch[1], text: tsMatch[2] }
+          }
+          return { id: i, time: null, text: line }
+        })
+        json(res, parsed)
+      } catch {
+        json(res, [])
+      }
+      return
+    }
+
     // GET /api/campaign/trades?limit=20 — compute trades from snapshot deltas
     if (url.startsWith('/api/campaign/trades')) {
       const raw = tryRead(SNAPSHOTS_FILE)
