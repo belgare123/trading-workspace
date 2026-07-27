@@ -68,70 +68,23 @@ async function fetchJson<T>(url: string): Promise<T | null> {
   try { const r = await fetch(url); return r.ok ? r.json() : null } catch { return null }
 }
 
-// ── Fake trade data generator (from snapshots) ──
-// Since campaign snapshots don't have per-trade detail, we simulate
-// trade rows from the aggregate snapshot deltas + realistic pair names.
+// ── Real trade data from Docker logs ──
 
-const PAIRS = [
-  'BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'DOGE/USDT', 'XRP/USDT',
-  'BNB/USDT', 'ADA/USDT', 'AVAX/USDT', 'DOT/USDT', 'LINK/USDT',
-  'TAO/USDT', 'APT/USDT', 'UNI/USDT', 'WIF/USDT', 'ONDO/USDT',
-  'PEPE/USDT', 'NEAR/USDT', 'SUI/USDT', 'AAVE/USDT', 'ENA/USDT',
-]
-
-function deriveTrades(snapshots: Snapshot[]): TradeRow[] {
-  if (snapshots.length < 2) return []
-  const trades: TradeRow[] = []
-  let idCounter = 1000
-
-  for (let i = 1; i < snapshots.length; i++) {
-    const prev = snapshots[i - 1].trading
-    const curr = snapshots[i].trading
-    const tradeDelta = curr.tradesRecorded - prev.tradesRecorded
-    if (tradeDelta <= 0) continue
-
-    const pnlDelta = curr.realisedPnl - prev.realisedPnl
-    const feeDelta = curr.totalFees - prev.totalFees
-    const grossDelta = pnlDelta + feeDelta // gross = realisedPnl + fees (actually realisedPnl gross)
-    const isWin = pnlDelta > 0
-    const side = pnlDelta >= 0 ? 'short' : 'long'
-    const pair = PAIRS[(idCounter + i) % PAIRS.length]
-
-    // Generate realistic rates based on PnL
-    const baseRate = 100 + Math.sin(i) * 50
-    const openRate = +(baseRate * (1 + (Math.random() - 0.5) * 0.02)).toFixed(2)
-    // Realistic PnL% between -8% and +8%, with ~40% win rate
-    const isReallyWin = Math.random() < 0.4
-    const pnlSign = grossDelta >= 0 && isReallyWin ? 1 : -1
-    const profitMag = +(Math.random() * 6 + 0.5).toFixed(2)
-    const deltaPct = +(pnlSign * profitMag).toFixed(2)
-    const currentRate = +(openRate * (1 + deltaPct / 100 * (side === 'long' ? 1 : -1))).toFixed(4)
-
-    trades.push({
-      id: ++idCounter,
-      pair,
-      type: isWin ? 'short' : 'long',
-      amount: +((Math.random() * 2 + 0.1)).toFixed(2),
-      openRate,
-      currentRate,
-      profitPct: +deltaPct.toFixed(2),
-      profit: +grossDelta.toFixed(2),
-      openDate: new Date(snapshots[i].timestamp).toISOString(),
-      status: 'closed',
-      closeDate: new Date(snapshots[i].timestamp).toISOString(),
-      closeReason: isWin ? 'take_profit' : 'stop_loss',
-    })
-  }
-
-  return trades.slice(-50) // keep last 50
+interface RealTrade {
+  id: number; pair: string; type: 'long' | 'short'
+  amount: number; openRate: number; closeRate: number
+  profitPct: number; profit: number; openDate: string
+  closeDate: string; closeReason: string
 }
 
 // ── Sub-components ──
 
 function ProfitCell({ pct, value }: { pct: number; value: number }) {
+  const absVal = Math.abs(pct)
+  const pctStr = (pct >= 0 ? '+' : '-') + (absVal > 0.01 ? absVal.toFixed(2) : absVal.toFixed(4))
   return (
     <span style={{ color: profitColor(pct), fontWeight: 600, fontFamily: 'monospace', fontSize: 12 }}>
-      {pct >= 0 ? '+' : ''}{pct.toFixed(2)}%&nbsp;
+      {pctStr}%&nbsp;
       <span style={{ opacity: 0.7 }}>({value >= 0 ? '+' : ''}{value.toFixed(3)})</span>
     </span>
   )
@@ -308,6 +261,7 @@ function PageBtn({ label, onClick, disabled, active }: {
 export function CampaignPage() {
   const [state, setState] = useState<any>(null)
   const [snapshots, setSnapshots] = useState<Snapshot[]>([])
+  const [realTrades, setRealTrades] = useState<RealTrade[]>([])
   const [tab, setTab] = useState<'dashboard' | 'trades' | 'charts' | 'logs'>('dashboard')
   const [filter, setFilter] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -319,10 +273,12 @@ export function CampaignPage() {
     Promise.all([
       fetchJson<any>('/api/campaign/state'),
       fetchJson<Snapshot[]>('/api/campaign/snapshots?limit=500'),
-    ]).then(([s, snaps]) => {
+      fetchJson<RealTrade[]>('/api/campaign/real-trades'),
+    ]).then(([s, snaps, r]) => {
       if (k !== key.current) return
       setState(s)
       if (snaps) setSnapshots(snaps)
+      if (r) setRealTrades(r)
       setError(null)
     }).catch(() => { if (k === key.current) setError('Failed to load campaign data') })
   }, [])
@@ -336,9 +292,22 @@ export function CampaignPage() {
   const latest = snapshots.length ? snapshots[snapshots.length - 1] : null
   const t = latest?.trading
   const rt = latest?.runtime
-  const trades = useMemo(() => deriveTrades(snapshots), [snapshots])
-  const openTrades = trades.filter(r => r.status === 'open')
-  const closedTrades = trades.filter(r => r.status === 'closed')
+  const trades: TradeRow[] = useMemo(() => {
+    return realTrades.map(r => ({
+      id: r.id,
+      pair: r.pair,
+      type: r.type,
+      amount: r.amount,
+      openRate: r.openRate,
+      currentRate: r.closeRate,
+      profitPct: r.profitPct,
+      profit: r.profit,
+      openDate: r.openDate,
+      closeDate: r.closeDate,
+      closeReason: r.closeReason,
+      status: 'closed' as const,
+    }))
+  }, [realTrades])
 
   const equityData = snapshots.map(s => ({
     time: s.timestamp, equity: s.trading.equity,
@@ -511,7 +480,7 @@ export function CampaignPage() {
               }}>
                 📋 Recent Trades
               </div>
-              <TradeTable rows={closedTrades.slice(-10).reverse()} filter="" compact onFilterChange={() => {}} />
+              <TradeTable rows={trades.slice(-10).reverse()} filter="" compact onFilterChange={() => {}} />
             </div>
           </div>
         )}
@@ -529,7 +498,7 @@ export function CampaignPage() {
               }}>
                 📦 Closed Trades
               </div>
-              <TradeTable rows={closedTrades} filter={filter} onFilterChange={setFilter} />
+              <TradeTable rows={trades} filter={filter} onFilterChange={setFilter} />
             </div>
           </div>
         )}
