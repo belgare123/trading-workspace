@@ -5,6 +5,7 @@ import { DashboardShell } from '../runtime/dashboard/runtime/DashboardShell'
 import { ScannerPage } from '../pages/ScannerPage'
 import { LiveWorkspace } from '../pages/live/LiveWorkspace'
 import { CampaignPage } from '../pages/CampaignPage'
+import { FreqtradePage } from '../pages/FreqtradePage'
 import { ErrorBoundary } from './ErrorBoundary'
 import { AsyncBoundary } from './AsyncBoundary'
 import { ErrorCard } from './ErrorCard'
@@ -49,6 +50,8 @@ function renderFallback(view: string): React.ReactNode {
       return <LiveWorkspace />
     case 'campaign':
       return <CampaignPage />
+    case 'freqtrade':
+      return <FreqtradePage />
     case 'inspector':
       return <InspectorPage />
     case 'plugins':

@@ -25,7 +25,7 @@ import { useStore } from './store'
 import { useFeatureFlag } from './featureFlags'
 import { ChartSandboxStandalone } from './workspace/chart/demo'
 import { registerLiveModule } from './pages/live/LiveModule'
-import { NotebookPen } from 'lucide-react'
+import { Bot, NotebookPen } from 'lucide-react'
 import { ScreenRegistry } from './runtime/dashboard/screen/ScreenRegistry'
 
 // ── Platform boot — single entry point ─────────────────────────────
@@ -56,6 +56,16 @@ ScreenRegistry.register({
   icon: NotebookPen,
   category: 'trading',
   order: 55,
+})
+
+// Register Freqtrade screen
+ScreenRegistry.register({
+  id: 'freqtrade',
+  title: 'Freqtrade',
+  preset: undefined,
+  icon: Bot,
+  category: 'trading',
+  order: 56,
 })
 
 const queryClient = new QueryClient()
