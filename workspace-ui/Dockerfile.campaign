@@ -1,0 +1,23 @@
+FROM node:22-alpine
+
+RUN apk add --no-cache tini python3 make g++
+
+WORKDIR /app
+
+# Install ALL deps inside the container (native modules compile for Alpine)
+COPY package.json package-lock.json ./
+RUN npm ci 2>&1 | tail -5
+
+# Install tsx globally
+RUN npm install -g tsx
+
+# Copy source code at the end (changes trigger rebuild of this layer only)
+COPY tsconfig.json ./
+COPY src/ ./src/
+COPY scripts/ ./scripts/
+
+ENTRYPOINT ["/sbin/tini", "--"]
+CMD ["tsx", "scripts/paper-campaign.ts"]
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
+  CMD sh -c 'ps aux | grep -v grep | grep -q "paper-campaign" && echo ok || exit 1'

@@ -1,0 +1,19 @@
+services:
+  campaign:
+    build:
+      context: .
+      dockerfile: Dockerfile.campaign
+    container_name: paper-campaign
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - SMOKE_MODE=
+      - CAMPAIGN_MODE=FullCampaign
+    volumes:
+      # Mount Windows temp → container /tmp/paper-campaign for snapshot persistence
+      - C:\Users\NoName\AppData\Local\Temp\paper-campaign:/tmp/paper-campaign
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
