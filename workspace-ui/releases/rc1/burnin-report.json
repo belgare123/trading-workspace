@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-07-28T20:43:15.449Z",
+  "generatorVersion": "1.0.0",
+  "report": {
+    "campaign": {
+      "campaignId": "paper-20260727",
+      "strategy": "N/A",
+      "exchange": "N/A",
+      "symbol": "N/A",
+      "timeframe": "N/A",
+      "started": "2026-07-27T00:00:00.000Z",
+      "finished": "2026-07-28T20:43:15.448Z",
+      "durationSec": 160995,
+      "durationHuman": "44h 43m 15s",
+      "gitCommit": "N/A",
+      "buildVersion": "N/A"
+    },
+    "runtime": {
+      "uptimeSec": 86401,
+      "uptimeHuman": "24h 0m 1s",
+      "rssMB": 20,
+      "heapMB": 12,
+      "cpuPercent": null,
+      "feedReconnects": 0,
+      "errorsSinceLastCheck": 0,
+      "wsLatencyMs": null,
+      "queueLatencyMs": null
+    },
+    "trading": {
+      "totalTrades": 72,
+      "winningTrades": 27,
+      "losingTrades": 45,
+      "winRate": 0.375,
+      "grossProfit": 207.62,
+      "grossLoss": -271.10999999999996,
+      "totalNetPnl": -63.489999999999995,
+      "profitFactor": 0.7658146139943198,
+      "expectancy": -0.8818055555555548,
+      "avgWin": 7.689629629629629,
+      "avgLoss": 6.024666666666666,
+      "payoffRatio": 1.276357689990533,
+      "avgHoldingSec": 0,
+      "commissionPct": 0
+    },
+    "equity": {
+      "currentEquity": 9216.57,
+      "peakEquity": 10012.85,
+      "lowestEquity": 9211.83,
+      "totalRealizedPnL": -63.49,
+      "unrealizedPnL": 0,
+      "maxDrawdown": 801.02,
+      "maxDrawdownPercent": 7.9999,
+      "recoveryFactor": 0.0793,
+      "ulcerIndex": 4.8341,
+      "dailyReturn": -5.2416,
+      "weeklyReturn": -7.8343,
+      "drawdownPeakToTrough": "$801.02 (8.00%)"
+    },
+    "risk": {
+      "exposure": null,
+      "positionSize": null,
+      "fees": 0,
+      "commissionPct": 0,
+      "slippagePct": null,
+      "maxConsecutiveLosses": null,
+      "maxConsecutiveWins": null,
+      "avgCommissionPerTrade": 0
+    },
+    "reliability": {
+      "replayVerification": "PASS",
+      "regressionPassRate": "100/100",
+      "feedReconnects": 0,
+      "exceptions": 0,
+      "memoryLeakDetected": false,
+      "uptime": "24h 0m 1s"
+    },
+    "certification": {
+      "replay": "PASS",
+      "burnIn": "PASS",
+      "regression": "PASS",
+      "determinism": "PASS",
+      "overall": "READY FOR NEXT PHASE"
+    }
+  }
+}

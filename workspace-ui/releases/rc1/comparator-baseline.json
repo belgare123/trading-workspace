@@ -1,0 +1,292 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-07-28T20:43:48.375Z",
+  "comparatorVersion": "1.0.0",
+  "baseline": {
+    "path": "releases/rc1/burnin-report.json",
+    "campaignId": "paper-20260727",
+    "generatedAt": "2026-07-28T20:43:15.449Z"
+  },
+  "target": {
+    "path": "releases/rc1/burnin-report.json",
+    "campaignId": "paper-20260727",
+    "generatedAt": "2026-07-28T20:43:15.449Z"
+  },
+  "sections": [
+    {
+      "section": "trading",
+      "title": "📊 Trading",
+      "metrics": [
+        {
+          "key": "trading.totalNetPnl",
+          "label": "Net PnL",
+          "baseline": -63.489999999999995,
+          "target": -63.489999999999995,
+          "absDelta": 0,
+          "pctDelta": 0,
+          "direction": "flat",
+          "verdict": "unchanged"
+        },
+        {
+          "key": "trading.winRate",
+          "label": "Win Rate",
+          "baseline": 0.375,
+          "target": 0.375,
+          "absDelta": 0,
+          "pctDelta": 0,
+          "direction": "flat",
+          "verdict": "unchanged"
+        },
+        {
+          "key": "trading.profitFactor",
+          "label": "Profit Factor",
+          "baseline": 0.7658146139943198,
+          "target": 0.7658146139943198,
+          "absDelta": 0,
+          "pctDelta": 0,
+          "direction": "flat",
+          "verdict": "unchanged"
+        },
+        {
+          "key": "trading.expectancy",
+          "label": "Expectancy",
+          "baseline": -0.8818055555555548,
+          "target": -0.8818055555555548,
+          "absDelta": 0,
+          "pctDelta": 0,
+          "direction": "flat",
+          "verdict": "unchanged"
+        },
+        {
+          "key": "trading.payoffRatio",
+          "label": "Payoff Ratio",
+          "baseline": 1.276357689990533,
+          "target": 1.276357689990533,
+          "absDelta": 0,
+          "pctDelta": 0,
+          "direction": "flat",
+          "verdict": "unchanged"
+        },
+        {
+          "key": "trading.grossProfit",
+          "label": "Gross Profit",
+          "baseline": 207.62,
+          "target": 207.62,
+          "absDelta": 0,
+          "pctDelta": 0,
+          "direction": "flat",
+          "verdict": "unchanged"
+        },
+        {
+          "key": "trading.grossLoss",
+          "label": "Gross Loss",
+          "baseline": -271.10999999999996,
+          "target": -271.10999999999996,
+          "absDelta": 0,
+          "pctDelta": 0,
+          "direction": "flat",
+          "verdict": "unchanged"
+        },
+        {
+          "key": "trading.avgWin",
+          "label": "Avg Win",
+          "baseline": 7.689629629629629,
+          "target": 7.689629629629629,
+          "absDelta": 0,
+          "pctDelta": 0,
+          "direction": "flat",
+          "verdict": "unchanged"
+        },
+        {
+          "key": "trading.avgLoss",
+          "label": "Avg Loss",
+          "baseline": 6.024666666666666,
+          "target": 6.024666666666666,
+          "absDelta": 0,
+          "pctDelta": 0,
+          "direction": "flat",
+          "verdict": "unchanged"
+        },
+        {
+          "key": "trading.totalTrades",
+          "label": "Total Trades",
+          "baseline": 72,
+          "target": 72,
+          "absDelta": 0,
+          "pctDelta": 0,
+          "direction": "flat",
+          "verdict": "unchanged"
+        },
+        {
+          "key": "trading.avgHoldingSec",
+          "label": "Avg Hold Time (s)",
+          "baseline": 0,
+          "target": 0,
+          "absDelta": 0,
+          "pctDelta": 0,
+          "direction": "flat",
+          "verdict": "unchanged"
+        },
+        {
+          "key": "trading.commissionPct",
+          "label": "Commission %",
+          "baseline": 0,
+          "target": 0,
+          "absDelta": 0,
+          "pctDelta": 0,
+          "direction": "flat",
+          "verdict": "unchanged"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "section": "equity",
+      "title": "💰 Equity",
+      "metrics": [
+        {
+          "key": "equity.currentEquity",
+          "label": "Current Equity",
+          "baseline": 9216.57,
+          "target": 9216.57,
+          "absDelta": 0,
+          "pctDelta": 0,
+          "direction": "flat",
+          "verdict": "unchanged"
+        },
+        {
+          "key": "equity.totalRealizedPnL",
+          "label": "Realized PnL",
+          "baseline": -63.49,
+          "target": -63.49,
+          "absDelta": 0,
+          "pctDelta": 0,
+          "direction": "flat",
+          "verdict": "unchanged"
+        },
+        {
+          "key": "equity.maxDrawdownPercent",
+          "label": "Max DD %",
+          "baseline": 7.9999,
+          "target": 7.9999,
+          "absDelta": 0,
+          "pctDelta": 0,
+          "direction": "flat",
+          "verdict": "unchanged"
+        },
+        {
+          "key": "equity.recoveryFactor",
+          "label": "Recovery Factor",
+          "baseline": 0.0793,
+          "target": 0.0793,
+          "absDelta": 0,
+          "pctDelta": 0,
+          "direction": "flat",
+          "verdict": "unchanged"
+        },
+        {
+          "key": "equity.ulcerIndex",
+          "label": "Ulcer Index",
+          "baseline": 4.8341,
+          "target": 4.8341,
+          "absDelta": 0,
+          "pctDelta": 0,
+          "direction": "flat",
+          "verdict": "unchanged"
+        },
+        {
+          "key": "equity.dailyReturn",
+          "label": "Daily Return",
+          "baseline": -5.2416,
+          "target": -5.2416,
+          "absDelta": 0,
+          "pctDelta": 0,
+          "direction": "flat",
+          "verdict": "unchanged"
+        },
+        {
+          "key": "equity.weeklyReturn",
+          "label": "Weekly Return",
+          "baseline": -7.8343,
+          "target": -7.8343,
+          "absDelta": 0,
+          "pctDelta": 0,
+          "direction": "flat",
+          "verdict": "unchanged"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "section": "runtime",
+      "title": "⚙️ Runtime",
+      "metrics": [
+        {
+          "key": "runtime.rssMB",
+          "label": "RSS (MB)",
+          "baseline": 20,
+          "target": 20,
+          "absDelta": 0,
+          "pctDelta": 0,
+          "direction": "flat",
+          "verdict": "unchanged"
+        },
+        {
+          "key": "runtime.heapMB",
+          "label": "Heap (MB)",
+          "baseline": 12,
+          "target": 12,
+          "absDelta": 0,
+          "pctDelta": 0,
+          "direction": "flat",
+          "verdict": "unchanged"
+        },
+        {
+          "key": "runtime.feedReconnects",
+          "label": "Reconnects",
+          "baseline": 0,
+          "target": 0,
+          "absDelta": 0,
+          "pctDelta": 0,
+          "direction": "flat",
+          "verdict": "unchanged"
+        },
+        {
+          "key": "runtime.errorsSinceLastCheck",
+          "label": "Exceptions",
+          "baseline": 0,
+          "target": 0,
+          "absDelta": 0,
+          "pctDelta": 0,
+          "direction": "flat",
+          "verdict": "unchanged"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "section": "reliability",
+      "title": "🛡️ Reliability",
+      "metrics": [
+        {
+          "key": "reliability.exceptions",
+          "label": "Exceptions",
+          "baseline": 0,
+          "target": 0,
+          "absDelta": 0,
+          "pctDelta": 0,
+          "direction": "flat",
+          "verdict": "unchanged"
+        }
+      ],
+      "passed": true
+    }
+  ],
+  "summary": {
+    "total": 24,
+    "improved": 0,
+    "degraded": 0,
+    "unchanged": 24
+  },
+  "overallVerdict": "PASS"
+}
